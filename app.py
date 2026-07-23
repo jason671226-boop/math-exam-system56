@@ -195,6 +195,9 @@ def render_share_buttons(content_text, key_prefix):
         line_url = f"https://line.me/R/msg/text/?{mail_body[:500]}"
         st.markdown(f'<a href="{line_url}" target="_blank"><button style="width:100%; border-radius:5px; border:1px solid #06C755; background-color:#06C755; color:white; padding:8px; cursor:pointer;">💬 分享到 LINE</button></a>', unsafe_allow_html=True)
 
+# 共用的防重複與動態出題提示詞
+anti_duplicate_prompt = "【防重複出題機制】：為確保同一位學生每次練習都有新體驗，請務必「大幅度隨機替換」所有題目的數字、人名、情境與物品。即使題型相同，數字也必須完全不同，嚴禁產出與標準題庫完全一模一樣的死板題目。"
+
 # ==========================================
 # 第一頁：登入與試用頁面
 # ==========================================
@@ -360,12 +363,8 @@ elif st.session_state["setup_complete"]:
         st.markdown("---")
         st.subheader("🎯 步驟三：自動產出解析與模擬試題")
         
-        # 費用控管疊代：若是試用版，不顯示興趣融合選項，強制使用一般輸出
-        use_interests_1 = False
-        if not is_trial:
-            use_interests_1 = st.checkbox("🌟 融合學生興趣情境 (將學生的興趣融入題目中，提高代入感)", value=True)
-        else:
-            st.info("💡 目前為試用模式，為節省雲端資源，系統將以「一般情境」輸出題目。若需融合學生專屬興趣，請註冊登入正式帳號。")
+        # 費用控管疊代：強制關閉興趣情境，保留顯示但禁用
+        use_interests_1 = st.checkbox("🌟 融合學生興趣情境 (等正式版的時候再開放)", value=False, disabled=True)
 
         if st.button("🚀 執行一鍵產出 (扣除 1 次額度)", type="primary"):
             if not edited_text:
@@ -377,12 +376,7 @@ elif st.session_state["setup_complete"]:
                     try:
                         client = genai.Client(api_key=GEMINI_KEY)
                         format_instruction = "【強制警告】：絕對禁止使用任何 LaTeX 語法 (如 \\frac)，所有的分數請一律轉換為『中文數字或純數字』格式 (如 5又5/8)。" if math_safe else ""
-                        
-                        if use_interests_1:
-                            student_interests = ", ".join(st.session_state["user_profile"].get("interests", []))
-                            interest_prompt = f"學生喜好的興趣元素：{student_interests} (請將這些元素巧妙融入模擬試題的情境中)"
-                        else:
-                            interest_prompt = "請以一般標準的數學情境出題，不需特別融合特定人物或興趣。"
+                        interest_prompt = "請以一般標準的數學情境出題，不需特別融合特定人物或興趣。"
                         
                         prompt = f"""
                         錯題內容：
@@ -390,6 +384,7 @@ elif st.session_state["setup_complete"]:
                         
                         {interest_prompt}
                         {format_instruction}
+                        {anti_duplicate_prompt}
                         
                         請嚴格產出以下內容：
                         ## 📝 第一部分：錯題詳細解析 (一題一題詳細步驟)
@@ -429,10 +424,8 @@ elif st.session_state["setup_complete"]:
             multiples = [confirmed_q_count * i for i in range(1, 6)]
             selected_var_count = st.selectbox("請選擇需要生成的題目數量：", multiples)
             
-            # 費用控管疊代：試用版不顯示興趣融合選項
-            use_interests_var = False
-            if not is_trial:
-                use_interests_var = st.checkbox("🌟 變形題融合學生興趣情境", value=True, key="var_interest")
+            # 費用控管疊代：強制關閉興趣情境，保留顯示但禁用
+            use_interests_var = st.checkbox("🌟 變形題融合學生興趣情境 (等正式版的時候再開放)", value=False, disabled=True, key="var_interest")
             
             st.info("💡 提示：新的試卷寫完，家長或老師改完對錯之後，再重新上傳照片掃描錯題，再提供學生作答，以達到疊代升級的效果。")
             
@@ -452,16 +445,13 @@ elif st.session_state["setup_complete"]:
                         elif btn_var2: task = f"產出 {selected_var_count} 題難度較高、具挑戰性的變形題"
                         else: task = f"綜合原考卷的所有觀念，產出 {selected_var_count} 題的全新模擬試卷"
                         
-                        if use_interests_var:
-                            student_interests = ", ".join(st.session_state["user_profile"].get("interests", []))
-                            interest_prompt = f"學生喜好的元素：{student_interests} (請將這些元素巧妙融入情境中)"
-                        else:
-                            interest_prompt = "請以一般情境出題，不需融合特定興趣。"
+                        interest_prompt = "請以一般情境出題，不需融合特定興趣。"
                         
                         prompt_var = f"""
                         錯題/考卷內容：{edited_text}
                         {interest_prompt}
                         任務要求：{task}。
+                        {anti_duplicate_prompt}
                         【強制規定】：
                         1. 嚴禁使用 LaTeX (如 \\frac)，遇到分數一律以純文字 (如 5又5/8) 表示。
                         2. 每一題題目後面必須空 3 行以上 (<br><br><br>) 供學生書寫。
@@ -505,7 +495,9 @@ elif st.session_state["setup_complete"]:
             
             st.markdown("#### 🎯 針對歷史錯題生成全新複習試卷")
             gen_count = st.selectbox("希望生成的總題目數量：", [10, 20, 30])
-            use_interests_history = st.checkbox("🌟 歷史複習卷融合學生興趣情境", value=True, key="history_interest")
+            
+            # 費用控管疊代：強制關閉興趣情境，保留顯示但禁用
+            use_interests_history = st.checkbox("🌟 歷史複習卷融合學生興趣情境 (等正式版的時候再開放)", value=False, disabled=True, key="history_interest")
             
             ch_col1, ch_col2, ch_col3 = st.columns(3)
             with ch_col1: h_btn1 = st.button("產生模擬試題", key="h1", use_container_width=True)
@@ -523,16 +515,13 @@ elif st.session_state["setup_complete"]:
                         elif h_btn2: mode_text = "變形試題 (情境與數字皆大改)"
                         else: mode_text = "深入試題 (增加解題步驟與複合觀念)"
                         
-                        if use_interests_history:
-                            student_interests = ", ".join(st.session_state["user_profile"].get("interests", []))
-                            interest_prompt = f"請將學生的興趣元素：{student_interests} 巧妙融入情境中。"
-                        else:
-                            interest_prompt = "請以一般情境出題。"
+                        interest_prompt = "請以一般情境出題。"
                         
                         prompt_history = f"""
                         學生歷史錯題清單：{history_text}
                         任務：請產出 {gen_count} 題【{mode_text}】。
                         {interest_prompt}
+                        {anti_duplicate_prompt}
                         【強制限制】：
                         1. 絕對禁止使用 LaTeX (如 \\frac)，分數請使用純文字 (如 5又5/8)。
                         2. 每一題後面必須空 3 行以上 (<br><br><br>) 供學生書寫。
@@ -597,7 +586,8 @@ elif st.session_state["setup_complete"]:
             with c_q2: mc_cnt = st.selectbox("選擇題", [10, 15, 20])
             with c_q3: calc_cnt = st.selectbox("計算題", [5, 10])
             
-            use_interests_custom = st.checkbox("🌟 自組卷融合學生興趣情境", value=True, key="custom_interest")
+            # 費用控管疊代：強制關閉興趣情境，保留顯示但禁用
+            use_interests_custom = st.checkbox("🌟 自組卷融合學生興趣情境 (等正式版的時候再開放)", value=False, disabled=True, key="custom_interest")
             
             if st.button("產生自組卷", type="primary"):
                 if not selected_mains or not selected_subs: 
@@ -610,11 +600,7 @@ elif st.session_state["setup_complete"]:
                     with st.spinner("系統先檢索資料庫，並透過 AI 智能組卷中..."):
                         client = genai.Client(api_key=GEMINI_KEY)
                         
-                        if use_interests_custom:
-                            student_interests = ", ".join(st.session_state["user_profile"].get("interests", []))
-                            interest_prompt = f"請將學生的興趣元素：{student_interests} 巧妙融入情境中。"
-                        else:
-                            interest_prompt = "請以一般情境出題。"
+                        interest_prompt = "請以一般情境出題。"
                             
                         prompt = f"""
                         範圍：{selected_mains} (題型方向：{selected_subs})。
@@ -624,6 +610,7 @@ elif st.session_state["setup_complete"]:
                         3. 計算題 {calc_cnt} 題
                         
                         {interest_prompt}
+                        {anti_duplicate_prompt}
                         
                         【極度重要排版規定】：
                         - 絕對禁止使用 LaTeX (如 \\frac)，分數一律使用純文字。
