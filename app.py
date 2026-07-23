@@ -27,7 +27,7 @@ st.set_page_config(
     page_title="AI 數學錯題迭代系統", page_icon="🤖", initial_sidebar_state="expanded", layout="wide"
 )
 
-# 初始化 session state (嚴格維持所有既有狀態)
+# 初始化 session state
 if "setup_complete" not in st.session_state:
     st.session_state["setup_complete"] = False
 if "is_trial" not in st.session_state:
@@ -42,6 +42,16 @@ if "variation_content" not in st.session_state:
     st.session_state["variation_content"] = ""
 if "history_mistakes" not in st.session_state:
     st.session_state["history_mistakes"] = ""
+
+# --- 自動從 Streamlit 後台背景安全讀取金鑰（前端不顯示任何空白輸入框） ---
+try:
+    SUPABASE_URL = st.secrets.get("SUPABASE_URL", "")
+    SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "")
+    GEMINI_KEY = st.secrets.get("GEMINI_KEY", "")
+except Exception:
+    SUPABASE_URL = ""
+    SUPABASE_KEY = ""
+    GEMINI_KEY = ""
 
 # --- 側邊欄常駐區塊 ---
 with st.sidebar:
@@ -63,13 +73,6 @@ with st.sidebar:
     feedback_text = st.text_area("歡迎提供系統使用建議：", placeholder="請輸入...")
     if st.button("送出回饋"):
         if feedback_text: st.success("感謝回饋！系統已記錄。")
-    st.markdown("---")
-    
-    # 透過空白預設值與動態輸入通過 GitHub Secret Scanning 安全審查
-    st.markdown("### 🔑 系統 API 與資料庫設定")
-    SUPABASE_URL = st.text_input("SUPABASE_URL", value="")
-    SUPABASE_KEY = st.text_input("SUPABASE_KEY", type="password", value="")
-    GEMINI_KEY = st.text_input("GEMINI_KEY", type="password", value="")
 
 @st.cache_resource
 def init_supabase(url, key):
@@ -284,7 +287,7 @@ elif st.session_state["setup_complete"]:
             if not edited_text:
                 st.warning("請先輸入或掃描題目！")
             elif not GEMINI_KEY:
-                st.error("未偵測到 GEMINI_KEY")
+                st.error("系統尚未設定後台 GEMINI_KEY，請至 Streamlit Secrets 中填入！")
             elif deduct_credit():
                 with st.spinner("系統正優先檢索資料庫並自動生成中..."):
                     try:
@@ -329,8 +332,6 @@ elif st.session_state["setup_complete"]:
 
         if st.session_state["generated_content"]:
             st.markdown(st.session_state["generated_content"], unsafe_allow_html=True)
-            
-            # 呼叫共用分享列
             render_share_buttons(st.session_state["generated_content"], "scan_res")
                 
             st.markdown("---")
@@ -347,7 +348,9 @@ elif st.session_state["setup_complete"]:
             with c_var3: btn_mock = st.button("根據整份考卷再生成模擬卷", use_container_width=True)
             
             if btn_var1 or btn_var2 or btn_mock:
-                if not deduct_credit():
+                if not GEMINI_KEY:
+                    st.error("系統尚未設定後台 GEMINI_KEY！")
+                elif not deduct_credit():
                     st.error("⚠️ 您的 30 次免費額度已用盡！")
                 else:
                     with st.spinner("產出專屬疊代題庫中..."):
@@ -411,8 +414,10 @@ elif st.session_state["setup_complete"]:
             
             if (h_btn1 or h_btn2 or h_btn3) and history_text:
                 if not GEMINI_KEY:
-                    st.error("請在左側常駐欄輸入 GEMINI_KEY")
-                elif deduct_credit():
+                    st.error("系統尚未設定後台 GEMINI_KEY！")
+                elif not deduct_credit():
+                    st.error("⚠️ 您的 30 次免費額度已用盡！")
+                else:
                     with st.spinner("AI 正在比對歷史題型並產出全新考卷中..."):
                         if h_btn1: mode_text = "模擬試題 (與原題型相似)"
                         elif h_btn2: mode_text = "變形試題 (情境與數字皆大改)"
@@ -444,8 +449,6 @@ elif st.session_state["setup_complete"]:
                             render_share_buttons(res_history.text, "history_res")
                         except Exception as e:
                             st.error(f"錯誤：{e}")
-                else:
-                    st.error("⚠️ 您的 30 次免費額度已用盡！")
 
     # --- TAB 3 & 4 (非試用版) ---
     if not is_trial:
@@ -454,8 +457,10 @@ elif st.session_state["setup_complete"]:
             st.info("系統將讀取您的錯題與學習弱點，產生專屬診斷。")
             if st.button("生成 14 天複習計畫與圖形解析"):
                 if not GEMINI_KEY:
-                    st.error("請在左側常駐欄輸入 GEMINI_KEY")
-                elif deduct_credit():
+                    st.error("系統尚未設定後台 GEMINI_KEY！")
+                elif not deduct_credit():
+                    st.error("⚠️ 您的 30 次免費額度已用盡！")
+                else:
                     with st.spinner("整合弱點資料中..."):
                         client = genai.Client(api_key=GEMINI_KEY)
                         traits = ", ".join(st.session_state["user_profile"]["traits"])
@@ -463,8 +468,6 @@ elif st.session_state["setup_complete"]:
                         resp = client.models.generate_content(model="gemini-3.5-flash", contents=[prompt])
                         st.markdown(resp.text)
                         render_share_buttons(resp.text, "diag_res")
-                else:
-                    st.error("⚠️ 您的 30 次免費額度已用盡！")
 
         with tab_custom:
             st.subheader("⚙️ 題目自組卷 (支援跨單元複選與精準排版)")
@@ -488,8 +491,10 @@ elif st.session_state["setup_complete"]:
                 if not selected_mains or not selected_subs: 
                     st.warning("請先選擇主單元與次單元題型")
                 elif not GEMINI_KEY: 
-                    st.error("請在左側常駐欄輸入 GEMINI_KEY")
-                elif deduct_credit():
+                    st.error("系統尚未設定後台 GEMINI_KEY！")
+                elif not deduct_credit():
+                    st.error("⚠️ 您的 30 次免費額度已用盡！")
+                else:
                     with st.spinner("系統先檢索資料庫，並透過 AI 智能組卷中..."):
                         client = genai.Client(api_key=GEMINI_KEY)
                         prompt = f"""
@@ -520,5 +525,3 @@ elif st.session_state["setup_complete"]:
                             render_share_buttons(resp.text, "custom_res")
                         except Exception as e:
                             st.error(f"錯誤：{e}")
-                else:
-                    st.error("⚠️ 您的 30 次免費額度已用盡！")
