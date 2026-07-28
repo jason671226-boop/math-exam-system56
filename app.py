@@ -9,6 +9,46 @@ import random
 import smtplib
 from email.mime.text import MIMEText
 from datetime import date
+import base64
+
+# --- 修正 Streamlit 新版本導致 Canvas 圖片顯示空白的問題 (強制轉換為 Base64 Data URI) ---
+import streamlit.elements.image as st_image
+
+def _compat_image_to_url(image, width=None, clamp=False, channels="RGB", output_format="PNG", image_id=None):
+    try:
+        if isinstance(image, str):
+            return image
+        buffered = io.BytesIO()
+        if hasattr(image, 'save'):
+            image.save(buffered, format="PNG")
+        elif isinstance(image, bytes):
+            buffered.write(image)
+        else:
+            from PIL import Image as PILImage
+            img_obj = PILImage.fromarray(image)
+            img_obj.save(buffered, format="PNG")
+        img_str = base64.b64encode(buffered.getvalue()).decode()
+        return f"data:image/png;base64,{img_str}"
+    except Exception:
+        return image
+
+st_image.image_to_url = _compat_image_to_url
+
+try:
+    import streamlit.type_util as st_type_util
+    st_type_util.image_to_url = _compat_image_to_url
+except Exception:
+    pass
+
+# 嘗試載入 Canvas 畫布套件 (必須在修補函式注入後載入)
+try:
+    import streamlit_drawable_canvas
+    if hasattr(streamlit_drawable_canvas, 'image_to_url'):
+        streamlit_drawable_canvas.image_to_url = _compat_image_to_url
+    from streamlit_drawable_canvas import st_canvas
+    CANVAS_AVAILABLE = True
+except ImportError:
+    CANVAS_AVAILABLE = False
 
 # 嘗試載入 Pandas (處理 CSV)
 try:
@@ -19,23 +59,23 @@ except ImportError:
 
 # 嘗試載入 Google GenAI 套件
 try:
-  from google import genai
-  GENAI_AVAILABLE = True
+    from google import genai
+    GENAI_AVAILABLE = True
 except ImportError:
-  GENAI_AVAILABLE = False
+    GENAI_AVAILABLE = False
 
 # 嘗試載入 Supabase 套件
 try:
-  from supabase import Client, create_client
-  SUPABASE_AVAILABLE = True
+    from supabase import Client, create_client
+    SUPABASE_AVAILABLE = True
 except ImportError:
-  SUPABASE_AVAILABLE = False
+    SUPABASE_AVAILABLE = False
 
 try:
-  from PIL import Image
-  PIL_AVAILABLE = True
+    from PIL import Image
+    PIL_AVAILABLE = True
 except ImportError:
-  PIL_AVAILABLE = False
+    PIL_AVAILABLE = False
 
 st.set_page_config(
     page_title="AI 數學錯題迭代系統", 
@@ -81,7 +121,7 @@ def get_client_ip():
     except Exception:
         return "127.0.0.1"
 
-# 全國縣市與鄉鎮市區二級字典 (涵蓋 22 縣市含金門、馬祖)
+# 全國縣市與鄉鎮市區二級字典
 taiwan_districts = {
     "台北市": [
         "中正區", "大同區", "中山區", "松山區", "大安區", "萬華區", 
@@ -99,7 +139,7 @@ taiwan_districts = {
     ],
     "桃園市": [
         "桃園區", "中壢區", "平鎮區", "八德區", "楊梅區", "蘆竹區", 
-        "大溪區", "龍潭區", "龜山區", "大園區", "觀音區", "新屋區", "復興區"
+        "大溪區", "龍潭區", "龜山區", "大園區", "觀音區", "新屋區", "複興區"
     ],
     "新竹市": [
         "東區", "北區", "香山區"
@@ -110,7 +150,7 @@ taiwan_districts = {
     ],
     "苗栗縣": [
         "苗栗市", "頭份市", "竹南鎮", "後龍鎮", "通霄鎮", "苑裡鎮", 
-        "卓蘭鎮", "造橋鄉", "西湖鄉", "頭屋鄉", "公館鄉", "銅鑼鄉", 
+        "卓欄鎮", "造橋鄉", "西湖鄉", "頭屋鄉", "公館鄉", "銅鑼鄉", 
         "三義鄉", "大湖鄉", "獅潭鄉", "三灣鄉", "南庄鄉", "泰安鄉"
     ],
     "台中市": [
@@ -196,13 +236,11 @@ taiwan_districts = {
 
 taiwan_counties = list(taiwan_districts.keys())
 
-# 年級選項 (1~12年級)
 grade_options = [
     "1年級(小一)", "2年級(小二)", "3年級(小三)", "4年級(小四)", "5年級(小五)", "6年級(小六)",
     "7年級(國一)", "8年級(國二)", "9年級(國三)", "10年級(高一)", "11年級(高二)", "12年級(高三)"
 ]
 
-# 興趣目錄定義
 interests_catalog = {
     "流行 IP": ["寶可夢 (Pokémon)", "角落小夥伴", "卡比", "汪汪隊立大功", "迪士尼系列"],
     "動漫": ["鬼滅之刃", "咒術迴戰", "葬送的芙莉蓮", "航海王", "名偵探柯南"],
@@ -211,7 +249,6 @@ interests_catalog = {
     "體育運動": ["籃球", "羽球", "桌球", "排球", "躲避球"]
 }
 
-# 常見免洗信箱黑名單
 DISPOSABLE_DOMAINS = [
     "10minutemail.com", "tempmail.com", "guerrillamail.com", 
     "yopmail.com", "mailinator.com", "throwawaymail.com", 
@@ -279,7 +316,6 @@ if not SUPABASE_KEY:
     s_part2 = "NJD5Hg_p-J5JsJ5"
     SUPABASE_KEY = s_part1 + s_part2
 
-# 系統發信帳號
 if not SMTP_USER:
     SMTP_USER = "system.math.ai@gmail.com"
 if not SMTP_PASSWORD:
@@ -295,7 +331,6 @@ def init_supabase(url, key):
 
 supabase_client = init_supabase(SUPABASE_URL, SUPABASE_KEY)
 
-# --- 從 Supabase 資料庫讀寫使用者完整的個人資料 ---
 def fetch_user_profile_from_db(email):
     if not supabase_client or not email or email == "trial@example.com":
         return None
@@ -331,7 +366,6 @@ def save_user_profile_to_db(profile_data):
     except Exception:
         pass
 
-# --- 🚀 核心功能：從資料庫撈取既有題庫 (Hybrid Generation) ---
 def fetch_relevant_questions_from_db(keywords, limit=20):
     if not supabase_client or not keywords: return ""
     extracted_data = []
@@ -387,7 +421,6 @@ def send_otp_email(target_email, otp_code):
     else:
         return True
 
-# --- 寄送 HTML 格式試卷至 Email 函式 ---
 def send_exam_email(target_email, exam_content):
     if not target_email or "@" not in target_email or target_email == "trial@example.com":
         st.warning("⚠️ 請輸入有效的 Email 帳號以使用寄送功能！")
@@ -556,9 +589,6 @@ with st.sidebar:
                             except Exception as e:
                                 st.error(f"錯誤：{e}")
 
-# ==========================================
-# 🛠️ 扣除額度 (修正與保護機制)
-# ==========================================
 def deduct_credit():
     if "credits" not in st.session_state["user_profile"]:
         st.session_state["user_profile"]["credits"] = 5
@@ -575,7 +605,21 @@ def handle_api_error(e):
     else:
         st.error(f"錯誤：{error_msg}")
 
-# --- 🎯 獨立視窗彈出式列印 (100% 絕對乾淨只印題目與解答) ---
+def show_trial_conversion_notice():
+    notice_box = (
+        "<div style='background-color: #fff3cd; color: #856404; padding: 20px; border-radius: 10px; border-left: 6px solid #ffeba2; margin: 15px 0; font-size: 1.05em; line-height: 1.7;'>"
+        "<b>⚠️ 今天的免費試用額度已使用完畢（每日限體驗 1 次）。</b><br><br>"
+        "想要繼續掃描錯題、產出更多專屬練習嗎？請點擊頁籤至 <b>[🏠 返回首頁設定]</b> 完成免費登入綁定！<br><br>"
+        "<b>👉 為什麼你應該立即免費註冊綁定？</b><br>"
+        "• 🧠 <b>自動建立專屬學習履歷</b>：系統將自動記錄每一次的錯題，精準追蹤你的知識盲點。<br>"
+        "• 🎯 <b>弱點深度分析與迭代</b>：不再盲目刷題！唯有透過個人化錯題累積，才能進行高度客製化的「疊代升級練習」。<br>"
+        "• ⚡ <b>倍增學習效率</b>：幫學生省下 80% 整理錯題本的時間，直擊弱點，用最短時間獲得最大幅度進步！<br><br>"
+        "<i>( 綁定 Email 即可立即解鎖每日免費額度與完整功能！ )</i>"
+        "</div>"
+    )
+    st.markdown(notice_box, unsafe_allow_html=True)
+
+# --- 🎯 獨立視窗彈出式列印 (內建 KaTeX 引擎) ---
 def render_share_buttons(content_text, key_prefix):
     st.markdown("---")
     st.markdown("#### 📤 試卷輸出與分享選項")
@@ -583,33 +627,57 @@ def render_share_buttons(content_text, key_prefix):
     user_email = st.session_state["user_profile"].get("email", "")
     is_trial_user = (not user_email or user_email == "trial@example.com")
 
-    clean_html_content = content_text.replace('\n', '<br>')
+    json_safe_content = json.dumps(content_text)
 
     c_share1, c_share2, c_share3 = st.columns(3)
     
-    # 1. 🖨️ 列印 / 存PDF (彈出純淨新視窗)
     with c_share1:
         popup_print_script = f"""
         <script>
         function printOnlyExam() {{
-            var content = `{clean_html_content}`;
-            var printWindow = window.open('', '', 'width=900,height=1000');
-            printWindow.document.write('<html><head><title>AI 數學專屬試卷</title>');
+            var rawContent = {json_safe_content};
+            var formattedContent = rawContent
+                .replace(/\\n/g, '<br>')
+                .replace(/## (.*?)(<br>|$)/g, '<h2 class="section-title">$1</h2>');
+
+            var printWindow = window.open('', '', 'width=950,height=1000');
+            printWindow.document.write('<!DOCTYPE html><html><head><title>試題與解答卷</title>');
+            
+            printWindow.document.write('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">');
+            printWindow.document.write('<script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"><\\/script>');
+            printWindow.document.write('<script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"><\\/script>');
+            
             printWindow.document.write('<style>');
-            printWindow.document.write('@page {{ size: A4 portrait; margin: 1.2cm; }}');
-            printWindow.document.write('body {{ font-family: "Microsoft JhengHei", sans-serif; font-size: 12pt; line-height: 1.6; color: #000; }}');
-            printWindow.document.write('h2 {{ font-size: 16pt; border-bottom: 2px solid #000; padding-bottom: 5px; margin-top: 25px; page-break-before: always; break-before: page; }}');
-            printWindow.document.write('h2:first-of-type {{ page-break-before: avoid; break-before: avoid; }}');
-            printWindow.document.write('.page-break {{ page-break-after: always; break-after: page; height: 0; display: block; }}');
+            printWindow.document.write('@page {{ size: A4 portrait; margin: 10mm 12mm; }}');
+            printWindow.document.write('*, *::before, *::after {{ box-sizing: border-box; }}');
+            printWindow.document.write('body {{ font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; font-size: 11pt; line-height: 1.6; color: #000; margin: 0; padding: 0; background: #fff; }}');
+            printWindow.document.write('.section-title {{ font-size: 15pt; font-weight: bold; border-bottom: 2px solid #000; padding-bottom: 5px; margin-top: 15px; margin-bottom: 15px; page-break-before: always; break-before: page; }}');
+            printWindow.document.write('.section-title:first-of-type {{ page-break-before: avoid; break-before: avoid; }}');
+            printWindow.document.write('.page-break {{ page-break-before: always !important; break-before: page !important; height: 0; margin: 0; padding: 0; clear: both; }}');
+            printWindow.document.write('@media print {{ .no-print {{ display: none !important; }} }}');
             printWindow.document.write('</style></head><body>');
-            printWindow.document.write(content);
+            
+            printWindow.document.write('<div class="no-print" style="position: fixed; top: 10px; right: 20px; z-index: 9999;">');
+            printWindow.document.write('<button onclick="window.print()" style="padding: 10px 20px; font-size: 13pt; background-color: #ff4b4b; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">🖨️ 立即列印 / 另存為 PDF</button>');
+            printWindow.document.write('</div>');
+            
+            printWindow.document.write('<div id="exam-body">' + formattedContent + '</div>');
+            
+            printWindow.document.write('<script>');
+            printWindow.document.write('document.addEventListener("DOMContentLoaded", function() {{');
+            printWindow.document.write('    renderMathInElement(document.body, {{');
+            printWindow.document.write('        delimiters: [');
+            printWindow.document.write('            {{left: "$$", right: "$$", display: true}},');
+            printWindow.document.write('            {{left: "$", right: "$", display: false}}');
+            printWindow.document.write('        ],');
+            printWindow.document.write('        throwOnError: false');
+            printWindow.document.write('    }});');
+            printWindow.document.write('}});');
+            printWindow.document.write('<\\/script>');
+            
             printWindow.document.write('</body></html>');
             printWindow.document.close();
             printWindow.focus();
-            setTimeout(function() {{
-                printWindow.print();
-                printWindow.close();
-            }}, 500);
         }}
         </script>
         <button onclick="printOnlyExam()" style="
@@ -626,13 +694,11 @@ def render_share_buttons(content_text, key_prefix):
         """
         components.html(popup_print_script, height=45)
         
-    # 2. 💬 分享到 LINE
     with c_share2:
         mail_body = urllib.parse.quote(content_text)
         line_url = f"https://line.me/R/msg/text/?{mail_body[:500]}"
         st.markdown(f'<a href="{line_url}" target="_blank"><button style="width:100%; border-radius:5px; border:1px solid #06C755; background-color:#06C755; color:white; padding:10px; font-weight:bold; cursor:pointer; font-size: 14px;">💬 分享到 LINE</button></a>', unsafe_allow_html=True)
         
-    # 3. 📩 寄送至 Email
     with c_share3:
         if is_trial_user:
             if st.button("📩 寄送至 Email", key=f"{key_prefix}_send_btn", use_container_width=True):
@@ -643,7 +709,6 @@ def render_share_buttons(content_text, key_prefix):
                     if send_exam_email(user_email, content_text):
                         st.success(f"✅ 試卷與答案已成功寄送到：{user_email}")
 
-    # 試用者自填 Email 彈出框
     if is_trial_user and st.session_state.get(f"{key_prefix}_show_email_input", False):
         st.info("💡 請輸入接收試卷的 Email：")
         custom_target_email = st.text_input("輸入 Email：", key=f"{key_prefix}_input_email", placeholder="example@gmail.com")
@@ -656,7 +721,6 @@ def render_share_buttons(content_text, key_prefix):
             else:
                 st.warning("請先輸入正確的 Email 格式！")
 
-# 9 欄位 JSON 結構化解析與寫入共用函式
 def parse_and_insert_9_col_json(ai_response_text):
     if not supabase_client: return
     json_match = re.search(r'```json(.*?)```', ai_response_text, re.DOTALL)
@@ -675,9 +739,6 @@ def parse_and_insert_9_col_json(ai_response_text):
 
 anti_duplicate_prompt = "【防重複出題機制】：為確保每次練習都有新體驗，請大幅隨機替換數字與情境。嚴禁產出與標準題庫一模一樣的題目。"
 
-# ==========================================
-# 🌟 全新升級：最高強制級別排版模板 (試卷與解答中間強制分頁)
-# ==========================================
 COMMON_LAYOUT_PROMPT = (
     "【★★★ 極度重要：排版與解答格式強制規定 ★★★】\n"
     "1. 必須將「試卷區」與「解答區」完全分開輸出！前面先輸出所有試題（絕對不能在題目旁附答案），最後再統一輸出解答。\n"
@@ -750,11 +811,10 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
 
     col_trial_1, col_trial_2, col_trial_3 = st.columns([1, 2, 1])
     with col_trial_2:
-        if current_ip_trials >= 2:
+        if current_ip_trials >= 1:
             st.error("⚠️ 您的 IP 今日試用額度已用盡！請使用下方 Email 驗證登入。")
         else:
             if st.button("🚀 立即試用（直接進入錯題輸入畫面）", type="primary", use_container_width=True):
-                st.session_state["ip_trial_history"][ip_today_key] = current_ip_trials + 1
                 st.session_state["is_trial"] = True
                 st.session_state["setup_complete"] = True
                 st.rerun()
@@ -955,12 +1015,10 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
 # ==========================================
 elif st.session_state["setup_complete"]:
     is_trial = st.session_state.get("is_trial", False)
-    if is_trial:
-        tabs = st.tabs(["🏠 返回首頁設定", "📸 錯題解析"])
-        tab_back, tab_scan = tabs[0], tabs[1]
-    else:
-        tabs = st.tabs(["🏠 返回首頁設定", "📸 錯題解析", "📂 歷史錯題", "🧠 學習診斷", "⚙️ 自組考卷"])
-        tab_back, tab_scan, tab_history, tab_diag, tab_custom = tabs[0], tabs[1], tabs[2], tabs[3], tabs[4]
+    
+    # 頂部 5 個頁籤全部保留呈現
+    tabs = st.tabs(["🏠 返回首頁設定", "📸 錯題解析", "📂 歷史錯題 🔒", "🧠 學習診斷 🔒", "⚙️ 自組考卷 🔒"])
+    tab_back, tab_scan, tab_history, tab_diag, tab_custom = tabs[0], tabs[1], tabs[2], tabs[3], tabs[4]
 
     with tab_back:
         st.subheader("🏠 帳號與個人化設定")
@@ -971,7 +1029,18 @@ elif st.session_state["setup_complete"]:
             st.rerun()
 
     with tab_scan:
-        st.subheader("📝 步驟一：上傳照片與確認")
+        st.subheader("📝 步驟一：上傳照片與圖形劃記確認")
+        
+        # 潤色後的畫畫圈選引導說明
+        st.markdown(
+            "<div style='background-color: #f0f7ff; padding: 12px 16px; border-radius: 8px; border-left: 5px solid #007bff; margin-bottom: 15px; font-size: 14px; line-height: 1.6;'>"
+            "✍️ <b>考卷智慧標記與圈選（選填）：</b><br>"
+            "• <b>精準解答標記：</b> 如果 AI 辨識出的題目不是您想要的，或是遇到<b>空白未寫的題目</b>，您可以直接用手指/滑鼠在<b>題目題號或整道題目上「畫圈圈標記」</b>。<br>"
+            "• <b>優先處理：</b> 系統將會優先針對您<b>圈選標記的題目</b>進行精準萃取、詳細解題與產出延伸練習題！"
+            "</div>",
+            unsafe_allow_html=True
+        )
+
         uploaded_files = st.file_uploader("📂 上傳錯題照片 (最多支援 2 張)", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
         
         valid_files = uploaded_files
@@ -979,51 +1048,107 @@ elif st.session_state["setup_complete"]:
             st.warning("⚠️ 您上傳了超過 2 張照片，系統將自動為您保留前 2 張以確保處理品質喔！")
             valid_files = uploaded_files[:2]
 
+        annotated_images = []
+
         if valid_files:
-            st.markdown("#### 📸 已上傳圖片預覽")
+            st.markdown("#### 📸 考卷圈選與標記（請直接在想解答的題目或題號上畫圈）")
+            enable_image_fix = st.checkbox("🛠️ 啟用掃描增強 (自動去除灰暗背景/修正空白)", value=True)
+            
             cols_img = st.columns(len(valid_files))
             for idx, img_f in enumerate(valid_files):
                 with cols_img[idx]:
-                    st.image(img_f, caption=f"錯題照片 {idx+1}", use_container_width=True)
+                    st.caption(f"錯題照片 {idx+1}")
+                    raw_img = Image.open(img_f).convert("RGB")
+                    
+                    # 修正掃描空白/灰暗背景的處理
+                    if enable_image_fix:
+                        gray_img = raw_img.convert("L")
+                        threshold = 200
+                        binary_img = gray_img.point(lambda p: 255 if p > threshold else p)
+                        raw_img = binary_img.convert("RGB")
+                    
+                    if CANVAS_AVAILABLE:
+                        w, h = raw_img.size
+                        canvas_width = 450
+                        canvas_height = int(h * (canvas_width / w))
+                        
+                        canvas_result = st_canvas(
+                            fill_color="rgba(255, 0, 0, 0.1)",
+                            stroke_width=4,
+                            stroke_color="#FF0000", # 固定醒目紅色筆刷
+                            background_image=raw_img,
+                            update_streamlit=True,
+                            height=canvas_height,
+                            width=canvas_width,
+                            drawing_mode="freedraw",
+                            key=f"canvas_{idx}"
+                        )
+                        if canvas_result.image_data is not None:
+                            annotation_overlay = Image.fromarray(canvas_result.image_data.astype('uint8'), 'RGBA')
+                            base_img = raw_img.resize((canvas_width, canvas_height)).convert("RGBA")
+                            final_img = Image.alpha_composite(base_img, annotation_overlay).convert("RGB")
+                            annotated_images.append(final_img)
+                        else:
+                            annotated_images.append(raw_img)
+                    else:
+                        st.image(raw_img, use_container_width=True)
+                        st.info("💡 提示：安裝 `streamlit-drawable-canvas` 套件即可開啟手寫圈選題目功能！")
+                        annotated_images.append(raw_img)
 
         def perform_ai_scan(files, mode="normal"):
+            client_ip = get_client_ip()
+            ip_today_key = f"{today_str}_{client_ip}"
+            current_ip_trials = st.session_state["ip_trial_history"].get(ip_today_key, 0)
+
+            if is_trial and current_ip_trials >= 1:
+                show_trial_conversion_notice()
+                return
+
             if not deduct_credit():
                 st.error("⚠️ 您的免費額度已用盡！請明天再來領取每日獎勵。")
                 return
+
             if GENAI_AVAILABLE and PIL_AVAILABLE and GEMINI_KEY:
                 try:
                     client = genai.Client(api_key=GEMINI_KEY)
-                    anti_latex_prompt = "【強制警告】：絕對禁止使用 LaTeX (如 \\frac, $ $ 等符號)，遇到分數請一律轉換為純文字，例如『5又5/8』或『3/4』，避免系統產生亂碼。"
                     
                     if mode == "loose":
-                        prompt = (
-                            "你是資深數學老師。請以『寬鬆認定』標準，把考卷上有「紅筆劃掉」、「被扣分」、「空白沒寫」，或是「感覺是學生寫錯的」所有題目，通通掃描萃取出來。只要題目純文字即可。\n" 
-                            + anti_latex_prompt
-                        )
+                        prompt = "你是資深數學老師。請優先擷取圖片中『被紅筆劃線/圈選註記』、『空白未寫』或『被扣分』的題目。請萃取出題目純文字與完整數學符號。\n"
                     else:
-                        prompt = "請萃取圖片中的數學題目文字，每行一題，只要題目。\n" + anti_latex_prompt
+                        prompt = "請萃取圖片中的數學題目文字（特別注意圖片中被畫筆或紅筆圈選標記的重點題目），每行一題，包含完整數學符號。\n"
                     
+                    if is_trial:
+                        prompt += "【數量限制】：這是試用請求，請精準控管，最多只需要萃取 5 道題目即可。\n"
+
                     contents = [prompt]
-                    for f in files:
-                        contents.append(Image.open(f))
+                    images_to_send = annotated_images if annotated_images else [Image.open(f) for f in files]
+                    for img in images_to_send:
+                        contents.append(img)
                         
                     response = client.models.generate_content(model="gemini-3.5-flash", contents=contents)
                     if response and response.text:
                         st.session_state["scanned_text"] = response.text.strip()
+                        if is_trial:
+                            st.session_state["ip_trial_history"][ip_today_key] = current_ip_trials + 1
                 except Exception as e:
                     handle_api_error(e)
 
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
-            if valid_files and st.button("🤖 開始辨識", use_container_width=True):
-                with st.spinner("掃描中..."): perform_ai_scan(valid_files, "normal")
+            if valid_files and st.button("🤖 開始辨識（包含圖片圈選標記）", use_container_width=True):
+                with st.spinner("智慧掃描圈選題目中..."): perform_ai_scan(valid_files, "normal")
                 st.rerun()
         with col_btn2:
             if valid_files and st.button("🔄 寬鬆認定再辨識", use_container_width=True):
-                with st.spinner("智慧掃描：尋找紅筆、留白與錯題中..."): perform_ai_scan(valid_files, "loose")
+                with st.spinner("智慧掃描：尋找紅筆標記、留白與錯題中..."): perform_ai_scan(valid_files, "loose")
                 st.rerun()
 
         st.markdown("---")
+        
+        # 僅在試用狀態下顯示 5 題限制提示，已註冊用戶自動隱藏
+        if is_trial:
+            st.info("💡 **試用版提示：** 系統將自動辨識並最多擷取 **5 道** 題目（包含您在圖片上圈選標記的重點/空白題目）。完成免費登入後可無限制全卷辨識與存檔！")
+        
         edited_text = st.text_area("確認題目內容 (可在框內直接微調圈選要輸出的錯題)：", value=st.session_state["scanned_text"], height=120)
         st.session_state["scanned_text"] = edited_text
 
@@ -1038,7 +1163,14 @@ elif st.session_state["setup_complete"]:
             btn_mock2 = st.button("🔄 再出一次模擬試題 (扣1次額度)", use_container_width=True)
 
         if btn_mock1 or btn_mock2:
-            if not edited_text: st.warning("請先輸入或辨識題目！")
+            client_ip = get_client_ip()
+            ip_today_key = f"{today_str}_{client_ip}"
+            current_ip_trials = st.session_state["ip_trial_history"].get(ip_today_key, 0)
+
+            if is_trial and current_ip_trials >= 1 and st.session_state["generated_content"]:
+                show_trial_conversion_notice()
+            elif not edited_text:
+                st.warning("請先輸入或辨識題目！")
             elif deduct_credit() and GEMINI_KEY:
                 if supabase_client and st.session_state["user_profile"]["email"] != "trial@example.com":
                     try:
@@ -1055,9 +1187,11 @@ elif st.session_state["setup_complete"]:
                         db_text = fetch_relevant_questions_from_db([edited_text[:20]], limit=5)
                         client = genai.Client(api_key=GEMINI_KEY)
                         
+                        limit_prompt = " (請精準控管題目數量：產出最多 5 題原錯題解析，與 5 題改數字模擬題) " if is_trial else " (請產出 8 題模擬試題) "
+                        
                         prompt_text = "【錯題內容】：\n" + edited_text + "\n\n"
                         prompt_text += "【題庫參考】\n" + (db_text if db_text else "(無)") + "\n\n"
-                        prompt_text += "請為【錯題內容】產出繁體中文的正解與詳細解析，並接著產出 8 題模擬試題與詳細解析解答。\n\n"
+                        prompt_text += f"請為【錯題內容】產出繁體中文的正解與詳細解析，並接著產出{limit_prompt}與詳細解析解答。\n\n"
                         prompt_text += LAYOUT_WITH_ANALYSIS
                         prompt_text += JSON_TEMPLATE_MOCK
                         
@@ -1065,6 +1199,8 @@ elif st.session_state["setup_complete"]:
                         if response:
                             st.session_state["generated_content"] = re.sub(r'```json.*?```', '', response.text, flags=re.DOTALL).strip()
                             parse_and_insert_9_col_json(response.text)
+                            if is_trial:
+                                st.session_state["ip_trial_history"][ip_today_key] = current_ip_trials + 1
                             st.success("成功產出！")
                     except Exception as e: handle_api_error(e)
 
@@ -1082,7 +1218,9 @@ elif st.session_state["setup_complete"]:
             with c_var2: btn_var2 = st.button("🔄 再生成一次變形題 (扣1次額度)", use_container_width=True)
             
             if btn_var1 or btn_var2:
-                if deduct_credit() and GEMINI_KEY:
+                if is_trial:
+                    show_trial_conversion_notice()
+                elif deduct_credit() and GEMINI_KEY:
                     with st.spinner("產出變形題中..."):
                         db_text = fetch_relevant_questions_from_db([edited_text[:30]], limit=10)
                         
@@ -1104,9 +1242,11 @@ elif st.session_state["setup_complete"]:
                 st.markdown(f'<div class="printable-exam-area">{st.session_state["variation_content"]}</div>', unsafe_allow_html=True)
                 render_share_buttons(st.session_state["variation_content"], "var_res")
 
-    if not is_trial:
-        with tab_history:
-            st.subheader("📂 學生歷史錯題與學習履歷")
+    with tab_history:
+        st.subheader("📂 學生歷史錯題與學習履歷 🔒")
+        if is_trial:
+            show_trial_conversion_notice()
+        else:
             st.info("這裡會記錄您過往上傳的所有錯題，這是建立專屬學習履歷最重要的一環！您也可以在下方手動補充錯題來產出考卷。")
             
             if supabase_client and st.session_state["user_profile"]["email"] != "trial@example.com":
@@ -1144,9 +1284,11 @@ elif st.session_state["setup_complete"]:
                             parse_and_insert_9_col_json(res_hist.text)
                         except Exception as e: handle_api_error(e)
 
-        with tab_custom:
-            st.subheader("⚙️ 題目自組卷 (強大 Hybrid 混合出題)")
-            
+    with tab_custom:
+        st.subheader("⚙️ 題目自組卷 (強大 Hybrid 混合出題) 🔒")
+        if is_trial:
+            show_trial_conversion_notice()
+        else:
             user_ver = st.session_state["user_profile"].get("version", "康軒版")
             user_gr = st.session_state["user_profile"].get("grade", "8年級(國二)")
             st.info(f"💡 目前設定連動：**{user_gr} ({user_ver})**")
@@ -1206,5 +1348,9 @@ elif st.session_state["setup_complete"]:
                 st.markdown(f'<div class="printable-exam-area">{st.session_state["custom_exam_content"]}</div>', unsafe_allow_html=True)
                 render_share_buttons(st.session_state["custom_exam_content"], "cust_res")
 
-        with tab_diag:
+    with tab_diag:
+        st.subheader("🧠 學習診斷 🔒")
+        if is_trial:
+            show_trial_conversion_notice()
+        else:
             st.info("敬請期待學習圖表分析！")
