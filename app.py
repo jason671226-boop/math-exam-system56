@@ -11,45 +11,6 @@ from email.mime.text import MIMEText
 from datetime import date
 import base64
 
-# --- 修正 Streamlit 新版本導致 Canvas 圖片顯示空白的問題 (強制轉換為 Base64 Data URI) ---
-import streamlit.elements.image as st_image
-
-def _compat_image_to_url(image, width=None, clamp=False, channels="RGB", output_format="PNG", image_id=None):
-    try:
-        if isinstance(image, str):
-            return image
-        buffered = io.BytesIO()
-        if hasattr(image, 'save'):
-            image.save(buffered, format="PNG")
-        elif isinstance(image, bytes):
-            buffered.write(image)
-        else:
-            from PIL import Image as PILImage
-            img_obj = PILImage.fromarray(image)
-            img_obj.save(buffered, format="PNG")
-        img_str = base64.b64encode(buffered.getvalue()).decode()
-        return f"data:image/png;base64,{img_str}"
-    except Exception:
-        return image
-
-st_image.image_to_url = _compat_image_to_url
-
-try:
-    import streamlit.type_util as st_type_util
-    st_type_util.image_to_url = _compat_image_to_url
-except Exception:
-    pass
-
-# 嘗試載入 Canvas 畫布套件 (必須在修補函式注入後載入)
-try:
-    import streamlit_drawable_canvas
-    if hasattr(streamlit_drawable_canvas, 'image_to_url'):
-        streamlit_drawable_canvas.image_to_url = _compat_image_to_url
-    from streamlit_drawable_canvas import st_canvas
-    CANVAS_AVAILABLE = True
-except ImportError:
-    CANVAS_AVAILABLE = False
-
 # 嘗試載入 Pandas (處理 CSV)
 try:
     import pandas as pd
@@ -57,12 +18,14 @@ try:
 except ImportError:
     PANDAS_AVAILABLE = False
 
-# 嘗試載入 Google GenAI 套件
-try:
-    from google import genai
-    GENAI_AVAILABLE = True
-except ImportError:
-    GENAI_AVAILABLE = False
+# 集中管理 AI 呼叫與錯誤分類
+from ai_service import (
+    AIServiceError,
+    call_gemini_api,
+    get_ai_debug_message,
+    get_ai_error_code,
+    get_ai_error_message,
+)
 
 # 嘗試載入 Supabase 套件
 try:
@@ -72,10 +35,18 @@ except ImportError:
     SUPABASE_AVAILABLE = False
 
 try:
-    from PIL import Image
+    from PIL import Image, ImageEnhance
     PIL_AVAILABLE = True
 except ImportError:
     PIL_AVAILABLE = False
+
+# 可選的圖片畫筆元件；若未安裝，系統仍可退回原圖辨識。
+try:
+    from streamlit_drawable_canvas import st_canvas
+    DRAWABLE_CANVAS_AVAILABLE = True
+except ImportError:
+    st_canvas = None
+    DRAWABLE_CANVAS_AVAILABLE = False
 
 st.set_page_config(
     page_title="AI 數學錯題迭代系統", 
@@ -84,8 +55,46 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- 讀寫本地記憶帳號 (Email 自動記憶功能) ---
+# --- 讀寫本地記憶帳號與紀錄 (Email 自動記憶、儲值紀錄備援) ---
 LOCAL_EMAILS_FILE = "recent_emails.json"
+TOPUP_FILE = "topup_requests.json"
+
+today_str = date.today().isoformat()
+
+# 全域初始化 Session State，確保側邊欄隨時都能抓到資料不崩潰
+if "setup_complete" not in st.session_state:
+    st.session_state["setup_complete"] = False
+if "is_trial" not in st.session_state:
+    st.session_state["is_trial"] = False
+if "user_profile" not in st.session_state:
+    st.session_state["user_profile"] = {
+        "last_name": "", "first_name": "", 
+        "email": "trial@example.com", "city": "新北市", "district": "土城區", "school": "",
+        "grade": "8年級(國二)", "version": "康軒版", 
+        "traits": [], "interests": [], "credits": 15, "last_login_date": today_str
+    }
+
+if "is_verified" not in st.session_state:
+    current_email = st.session_state["user_profile"].get("email", "")
+    if current_email and current_email != "trial@example.com":
+        st.session_state["is_verified"] = True
+    else:
+        st.session_state["is_verified"] = False
+
+if "scanned_text" not in st.session_state: st.session_state["scanned_text"] = ""
+if "generated_content" not in st.session_state: st.session_state["generated_content"] = ""
+if "variation_content" not in st.session_state: st.session_state["variation_content"] = ""
+if "history_mistakes" not in st.session_state: st.session_state["history_mistakes"] = ""
+if "admin_unlocked" not in st.session_state: st.session_state["admin_unlocked"] = False
+if "custom_interest" not in st.session_state: st.session_state["custom_interest"] = ""
+if "ip_trial_history" not in st.session_state: st.session_state["ip_trial_history"] = {}
+if "otp_sent" not in st.session_state: st.session_state["otp_sent"] = False
+if "generated_otp" not in st.session_state: st.session_state["generated_otp"] = ""
+if "pending_email" not in st.session_state: st.session_state["pending_email"] = ""
+if "scan_manual_mode" not in st.session_state: st.session_state["scan_manual_mode"] = False
+if "scan_error_message" not in st.session_state: st.session_state["scan_error_message"] = ""
+if "scan_error_code" not in st.session_state: st.session_state["scan_error_code"] = ""
+if "manual_scan_text" not in st.session_state: st.session_state["manual_scan_text"] = ""
 
 def get_recent_emails():
     try:
@@ -109,7 +118,6 @@ def save_recent_email(email):
     except Exception:
         pass
 
-# 取得連線使用者 IP 位址函式 (支援 Cloudflare 代理標頭)
 def get_client_ip():
     try:
         headers = st.context.headers
@@ -123,115 +131,28 @@ def get_client_ip():
 
 # 全國縣市與鄉鎮市區二級字典
 taiwan_districts = {
-    "台北市": [
-        "中正區", "大同區", "中山區", "松山區", "大安區", "萬華區", 
-        "信義區", "士林區", "北投區", "內湖區", "南港區", "文山區"
-    ],
-    "新北市": [
-        "板橋區", "新莊區", "中和區", "永和區", "土城區", "樹林區", 
-        "三峽區", "鶯歌區", "三重區", "蘆洲區", "五股區", "泰山區", 
-        "林口區", "八里區", "淡水區", "三芝區", "石門區", "金山區", 
-        "萬里區", "汐止區", "瑞芳區", "貢寮區", "雙溪區", "平溪區", 
-        "新店區", "深坑區", "石碇區", "坪林區", "烏來區"
-    ],
-    "基隆市": [
-        "仁愛區", "信義區", "中正區", "中山區", "安樂區", "暖暖區", "七堵區"
-    ],
-    "桃園市": [
-        "桃園區", "中壢區", "平鎮區", "八德區", "楊梅區", "蘆竹區", 
-        "大溪區", "龍潭區", "龜山區", "大園區", "觀音區", "新屋區", "複興區"
-    ],
-    "新竹市": [
-        "東區", "北區", "香山區"
-    ],
-    "新竹縣": [
-        "竹北市", "竹東鎮", "新埔鎮", "關西鎮", "湖口鄉", "新豐鄉", 
-        "芎林鄉", "橫山鄉", "北埔鄉", "寶山鄉", "峨眉鄉", "尖石鄉", "五峰鄉"
-    ],
-    "苗栗縣": [
-        "苗栗市", "頭份市", "竹南鎮", "後龍鎮", "通霄鎮", "苑裡鎮", 
-        "卓欄鎮", "造橋鄉", "西湖鄉", "頭屋鄉", "公館鄉", "銅鑼鄉", 
-        "三義鄉", "大湖鄉", "獅潭鄉", "三灣鄉", "南庄鄉", "泰安鄉"
-    ],
-    "台中市": [
-        "中區", "東區", "南區", "西區", "北區", "北屯區", "西屯區", 
-        "南屯區", "太平區", "大里區", "霧峰區", "烏日區", "豐原區", 
-        "后里區", "石岡區", "東勢區", "和平區", "新社區", "潭子區", 
-        "大雅區", "神岡區", "大肚區", "沙鹿區", "龍井區", "梧棲區", 
-        "清水區", "大甲區", "外埔區", "大安區"
-    ],
-    "彰化縣": [
-        "彰化市", "員林市", "和美鎮", "鹿港鎮", "溪湖鎮", "二林鎮", 
-        "田中鎮", "北斗鎮", "花壇鄉", "芬園鄉", "大村鄉", "永靖鄉", 
-        "伸港鄉", "線西鄉", "福興鄉", "秀水鄉", "埔心鄉", "埔鹽鄉", 
-        "大城鄉", "芳苑鄉", "竹塘鄉", "社頭鄉", "二水鄉", "田尾鄉", 
-        "埤頭鄉", "溪州鄉"
-    ],
-    "南投縣": [
-        "南投市", "埔里鎮", "草屯鎮", "竹山鎮", "集集鎮", "名間鄉", 
-        "鹿谷鄉", "中寮鄉", "魚池鄉", "國姓鄉", "水里鄉", "信義鄉", "仁愛鄉"
-    ],
-    "雲林縣": [
-        "斗六市", "斗南鎮", "虎尾鎮", "西螺鎮", "土庫鎮", "北港鎮", 
-        "古坑鄉", "大埤鄉", "莿桐鄉", "林內鄉", "二崙鄉", "崙背鄉", 
-        "麥寮鄉", "東勢鄉", "褒忠鄉", "臺西鄉", "元長鄉", "四湖鄉", 
-        "口湖鄉", "水林鄉"
-    ],
-    "嘉義市": [
-        "東區", "西區"
-    ],
-    "嘉義縣": [
-        "太保市", "朴子市", "布袋鎮", "大林鎮", "民雄鄉", "溪口鄉", 
-        "新港鄉", "六腳鄉", "東石鄉", "義竹鄉", "鹿草鄉", "水上鄉", 
-        "中埔鄉", "竹崎鄉", "梅山鄉", "番路鄉", "大埔鄉", "阿里山鄉"
-    ],
-    "台南市": [
-        "中西區", "東區", "南區", "北區", "安平區", "安南區", "永康區", 
-        "歸仁區", "新化區", "左鎮區", "玉井區", "楠西區", "南化區", 
-        "仁德區", "關廟區", "龍崎區", "官田區", "麻豆區", "佳里區", 
-        "西港區", "七股區", "將軍區", "學甲區", "北門區", "新營區", 
-        "後壁區", "白河區", "東山區", "六甲區", "下營區", "柳營區", 
-        "鹽水區", "善化區", "大內區", "山上區", "新市區", "安定區"
-    ],
-    "高雄市": [
-        "楠梓區", "左營區", "鼓山區", "三民區", "鹽埕區", "前金區", 
-        "新興區", "苓雅區", "前鎮區", "旗津區", "小港區", "鳳山區", 
-        "林園區", "大寮區", "大樹區", "大社區", "仁武區", "鳥松區", 
-        "岡山區", "橋頭區", "燕巢區", "田寮區", "阿蓮區", "路竹區", 
-        "湖內區", "茄萣區", "永安區", "彌陀區", "梓官區", "旗山區", 
-        "美濃區", "六龜區", "杉林區", "甲仙區", "桃源區", "朱溪區", 
-        "茂林區", "內門區"
-    ],
-    "屏東縣": [
-        "屏東市", "潮州鎮", "東港鎮", "恆春鎮", "萬丹鄉", "長治鄉", 
-        "麟洛鄉", "九如鄉", "里港鄉", "鹽埔鄉", "高樹鄉", "萬欄鄉", 
-        "內埔鄉", "竹田鄉", "新埤鄉", "枋寮鄉", "新園鄉", "崁頂鄉", 
-        "林邊鄉", "南州鄉", "佳冬鄉", "琉球鄉", "車城鄉", "滿州鄉", 
-        "枋山鄉", "三地門鄉", "霧臺鄉", "瑪家鄉", "泰武鄉", "來義鄉", 
-        "春日鄉", "獅子鄉", "牡丹鄉"
-    ],
-    "宜蘭縣": [
-        "宜蘭市", "羅東鎮", "蘇澳鎮", "頭城鎮", "礁溪鄉", "壯圍鄉", 
-        "員山鄉", "冬山鄉", "五結鄉", "三星鄉", "大同鄉", "南澳鄉"
-    ],
-    "花蓮縣": [
-        "花蓮市", "鳳林鎮", "玉里鎮", "新城鄉", "吉安鄉", "壽豐鄉", 
-        "光複鄉", "豐濱鄉", "瑞穗鄉", "富里鄉", "秀林鄉", "萬榮鄉", "卓溪鄉"
-    ],
-    "台東縣": [
-        "台東市", "成功鎮", "關山鎮", "長濱鄉", "海端鄉", "池上鄉", 
-        "東河鄉", "鹿野鄉", "延平鄉", "卑南鄉", "太麻里鄉", "大武鄉", 
-        "綠島鄉", "蘭嶼鄉", "金峰鄉", "達仁鄉"
-    ],
-    "澎湖縣": [
-        "馬公市", "湖西鄉", "白沙鄉", "西嶼鄉", "望安鄉", "七美鄉"
-    ],
-    "金門縣": [
-        "金城鎮", "金沙鎮", "金湖鎮", "金寧鄉", "烈嶼鄉", "烏坵鄉"
-    ],
-    "連江縣(馬祖)": [
-        "南竿鄉", "北竿鄉", "莒光鄉", "東引鄉"
-    ]
+    "台北市": ["中正區", "大同區", "中山區", "松山區", "大安區", "萬華區", "信義區", "士林區", "北投區", "內湖區", "南港區", "文山區"],
+    "新北市": ["板橋區", "新莊區", "中和區", "永和區", "土城區", "樹林區", "三峽區", "鶯歌區", "三重區", "蘆洲區", "五股區", "泰山區", "林口區", "八里區", "淡水區", "三芝區", "石門區", "金山區", "萬里區", "汐止區", "瑞芳區", "貢寮區", "雙溪區", "平溪區", "新店區", "深坑區", "石碇區", "坪林區", "烏來區"],
+    "基隆市": ["仁愛區", "信義區", "中正區", "中山區", "安樂區", "暖暖區", "七堵區"],
+    "桃園市": ["桃園區", "中壢區", "平鎮區", "八德區", "楊梅區", "蘆竹區", "大溪區", "龍潭區", "龜山區", "大園區", "觀音區", "新屋區", "複興區"],
+    "新竹市": ["東區", "北區", "香山區"],
+    "新竹縣": ["竹北市", "竹東鎮", "新埔鎮", "關西鎮", "湖口鄉", "新豐鄉", "芎林鄉", "橫山鄉", "北埔鄉", "寶山鄉", "峨眉鄉", "尖石鄉", "五峰鄉"],
+    "苗栗縣": ["苗栗市", "頭份市", "竹南鎮", "後龍鎮", "通霄鎮", "苑裡鎮", "卓欄鎮", "造橋鄉", "西湖鄉", "頭屋鄉", "公館鄉", "銅鑼鄉", "三義鄉", "大湖鄉", "獅潭鄉", "三灣鄉", "南庄鄉", "泰安鄉"],
+    "台中市": ["中區", "東區", "南區", "西區", "北區", "北屯區", "西屯區", "南屯區", "太平區", "大里區", "霧峰區", "烏日區", "豐原區", "后里區", "石岡區", "東勢區", "和平區", "新社區", "潭子區", "大雅區", "神岡區", "大肚區", "沙鹿區", "龍井區", "梧棲區", "清水區", "大甲區", "外埔區", "大安區"],
+    "彰化縣": ["彰化市", "員林市", "和美鎮", "鹿港鎮", "溪湖鎮", "二林鎮", "田中鎮", "北斗鎮", "花壇鄉", "芬園鄉", "大村鄉", "永靖鄉", "伸港鄉", "線西鄉", "福興鄉", "秀水鄉", "埔心鄉", "埔鹽鄉", "大城鄉", "芳苑鄉", "竹塘鄉", "社頭鄉", "二水鄉", "田尾鄉", "埤頭鄉", "溪州鄉"],
+    "南投縣": ["南投市", "埔里鎮", "草屯鎮", "竹山鎮", "集集鎮", "名間鄉", "鹿谷鄉", "中寮鄉", "魚池鄉", "國姓鄉", "水里鄉", "信義鄉", "仁愛鄉"],
+    "雲林縣": ["斗六市", "斗南鎮", "虎尾鎮", "西螺鎮", "土庫鎮", "北港鎮", "古坑鄉", "大埤鄉", "莿桐鄉", "林內鄉", "二崙鄉", "崙背鄉", "麥寮鄉", "東勢鄉", "褒忠鄉", "臺西鄉", "元長鄉", "四湖鄉", "口湖鄉", "水林鄉"],
+    "嘉義市": ["東區", "西區"],
+    "嘉義縣": ["太保市", "朴子市", "布袋鎮", "大林鎮", "民雄鄉", "溪口鄉", "新港鄉", "六腳鄉", "東石鄉", "義竹鄉", "鹿草鄉", "水上鄉", "中埔鄉", "竹崎鄉", "梅山鄉", "番路鄉", "大埔鄉", "阿里山鄉"],
+    "台南市": ["中西區", "東區", "南區", "北區", "安平區", "安南區", "永康區", "歸仁區", "新化區", "左鎮區", "玉井區", "楠西區", "南化區", "仁德區", "關廟區", "龍崎區", "官田區", "麻豆區", "佳里區", "西港區", "七股區", "將軍區", "學甲區", "北門區", "新營區", "後壁區", "白河區", "東山區", "六甲區", "下營區", "柳營區", "鹽水區", "善化區", "大內區", "山上區", "新市區", "安定區"],
+    "高雄市": ["楠梓區", "左營區", "鼓山區", "三民區", "鹽埕區", "前金區", "新興區", "苓雅區", "前鎮區", "旗津區", "小港區", "鳳山區", "林園區", "大寮區", "大樹區", "大社區", "仁武區", "鳥松區", "岡山區", "橋頭區", "燕巢區", "田寮區", "阿蓮區", "路竹區", "湖內區", "茄萣區", "永安區", "彌陀區", "梓官區", "旗山區", "美濃區", "六龜區", "杉林區", "甲仙區", "桃源區", "朱溪區", "茂林區", "內門區"],
+    "屏東縣": ["屏東市", "潮州鎮", "東港鎮", "恆春鎮", "萬丹鄉", "長治鄉", "麟洛鄉", "九如鄉", "里港鄉", "鹽埔鄉", "高樹鄉", "萬欄鄉", "內埔鄉", "竹田鄉", "新埤鄉", "枋寮鄉", "新園鄉", "崁頂鄉", "林邊鄉", "南州鄉", "佳冬鄉", "琉球鄉", "車城鄉", "滿州鄉", "枋山鄉", "三地門鄉", "霧臺鄉", "瑪家鄉", "泰武鄉", "來義鄉", "春日鄉", "獅子鄉", "牡丹鄉"],
+    "宜蘭縣": ["宜蘭市", "羅東鎮", "蘇澳鎮", "頭城鎮", "礁溪鄉", "壯圍鄉", "員山鄉", "冬山鄉", "五結鄉", "三星鄉", "大同鄉", "南澳鄉"],
+    "花蓮縣": ["花蓮市", "鳳林鎮", "玉里鎮", "新城鄉", "吉安鄉", "壽豐鄉", "光複鄉", "豐濱鄉", "瑞穗鄉", "富里鄉", "秀林鄉", "萬榮鄉", "卓溪鄉"],
+    "台東縣": ["台東市", "成功鎮", "關山鎮", "長濱鄉", "海端鄉", "池上鄉", "東河鄉", "鹿野鄉", "延平鄉", "卑南鄉", "太麻里鄉", "大武鄉", "綠島鄉", "蘭嶼鄉", "金峰鄉", "達仁鄉"],
+    "澎湖縣": ["馬公市", "湖西鄉", "白沙鄉", "西嶼鄉", "望安鄉", "七美鄉"],
+    "金門縣": ["金城鎮", "金沙鎮", "金湖鎮", "金寧鄉", "烈嶼鄉", "烏坵鄉"],
+    "連江縣(馬祖)": ["南竿鄉", "北竿鄉", "莒光鄉", "東引鄉"]
 }
 
 taiwan_counties = list(taiwan_districts.keys())
@@ -249,46 +170,8 @@ interests_catalog = {
     "體育運動": ["籃球", "羽球", "桌球", "排球", "躲避球"]
 }
 
-DISPOSABLE_DOMAINS = [
-    "10minutemail.com", "tempmail.com", "guerrillamail.com", 
-    "yopmail.com", "mailinator.com", "throwawaymail.com", 
-    "dropmail.me", "temp-mail.org", "fakeinbox.com"
-]
-
-today_str = date.today().isoformat()
-
-# 初始化 session state
-if "setup_complete" not in st.session_state:
-    st.session_state["setup_complete"] = False
-if "is_trial" not in st.session_state:
-    st.session_state["is_trial"] = False
-if "user_profile" not in st.session_state:
-    st.session_state["user_profile"] = {
-        "last_name": "", "first_name": "", 
-        "email": "trial@example.com", "city": "新北市", "district": "土城區", "school": "",
-        "grade": "8年級(國二)", "version": "康軒版", 
-        "traits": [], "interests": [], "credits": 5, "last_login_date": today_str
-    }
-
-if "is_verified" not in st.session_state:
-    current_email = st.session_state["user_profile"].get("email", "")
-    if current_email and current_email != "trial@example.com":
-        st.session_state["is_verified"] = True
-    else:
-        st.session_state["is_verified"] = False
-        
-if "scanned_text" not in st.session_state: st.session_state["scanned_text"] = ""
-if "generated_content" not in st.session_state: st.session_state["generated_content"] = ""
-if "variation_content" not in st.session_state: st.session_state["variation_content"] = ""
-if "history_mistakes" not in st.session_state: st.session_state["history_mistakes"] = ""
-if "admin_unlocked" not in st.session_state: st.session_state["admin_unlocked"] = False
 if "interest_selections" not in st.session_state:
     st.session_state["interest_selections"] = {k: [] for k in interests_catalog.keys()}
-if "custom_interest" not in st.session_state: st.session_state["custom_interest"] = ""
-if "ip_trial_history" not in st.session_state: st.session_state["ip_trial_history"] = {}
-if "otp_sent" not in st.session_state: st.session_state["otp_sent"] = False
-if "generated_otp" not in st.session_state: st.session_state["generated_otp"] = ""
-if "pending_email" not in st.session_state: st.session_state["pending_email"] = ""
 
 # --- 讀取金鑰 ---
 try:
@@ -305,21 +188,8 @@ except Exception:
     SMTP_USER = ""
     SMTP_PASSWORD = ""
 
-if not GEMINI_KEY:
-    part1 = "AQ.Ab8RN6IC4WFN0ATL"
-    part2 = "7omykAqJl156F4g3FM_K_PyTZzUPcNbp1g"
-    GEMINI_KEY = part1 + part2
-if not SUPABASE_URL:
-    SUPABASE_URL = "https://igttuijrtwbtefhyeokp.supabase.co"
-if not SUPABASE_KEY:
-    s_part1 = "sb_publishable_fa0t2W8U5iwi42Gr"
-    s_part2 = "NJD5Hg_p-J5JsJ5"
-    SUPABASE_KEY = s_part1 + s_part2
-
-if not SMTP_USER:
-    SMTP_USER = "system.math.ai@gmail.com"
-if not SMTP_PASSWORD:
-    SMTP_PASSWORD = "xvyz abcd efgh ijkl"
+# 安全原則：金鑰只從 .streamlit/secrets.toml 讀取。
+# 若缺少設定，不使用任何寫死的備援金鑰。
 
 @st.cache_resource
 def init_supabase(url, key):
@@ -360,7 +230,7 @@ def save_user_profile_to_db(profile_data):
             "version": profile_data.get("version", "康軒版"),
             "traits": profile_data.get("traits", []),
             "interests": profile_data.get("interests", []),
-            "credits": profile_data.get("credits", 5),
+            "credits": profile_data.get("credits", 15),
             "updated_at": today_str
         }).execute()
     except Exception:
@@ -415,9 +285,8 @@ def send_otp_email(target_email, otp_code):
                 server.login(SMTP_USER, SMTP_PASSWORD)
                 server.send_message(msg)
             return True
-        except Exception as e:
-            st.error(f"郵件發送失敗: {e}")
-            return False
+        except Exception:
+            return True
     else:
         return True
 
@@ -454,62 +323,230 @@ def send_exam_email(target_email, exam_content):
                 server.send_message(msg)
             return True
         except Exception as e:
-            st.error(f"❌ 郵件寄送失敗，請確認網路或 Email 格式。錯誤訊息：{e}")
+            st.error(f"❌ 郵件寄送失敗：{e}")
             return False
     else:
-        st.warning("⚠️ 系統後台尚未設定 SMTP 郵件發送金鑰（SMTP_USER / SMTP_PASSWORD）。如欲在網路上真實寄信，請至 Streamlit Secrets 設定。")
+        st.warning("⚠️ 系統後台尚未設定 SMTP 郵件發送金鑰！")
         return False
 
-syllabus_full = {
-    "康軒版": [
-        "5上_單元 1：多位小數與加減", "5上_單元 2：因數與公因數", "5上_單元 3：倍數與公倍數",
-        "5上_單元 4：擴分、約分和通分", "5上_單元 5：多邊形與扇形", "5上_單元 6：異分母分數的加減",
-        "5上_單元 7：線對稱圖形", "5上_單元 8：整數四則運算", "5上_單元 9：面積", "5上_單元 10：柱體、錐體和球",
-        "5下_第一、三、七單元：立體形體", "5下_第二、四、六單元：分數與小數計算",
-        "5下_第五單元：大數與折線圖", "5下_第八單元：比率與百分率", "5下_第九單元：時間的乘除", "5下_第十單元：生活中的大單位",
-        "🔥 私中特訓：濃度問題與溶液混合計算", "🔥 私中特訓：年齡問題與差倍、和倍", "🔥 私中特訓：和差問題與雞兔同籠"
-    ],
-    "南一版": [
-        "5上_單元 1：大數與概數", "5上_單元 2：因數與倍數", "5上_單元 3：分數的加減", "5上_單元 4：小數的加減",
-        "5上_單元 5：體積與容積", "5上_單元 6：未知數", "5下_單元 1：分數的乘除", "5下_單元 2：小數的乘除",
-        "5下_單元 3：面積與表面積", "5下_單元 4：時間的計算", "5下_單元 5：比率與百分率", "5下_單元 6：折線圖"
-    ],
-    "翰林版": [
-        "5上_單元 1：最大公因數與最小公倍數", "5上_單元 2：異分母分數加減", "5上_單元 3：多邊形面積",
-        "5上_單元 4：小數的乘除", "5上_單元 5：線對稱圖形", "5下_單元 1：分數乘除法", "5下_單元 2：長方體與正方體體積",
-        "5下_單元 3：容積與容量", "5下_單元 4：時間的運算", "5下_單元 5：百分率與折扣", "5下_單元 6：圓面積"
-    ],
-    "其他": ["基礎計算", "幾何圖形", "應用問題", "統計與機率", "🔥 私中特訓：綜合應用"]
-}
+# --- 儲值紀錄輔助函式 ---
+def save_topup_request(email, amount, points):
+    requests = []
+    if os.path.exists(TOPUP_FILE):
+        try:
+            with open(TOPUP_FILE, "r", encoding="utf-8") as f:
+                requests = json.load(f)
+        except Exception:
+            pass
+            
+    req_id = str(random.randint(100000, 999999))
+    
+    if supabase_client:
+        try:
+            supabase_client.table("topup_requests").insert({
+                "id": req_id,
+                "user_email": email,
+                "amount": amount,
+                "points": points,
+                "status": "pending",
+                "created_at": str(date.today())
+            }).execute()
+        except Exception:
+            pass
+            
+    requests.append({
+        "id": req_id,
+        "user_email": email,
+        "amount": amount,
+        "points": points,
+        "status": "pending"
+    })
+    try:
+        with open(TOPUP_FILE, "w", encoding="utf-8") as f:
+            json.dump(requests, f, ensure_ascii=False)
+    except Exception:
+        pass
 
-all_topics_set = set()
-for topics_list in syllabus_full.values():
-    all_topics_set.update(topics_list)
-all_topics_sorted = sorted(list(all_topics_set))
+def get_pending_topups():
+    if supabase_client:
+        try:
+            res = supabase_client.table("topup_requests").select("*").eq("status", "pending").execute()
+            if res.data is not None:
+                return res.data
+        except Exception:
+            pass
+            
+    if os.path.exists(TOPUP_FILE):
+        try:
+            with open(TOPUP_FILE, "r", encoding="utf-8") as f:
+                requests = json.load(f)
+                return [r for r in requests if r.get("status") == "pending"]
+        except Exception:
+            pass
+    return []
 
+def approve_topup_request(req_id):
+    if supabase_client:
+        try:
+            supabase_client.table("topup_requests").update({"status": "approved"}).eq("id", req_id).execute()
+        except Exception:
+            pass
+            
+    if os.path.exists(TOPUP_FILE):
+        try:
+            with open(TOPUP_FILE, "r", encoding="utf-8") as f:
+                requests = json.load(f)
+            for r in requests:
+                if str(r.get("id")) == str(req_id):
+                    r["status"] = "approved"
+            with open(TOPUP_FILE, "w", encoding="utf-8") as f:
+                json.dump(requests, f, ensure_ascii=False)
+        except Exception:
+            pass
+
+def add_user_credits(email, points):
+    if not email: return False
+    
+    if supabase_client:
+        try:
+            db_profile = fetch_user_profile_from_db(email)
+            if db_profile:
+                new_credits = db_profile.get("credits", 0) + points
+                supabase_client.table("user_profiles").update({"credits": new_credits}).eq("email", email).execute()
+            else:
+                supabase_client.table("user_profiles").insert({"email": email, "credits": points}).execute()
+        except Exception:
+            pass
+            
+    if st.session_state["user_profile"].get("email") == email:
+        st.session_state["user_profile"]["credits"] += points
+    return True
+
+def get_required_credits(q_count):
+    if q_count <= 5: return 15
+    elif q_count <= 10: return 28
+    elif q_count <= 15: return 40
+    else: return 50
+
+def deduct_credit(q_count=5):
+    req_credits = get_required_credits(q_count)
+    if "credits" not in st.session_state["user_profile"]:
+        st.session_state["user_profile"]["credits"] = 15
+        
+    if st.session_state["user_profile"]["credits"] >= req_credits:
+        st.session_state["user_profile"]["credits"] -= req_credits
+        save_user_profile_to_db(st.session_state["user_profile"])
+        return True
+    return False
+
+def handle_api_error(exc: Exception) -> None:
+    """顯示一般使用者可理解的 AI 錯誤；完整技術資訊僅供管理員查看。"""
+    st.error(f"⚠️ {get_ai_error_message(exc)}")
+
+    if st.session_state.get("admin_unlocked", False):
+        with st.expander("管理員技術資訊"):
+            st.code(get_ai_debug_message(exc))
+
+# ==========================================
+# 🌟 全域左側欄 (Sidebar) 核心邏輯 - 直接展開、保證不消失
+# ==========================================
 with st.sidebar:
-    st.markdown("### 💬 使用回饋")
-    feedback_text = st.text_area("歡迎提供系統使用建議：", placeholder="請輸入...", key="sidebar_feedback_input")
-    if st.button("送出回饋"):
-        if feedback_text and supabase_client:
+    st.markdown(f"### 🪙 目前點數：**{st.session_state['user_profile'].get('credits', 15)}** 點")
+    
+    st.markdown("---")
+    st.markdown("### 💳 儲值點數 \n*(儲值 1 點為新臺幣 1 元)*")
+    st.markdown("💰 **選擇儲值方案：**")
+    topup_plan = st.selectbox("請選擇方案", [
+        "儲值 100 元 (給 100 點)", 
+        "儲值 299 元 (給 350 點)", 
+        "儲值 599 元 (給 800 點)"
+    ], label_visibility="collapsed")
+    
+    st.markdown("**支援轉帳方式 (可 QR Code 掃描)：**")
+    pay_tabs = st.tabs(["🏦 銀行", "🟢 LINE Pay", "🔴 街口", "🔵 臺灣 Pay"])
+    
+    for pt in pay_tabs:
+        with pt:
+            st.markdown("🔹 **收款帳戶資訊**\n- 戶名：**陳冠霖**\n- 帳號：**郵局代碼 700，郵局帳號 00210570283172**")
+    with pay_tabs[1]:
+        st.info("💡 提示：若有 LINE Pay 條碼，可於此替換圖片。")
+    with pay_tabs[2]:
+        st.info("💡 提示：若有街口條碼，可於此替換圖片。")
+    with pay_tabs[3]:
+        st.info("💡 提示：若有臺灣 Pay 條碼，可於此替換圖片。")
+        
+    if st.button("🔔 轉帳完畢，通知管理員開通點數", use_container_width=True):
+        amt_match = re.search(r'儲值 (\d+) 元', topup_plan)
+        pts_match = re.search(r'給 (\d+) 點', topup_plan)
+        amount = int(amt_match.group(1)) if amt_match else 0
+        points = int(pts_match.group(1)) if pts_match else 0
+        
+        save_topup_request(st.session_state['user_profile'].get('email'), amount, points)
+        
+        if SMTP_USER and SMTP_PASSWORD:
             try:
-                current_email = st.session_state["user_profile"].get("email", "試用者/未綁定")
-                supabase_client.table("user_feedback").insert({"user_email": current_email, "content": feedback_text}).execute()
-                st.success("感謝回饋！您的寶貴建議已成功傳送。")
-            except Exception as e:
-                st.error(f"傳送失敗：{e}")
-        elif feedback_text:
-            st.success("感謝回饋！(本機測試模式已接收)")
-        else:
+                admin_msg = MIMEText(f"用戶 Email: {st.session_state['user_profile'].get('email')}\n已完成付款動作，請求系統手動核對帳戶並開通點數。\n申請方案: {topup_plan}")
+                admin_msg["Subject"] = "【系統通知】用戶已匯款，請求開通點數"
+                admin_msg["From"] = SMTP_USER
+                admin_msg["To"] = SMTP_USER
+                with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+                    server.login(SMTP_USER, SMTP_PASSWORD)
+                    server.send_message(admin_msg)
+            except Exception:
+                pass
+        st.success("✅ 已成功發送通知！將根據您儲值的金額為您手動派發點數，請稍候。")
+
+    st.markdown(
+        "<div style='background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 10px; border-left: 5px solid #ffc107; font-size: 14px;'>"
+        "<b>如果一小時內沒有帳號正確存入，請發 email 或是直接 LINE 下面的連結。</b><br><br>"
+        "✉️ Email: jason671226@gmail.com<br>"
+        "💬 LINE: <a href='https://line.me/ti/p/a6B_R1wmyL' target='_blank'>點擊此處加入 LINE</a>"
+        "</div>", unsafe_allow_html=True
+    )
+
+    st.markdown("---")
+    st.markdown("### 💬 使用回饋")
+    st.info("💡 提供一次使用心得或建議，就送 20 點！(一天限回饋一次，一個帳號限回饋 5 次)")
+    feedback_text = st.text_area("歡迎提供系統使用建議：", placeholder="請輸入...", key="sidebar_feedback_input")
+    
+    if st.button("送出回饋"):
+        current_email = st.session_state["user_profile"].get("email", "試用者/未綁定")
+        if current_email == "trial@example.com":
+            st.warning("請先完成登入綁定，才能領取回饋點數喔！")
+        elif not feedback_text.strip():
             st.warning("請先輸入您的建議內容再點擊送出喔！")
+        else:
+            if st.session_state.get("feedback_today_done", False):
+                st.warning("您今天已經填寫過回饋了，請明天再來領取點數！")
+            else:
+                if supabase_client:
+                    try:
+                        res = supabase_client.table("user_feedback").select("id").eq("user_email", current_email).execute()
+                        past_count = len(res.data) if res.data else 0
+                        
+                        if past_count >= 5:
+                            st.warning("您已達到帳號回饋次數上限 (5次)，非常感謝您的支持！")
+                        else:
+                            supabase_client.table("user_feedback").insert({"user_email": current_email, "content": feedback_text}).execute()
+                            st.session_state["user_profile"]["credits"] += 20
+                            save_user_profile_to_db(st.session_state["user_profile"])
+                            st.session_state["feedback_today_done"] = True
+                            st.success("✅ 感謝回饋！您的寶貴建議已成功傳送，並為您存入 20 點！")
+                            st.rerun()
+                    except Exception as e:
+                        st.error(f"傳送失敗：{e}")
+                else:
+                    st.session_state["user_profile"]["credits"] += 20
+                    st.session_state["feedback_today_done"] = True
+                    st.success("✅ 感謝回饋！(本機測試模式已接收，並贈送 20 點)")
+                    st.rerun()
         
     st.markdown("---")
-    
     notice_html = (
         "<div style=\"font-size: 1.05em; line-height: 1.6; background-color: #f0f2f6; padding: 12px; border-radius: 8px; border-left: 5px solid #ff4b4b;\">"
-        "<b>本系統內容均獨立開發，並擁有全部所有權。</b><br><br>"
+        "<b>本系統為陳冠麟老師獨立開發製作，並擁有完整所有權。</b><br><br>"
         "目前所需要的開發及維護費用（包含使用的模型費用），皆為個人負擔。<br><br>"
-        "所以只先開放部分使用者測試，<b>每組學生 Email 初始提供 5 次測試額度，並享每日登入發放 2 次免費額度</b>。請多多回饋系統使用經驗！"
+        "所以只先開放部分使用者測試，<b>每組學生 Email 初始提供試用額度</b>。請多多回饋系統使用經驗！"
         "</div>"
     )
     st.markdown(notice_html, unsafe_allow_html=True)
@@ -529,6 +566,46 @@ with st.sidebar:
             st.session_state["admin_unlocked"] = False
             st.rerun()
         st.success("歡迎回來！")
+        
+        st.markdown("#### 💰 儲值審核與管理")
+        pending_requests = get_pending_topups()
+        
+        if not pending_requests:
+            st.info("目前沒有待審核的儲值申請。")
+        else:
+            st.markdown("##### ⏳ 待審核清單")
+            selected_req_ids = []
+            for req in pending_requests:
+                req_id = req.get("id")
+                req_email = req.get("user_email")
+                req_amt = req.get("amount")
+                req_pts = req.get("points")
+                if st.checkbox(f"帳號: {req_email} | 存入金額: {req_amt} 元 | 對應點數: {req_pts} 點", key=f"chk_{req_id}"):
+                    selected_req_ids.append((req_id, req_email, req_pts))
+            
+            if st.button("✅ 儲值 (開通勾選的點數)", type="primary"):
+                for req_id, req_email, req_pts in selected_req_ids:
+                    add_user_credits(req_email, req_pts)
+                    approve_topup_request(req_id)
+                st.success("儲值開通成功！")
+                st.rerun()
+
+        st.markdown("##### ✍️ 手動派發點數")
+        col_man1, col_man2 = st.columns(2)
+        with col_man1:
+            manual_email = st.text_input("用戶 Email：")
+        with col_man2:
+            manual_points = st.number_input("派發點數：", min_value=0, step=10)
+            
+        if st.button("⚡ 手動儲值"):
+            if manual_email and manual_points > 0:
+                add_user_credits(manual_email, manual_points)
+                st.success(f"成功為 {manual_email} 加入 {manual_points} 點！")
+                st.rerun()
+            else:
+                st.warning("請填寫正確的 Email 與大於 0 的點數。")
+                
+        st.markdown("---")
         
         st.markdown("#### 📚 專屬題庫管理")
         if supabase_client:
@@ -589,32 +666,17 @@ with st.sidebar:
                             except Exception as e:
                                 st.error(f"錯誤：{e}")
 
-def deduct_credit():
-    if "credits" not in st.session_state["user_profile"]:
-        st.session_state["user_profile"]["credits"] = 5
-        
-    if st.session_state["user_profile"]["credits"] > 0:
-        st.session_state["user_profile"]["credits"] -= 1
-        return True
-    return False
-
-def handle_api_error(e):
-    error_msg = str(e)
-    if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
-        st.error("⚠️ **Google API 額度已耗盡！** 請更換 API 金鑰。")
-    else:
-        st.error(f"錯誤：{error_msg}")
-
 def show_trial_conversion_notice():
     notice_box = (
         "<div style='background-color: #fff3cd; color: #856404; padding: 20px; border-radius: 10px; border-left: 6px solid #ffeba2; margin: 15px 0; font-size: 1.05em; line-height: 1.7;'>"
-        "<b>⚠️ 今天的免費試用額度已使用完畢（每日限體驗 1 次）。</b><br><br>"
-        "想要繼續掃描錯題、產出更多專屬練習嗎？請點擊頁籤至 <b>[🏠 返回首頁設定]</b> 完成免費登入綁定！<br><br>"
+        "<b>⚠️ 點數不足或試用額度已用完！</b><br><br>"
+        "想要繼續產出更多專屬練習嗎？請至左側選單進行<b>「儲值點數」</b>或點擊頁籤至 <b>[🏠 帳號與設定]</b> 完成免費登入綁定！<br><br>"
         "<b>👉 為什麼你應該立即免費註冊綁定？</b><br>"
+        "• 🎁 <b>免費送點數</b>：新用戶註冊綁定登入後，自動獲贈 <b>30 點</b>！<br>"
         "• 🧠 <b>自動建立專屬學習履歷</b>：系統將自動記錄每一次的錯題，精準追蹤你的知識盲點。<br>"
         "• 🎯 <b>弱點深度分析與迭代</b>：不再盲目刷題！唯有透過個人化錯題累積，才能進行高度客製化的「疊代升級練習」。<br>"
         "• ⚡ <b>倍增學習效率</b>：幫學生省下 80% 整理錯題本的時間，直擊弱點，用最短時間獲得最大幅度進步！<br><br>"
-        "<i>( 綁定 Email 即可立即解鎖每日免費額度與完整功能！ )</i>"
+        "<i>( 綁定 Email 即可立即解鎖完整功能！ )</i>"
         "</div>"
     )
     st.markdown(notice_box, unsafe_allow_html=True)
@@ -792,6 +854,13 @@ JSON_TEMPLATE_CUSTOM = (
     '```json\n[\n  {\n    "index_code": "AI-C001",\n    "grade": "",\n    "unit": "UNIT_PLACEHOLDER",\n    "knowledge_tag": "選擇的題型",\n    "original_question": "",\n    "new_question": "題目內容...",\n    "correct_answer": "解答內容..."\n  }\n]\n```\n'
 )
 
+q_count_options = {
+    "5 題包（微型檢討） - 扣 15 點": 5,
+    "10 題包（小考/段考訂正） - 扣 28 點": 10,
+    "15 題包（大單元複習） - 扣 40 點": 15,
+    "20 題包（全冊總複習試卷） - 扣 50 點": 20
+}
+
 # ==========================================
 # 第一頁：登入與試用頁面
 # ==========================================
@@ -812,15 +881,15 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
     col_trial_1, col_trial_2, col_trial_3 = st.columns([1, 2, 1])
     with col_trial_2:
         if current_ip_trials >= 1:
-            st.error("⚠️ 您的 IP 今日試用額度已用盡！請使用下方 Email 驗證登入。")
+            st.error("⚠️ 您的 IP 今日試用額度已用盡！請使用下方 Email 驗證註冊/登入。")
         else:
-            if st.button("🚀 立即試用（直接進入錯題輸入畫面）", type="primary", use_container_width=True):
+            if st.button("🚀 立即試用（送 15 點，直接進入系統）", type="primary", use_container_width=True):
                 st.session_state["is_trial"] = True
                 st.session_state["setup_complete"] = True
                 st.rerun()
     st.markdown("---")
 
-    st.subheader("📋 建立 / 登入 / 修改專屬學生個人資料庫")
+    st.subheader("📋 註冊綁定 / 登入個人資料庫 (新會員登入即送 30 點)")
     up = st.session_state["user_profile"]
 
     current_stored_email = st.session_state["user_profile"].get("email", "")
@@ -867,8 +936,7 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
         
         if st.session_state["otp_sent"]:
             with col_otp2:
-                if not SMTP_USER:
-                    st.info(f"🔧 **[測試模式] 驗證碼是： {st.session_state['generated_otp']}**")
+                st.info(f"🔧 **[測試模式] 您的登入驗證碼是： {st.session_state['generated_otp']}**")
                 
                 with st.form("otp_login_form", border=False):
                     user_otp_input = st.text_input("🔑 請輸入您收到的驗證碼（輸入後可直接按 Enter 鍵）：", max_chars=6)
@@ -879,6 +947,13 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
                             st.session_state["user_profile"]["email"] = st.session_state["pending_email"]
                             st.session_state["is_verified"] = True
                             save_recent_email(st.session_state["pending_email"])
+                            
+                            db_profile = fetch_user_profile_from_db(st.session_state["pending_email"])
+                            if not db_profile:
+                                st.session_state["user_profile"]["credits"] = 30
+                            else:
+                                st.session_state["user_profile"]["credits"] = db_profile.get("credits", 30)
+                            
                             st.rerun()
                         else:
                             st.error("❌ 驗證碼錯誤，請重新確認！")
@@ -1016,9 +1091,8 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
 elif st.session_state["setup_complete"]:
     is_trial = st.session_state.get("is_trial", False)
     
-    # 頂部 5 個頁籤全部保留呈現
-    tabs = st.tabs(["🏠 返回首頁設定", "📸 錯題解析", "📂 歷史錯題 🔒", "🧠 學習診斷 🔒", "⚙️ 自組考卷 🔒"])
-    tab_back, tab_scan, tab_history, tab_diag, tab_custom = tabs[0], tabs[1], tabs[2], tabs[3], tabs[4]
+    tabs = st.tabs(["📸 錯題解析", "🏠 帳號與設定", "📂 歷史錯題 🔒", "🧠 學習診斷 🔒", "⚙️ 自組考卷 🔒"])
+    tab_scan, tab_back, tab_history, tab_diag, tab_custom = tabs[0], tabs[1], tabs[2], tabs[3], tabs[4]
 
     with tab_back:
         st.subheader("🏠 帳號與個人化設定")
@@ -1029,14 +1103,14 @@ elif st.session_state["setup_complete"]:
             st.rerun()
 
     with tab_scan:
-        st.subheader("📝 步驟一：上傳照片與圖形劃記確認")
+        st.subheader("📝 步驟一：上傳照片與解析")
         
-        # 潤色後的畫畫圈選引導說明
         st.markdown(
             "<div style='background-color: #f0f7ff; padding: 12px 16px; border-radius: 8px; border-left: 5px solid #007bff; margin-bottom: 15px; font-size: 14px; line-height: 1.6;'>"
-            "✍️ <b>考卷智慧標記與圈選（選填）：</b><br>"
-            "• <b>精準解答標記：</b> 如果 AI 辨識出的題目不是您想要的，或是遇到<b>空白未寫的題目</b>，您可以直接用手指/滑鼠在<b>題目題號或整道題目上「畫圈圈標記」</b>。<br>"
-            "• <b>優先處理：</b> 系統將會優先針對您<b>圈選標記的題目</b>進行精準萃取、詳細解題與產出延伸練習題！"
+            "✍️ <b>上傳考卷照片：</b><br>"
+            "• 請確保照片清晰，系統將自動擷取題目內容。<br>"
+            "• 💡 <b>提示：如果需要指定特定錯題，建議在拍照前先用實體紅筆將要問的題目「打叉」、「畫線圈記」，或保留「空白未寫」，AI 即可優先精準擷取！</b><br>"
+            "• 如果是試用帳號，系統會擷取前 5 題進行免費試用展示！"
             "</div>",
             unsafe_allow_html=True
         )
@@ -1051,127 +1125,248 @@ elif st.session_state["setup_complete"]:
         annotated_images = []
 
         if valid_files:
-            st.markdown("#### 📸 考卷圈選與標記（請直接在想解答的題目或題號上畫圈）")
-            enable_image_fix = st.checkbox("🛠️ 啟用掃描增強 (自動去除灰暗背景/修正空白)", value=True)
-            
-            cols_img = st.columns(len(valid_files))
-            for idx, img_f in enumerate(valid_files):
-                with cols_img[idx]:
-                    st.caption(f"錯題照片 {idx+1}")
-                    raw_img = Image.open(img_f).convert("RGB")
-                    
-                    # 修正掃描空白/灰暗背景的處理
-                    if enable_image_fix:
-                        gray_img = raw_img.convert("L")
-                        threshold = 200
-                        binary_img = gray_img.point(lambda p: 255 if p > threshold else p)
-                        raw_img = binary_img.convert("RGB")
-                    
-                    if CANVAS_AVAILABLE:
-                        w, h = raw_img.size
-                        canvas_width = 450
-                        canvas_height = int(h * (canvas_width / w))
-                        
-                        canvas_result = st_canvas(
-                            fill_color="rgba(255, 0, 0, 0.1)",
-                            stroke_width=4,
-                            stroke_color="#FF0000", # 固定醒目紅色筆刷
-                            background_image=raw_img,
-                            update_streamlit=True,
-                            height=canvas_height,
-                            width=canvas_width,
-                            drawing_mode="freedraw",
-                            key=f"canvas_{idx}"
+            st.markdown("#### 📸 已上傳的考卷照片")
+            enable_image_fix = st.checkbox("🛠️ 啟用掃描增強 (自動去除灰暗背景)", value=True)
+
+            mark_mode = st.radio(
+                "圖片處理方式：",
+                ["整張辨識", "圈選標註後辨識"],
+                horizontal=True,
+                help="圈選標註模式可直接在圖片上畫圈、畫線或打叉，AI 會優先參考紅色標記。",
+            )
+
+            if mark_mode == "圈選標註後辨識":
+                if DRAWABLE_CANVAS_AVAILABLE:
+                    st.info("請用紅色畫筆圈選、畫線或打叉。完成後直接按下方辨識按鈕；AI 會讀取標註後的圖片。")
+                    tool_col1, tool_col2, tool_col3 = st.columns([1, 1, 1])
+                    with tool_col1:
+                        drawing_mode_label = st.selectbox(
+                            "標註工具",
+                            ["自由畫筆", "直線", "矩形", "圓形"],
+                            index=0,
                         )
-                        if canvas_result.image_data is not None:
-                            annotation_overlay = Image.fromarray(canvas_result.image_data.astype('uint8'), 'RGBA')
-                            base_img = raw_img.resize((canvas_width, canvas_height)).convert("RGBA")
-                            final_img = Image.alpha_composite(base_img, annotation_overlay).convert("RGB")
-                            annotated_images.append(final_img)
-                        else:
-                            annotated_images.append(raw_img)
+                    with tool_col2:
+                        stroke_width = st.slider("畫筆粗細", 2, 20, 6)
+                    with tool_col3:
+                        stroke_color = st.color_picker("標註顏色", "#FF0000")
+
+                    drawing_mode_map = {
+                        "自由畫筆": "freedraw",
+                        "直線": "line",
+                        "矩形": "rect",
+                        "圓形": "circle",
+                    }
+
+                    if "canvas_reset_version" not in st.session_state:
+                        st.session_state["canvas_reset_version"] = 0
+
+                    if st.button("🧹 清除所有圖片標記", use_container_width=True):
+                        st.session_state["canvas_reset_version"] += 1
+                        st.rerun()
+                else:
+                    st.warning(
+                        "尚未安裝圖片畫筆元件，暫時以原圖顯示。請執行「更新套件.bat」後重新啟動系統。"
+                    )
+
+            # 為了手機操作，圖片採上下排列，不使用左右欄位。
+            for idx, img_f in enumerate(valid_files):
+                st.caption(f"錯題照片 {idx + 1}")
+                img_f.seek(0)
+                raw_img = Image.open(img_f).convert("RGB")
+
+                if enable_image_fix and PIL_AVAILABLE:
+                    enhancer = ImageEnhance.Contrast(raw_img)
+                    raw_img = enhancer.enhance(1.4)
+
+                if mark_mode == "圈選標註後辨識" and DRAWABLE_CANVAS_AVAILABLE:
+                    max_canvas_width = 900
+                    scale = min(1.0, max_canvas_width / max(raw_img.width, 1))
+                    canvas_width = max(320, int(raw_img.width * scale))
+                    canvas_height = max(200, int(raw_img.height * scale))
+                    canvas_background = raw_img.resize(
+                        (canvas_width, canvas_height), Image.Resampling.LANCZOS
+                    )
+
+                    canvas_result = st_canvas(
+                        fill_color="rgba(255, 0, 0, 0.08)",
+                        stroke_width=stroke_width,
+                        stroke_color=stroke_color,
+                        background_image=canvas_background,
+                        update_streamlit=True,
+                        height=canvas_height,
+                        width=canvas_width,
+                        drawing_mode=drawing_mode_map[drawing_mode_label],
+                        display_toolbar=True,
+                        key=(
+                            f"exam_canvas_{idx}_"
+                            f"{st.session_state['canvas_reset_version']}"
+                        ),
+                    )
+
+                    if canvas_result.image_data is not None:
+                        marked_img = Image.fromarray(
+                            canvas_result.image_data.astype("uint8"), "RGBA"
+                        ).convert("RGB")
+                        annotated_images.append(marked_img)
                     else:
-                        st.image(raw_img, use_container_width=True)
-                        st.info("💡 提示：安裝 `streamlit-drawable-canvas` 套件即可開啟手寫圈選題目功能！")
-                        annotated_images.append(raw_img)
+                        annotated_images.append(canvas_background.convert("RGB"))
+                else:
+                    st.image(raw_img, use_container_width=True)
+                    annotated_images.append(raw_img)
+
+            if mark_mode == "圈選標註後辨識" and DRAWABLE_CANVAS_AVAILABLE:
+                st.success("標註完成後，請直接按下方「開始免費辨識文字」。")
 
         def perform_ai_scan(files, mode="normal"):
+            """辨識考卷；失敗時切換人工輸入，且不消耗試用次數。"""
             client_ip = get_client_ip()
             ip_today_key = f"{today_str}_{client_ip}"
             current_ip_trials = st.session_state["ip_trial_history"].get(ip_today_key, 0)
 
             if is_trial and current_ip_trials >= 1:
                 show_trial_conversion_notice()
-                return
+                return False
 
-            if not deduct_credit():
-                st.error("⚠️ 您的免費額度已用盡！請明天再來領取每日獎勵。")
-                return
+            if not PIL_AVAILABLE:
+                st.session_state["scan_manual_mode"] = True
+                st.session_state["scan_error_code"] = "PIL_NOT_AVAILABLE"
+                st.session_state["scan_error_message"] = "系統目前無法開啟圖片，請直接輸入錯題文字。"
+                return False
 
-            if GENAI_AVAILABLE and PIL_AVAILABLE and GEMINI_KEY:
-                try:
-                    client = genai.Client(api_key=GEMINI_KEY)
-                    
-                    if mode == "loose":
-                        prompt = "你是資深數學老師。請優先擷取圖片中『被紅筆劃線/圈選註記』、『空白未寫』或『被扣分』的題目。請萃取出題目純文字與完整數學符號。\n"
-                    else:
-                        prompt = "請萃取圖片中的數學題目文字（特別注意圖片中被畫筆或紅筆圈選標記的重點題目），每行一題，包含完整數學符號。\n"
-                    
-                    if is_trial:
-                        prompt += "【數量限制】：這是試用請求，請精準控管，最多只需要萃取 5 道題目即可。\n"
+            try:
+                if mode == "loose":
+                    prompt = (
+                        "你是一個資深的數學老師與考卷辨識專家。\n"
+                        "請精準辨識圖片中的數學題目，保留完整公式與符號。\n"
+                        "若圖片上有使用者後加的紅色圈選、方框、畫線或打叉，請將被標記的題目視為最高優先。\n"
+                        "優先擷取有紅筆加註、留白、打叉或訂正痕跡的題目。\n"
+                        "打勾（✓）通常代表答對，請不要列入。\n"
+                        "只輸出錯題文字，不要加入其他說明。\n"
+                    )
+                else:
+                    prompt = (
+                        "你是一個資深的數學老師與考卷辨識專家。\n"
+                        "請精準辨識圖片中的數學題目，保留完整公式與符號。\n"
+                        "若圖片上有使用者後加的紅色圈選、方框、畫線或打叉，請將被標記的題目視為最高優先。\n"
+                        "只擷取有紅筆加註、留白或打叉（X）的題目。\n"
+                        "打勾（✓）代表答對，請絕對不要列入。\n"
+                        "只輸出錯題文字，不要加入其他說明。\n"
+                    )
 
-                    contents = [prompt]
-                    images_to_send = annotated_images if annotated_images else [Image.open(f) for f in files]
-                    for img in images_to_send:
-                        contents.append(img)
-                        
-                    response = client.models.generate_content(model="gemini-3.5-flash", contents=contents)
-                    if response and response.text:
-                        st.session_state["scanned_text"] = response.text.strip()
-                        if is_trial:
-                            st.session_state["ip_trial_history"][ip_today_key] = current_ip_trials + 1
-                except Exception as e:
-                    handle_api_error(e)
+                if is_trial:
+                    prompt += "這是試用請求，最多擷取 5 道符合條件的題目。\n"
+
+                contents = [prompt]
+                images_to_send = annotated_images if annotated_images else [Image.open(f).convert("RGB") for f in files]
+                for image in images_to_send:
+                    contents.append(image.convert("RGB"))
+
+                response_text = call_gemini_api(contents)
+                if not response_text.strip():
+                    raise AIServiceError(
+                        code="EMPTY_SCAN_RESULT",
+                        user_message="AI 沒有辨識到有效題目，請改用人工輸入模式。",
+                    )
+
+                st.session_state["scanned_text"] = response_text.strip()
+                st.session_state["manual_scan_text"] = response_text.strip()
+                st.session_state["scan_manual_mode"] = False
+                st.session_state["scan_error_message"] = ""
+                st.session_state["scan_error_code"] = ""
+
+                if is_trial:
+                    st.session_state["ip_trial_history"][ip_today_key] = current_ip_trials + 1
+                return True
+
+            except Exception as exc:
+                st.session_state["scan_manual_mode"] = True
+                st.session_state["scan_error_code"] = get_ai_error_code(exc)
+                st.session_state["scan_error_message"] = get_ai_error_message(exc)
+                if st.session_state.get("scanned_text", "").strip():
+                    st.session_state["manual_scan_text"] = st.session_state["scanned_text"]
+                return False
 
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
-            if valid_files and st.button("🤖 開始辨識（包含圖片圈選標記）", use_container_width=True):
-                with st.spinner("智慧掃描圈選題目中..."): perform_ai_scan(valid_files, "normal")
-                st.rerun()
+            if valid_files and st.button("🤖 開始免費辨識文字", use_container_width=True):
+                with st.spinner("智慧掃描擷取錯題中..."):
+                    success = perform_ai_scan(valid_files, "normal")
+                if success:
+                    st.success("✅ 圖片辨識完成。")
+                    st.rerun()
+
         with col_btn2:
-            if valid_files and st.button("🔄 寬鬆認定再辨識", use_container_width=True):
-                with st.spinner("智慧掃描：尋找紅筆標記、留白與錯題中..."): perform_ai_scan(valid_files, "loose")
-                st.rerun()
+            if valid_files and st.button("🔄 寬鬆認定免費再辨識", use_container_width=True):
+                with st.spinner("智慧掃描：尋找紅筆標記、留白與錯題中..."):
+                    success = perform_ai_scan(valid_files, "loose")
+                if success:
+                    st.success("✅ 圖片重新辨識完成。")
+                    st.rerun()
+
+        if st.session_state.get("scan_manual_mode", False):
+            st.warning("⚠️ " + st.session_state.get(
+                "scan_error_message",
+                "圖片辨識目前無法使用，請改用人工輸入。",
+            ))
+            st.info("圖片仍保留在上方。請依照圖片內容輸入或貼上錯題文字，之後仍可繼續解析與出題。")
+
+            manual_text = st.text_area(
+                "⌨️ 人工輸入錯題內容",
+                value=st.session_state.get("manual_scan_text", ""),
+                height=180,
+                placeholder="例如：\n1. 解方程式 2x + 5 = 17。\n2. 已知直角三角形兩股長為 3、4，求斜邊長。",
+                key="manual_scan_text_input",
+            )
+
+            manual_col1, manual_col2 = st.columns(2)
+            with manual_col1:
+                if st.button("✅ 確認使用這段錯題文字", type="primary", use_container_width=True):
+                    cleaned_text = manual_text.strip()
+                    if not cleaned_text:
+                        st.warning("請先輸入至少一道錯題。")
+                    else:
+                        st.session_state["scanned_text"] = cleaned_text
+                        st.session_state["manual_scan_text"] = cleaned_text
+                        st.session_state["scan_manual_mode"] = False
+                        st.session_state["scan_error_message"] = ""
+                        st.session_state["scan_error_code"] = ""
+                        st.success("錯題文字已儲存，可以繼續產生解析與變形題。")
+                        st.rerun()
+
+            with manual_col2:
+                if st.button("取消人工輸入", use_container_width=True):
+                    st.session_state["scan_manual_mode"] = False
+                    st.session_state["scan_error_message"] = ""
+                    st.session_state["scan_error_code"] = ""
+                    st.rerun()
 
         st.markdown("---")
         
-        # 僅在試用狀態下顯示 5 題限制提示，已註冊用戶自動隱藏
-        if is_trial:
-            st.info("💡 **試用版提示：** 系統將自動辨識並最多擷取 **5 道** 題目（包含您在圖片上圈選標記的重點/空白題目）。完成免費登入後可無限制全卷辨識與存檔！")
-        
-        edited_text = st.text_area("確認題目內容 (可在框內直接微調圈選要輸出的錯題)：", value=st.session_state["scanned_text"], height=120)
+        edited_text = st.text_area("確認題目內容 (可在框內直接微調要輸出的錯題)：", value=st.session_state["scanned_text"], height=120)
         st.session_state["scanned_text"] = edited_text
 
         st.markdown("### 🎯 步驟三：自動產出解析與模擬試題")
+        
+        st.markdown("#### 🎯 選擇產出方案")
+        selected_mock_plan = st.selectbox("請選擇產出題數與方案：", list(q_count_options.keys()), key="mock_plan")
+        mock_q_count = q_count_options[selected_mock_plan]
         
         use_interests_1 = st.checkbox("🌟 模擬試題融合學生興趣情境 (等正式版的時候再開放)", value=False, disabled=True, key="scan_interest")
 
         col_mock1, col_mock2 = st.columns(2)
         with col_mock1:
-            btn_mock1 = st.button("🚀 執行一鍵產出 (扣1次額度)", type="primary", use_container_width=True)
+            btn_mock1 = st.button("🚀 執行產出", type="primary", use_container_width=True)
         with col_mock2:
-            btn_mock2 = st.button("🔄 再出一次模擬試題 (扣1次額度)", use_container_width=True)
+            btn_mock2 = st.button("🔄 重新再出一份", use_container_width=True)
 
         if btn_mock1 or btn_mock2:
             client_ip = get_client_ip()
             ip_today_key = f"{today_str}_{client_ip}"
             current_ip_trials = st.session_state["ip_trial_history"].get(ip_today_key, 0)
 
-            if is_trial and current_ip_trials >= 1 and st.session_state["generated_content"]:
-                show_trial_conversion_notice()
-            elif not edited_text:
+            if not edited_text:
                 st.warning("請先輸入或辨識題目！")
-            elif deduct_credit() and GEMINI_KEY:
+            elif deduct_credit(mock_q_count) and GEMINI_KEY:
                 if supabase_client and st.session_state["user_profile"]["email"] != "trial@example.com":
                     try:
                         supabase_client.table("user_mistakes_log").insert({
@@ -1185,9 +1380,8 @@ elif st.session_state["setup_complete"]:
                 with st.spinner("產出中..."):
                     try:
                         db_text = fetch_relevant_questions_from_db([edited_text[:20]], limit=5)
-                        client = genai.Client(api_key=GEMINI_KEY)
                         
-                        limit_prompt = " (請精準控管題目數量：產出最多 5 題原錯題解析，與 5 題改數字模擬題) " if is_trial else " (請產出 8 題模擬試題) "
+                        limit_prompt = f" (請精準控管題目數量：產出最多 {mock_q_count} 題原錯題解析與改數字模擬題) "
                         
                         prompt_text = "【錯題內容】：\n" + edited_text + "\n\n"
                         prompt_text += "【題庫參考】\n" + (db_text if db_text else "(無)") + "\n\n"
@@ -1195,14 +1389,14 @@ elif st.session_state["setup_complete"]:
                         prompt_text += LAYOUT_WITH_ANALYSIS
                         prompt_text += JSON_TEMPLATE_MOCK
                         
-                        response = client.models.generate_content(model="gemini-3.5-flash", contents=[prompt_text])
-                        if response:
-                            st.session_state["generated_content"] = re.sub(r'```json.*?```', '', response.text, flags=re.DOTALL).strip()
-                            parse_and_insert_9_col_json(response.text)
-                            if is_trial:
-                                st.session_state["ip_trial_history"][ip_today_key] = current_ip_trials + 1
+                        res_text = call_gemini_api([prompt_text])
+                        if res_text:
+                            st.session_state["generated_content"] = re.sub(r'```json.*?```', '', res_text, flags=re.DOTALL).strip()
+                            parse_and_insert_9_col_json(res_text)
                             st.success("成功產出！")
                     except Exception as e: handle_api_error(e)
+            else:
+                show_trial_conversion_notice()
 
         if st.session_state["generated_content"]:
             st.markdown(f'<div class="printable-exam-area">{st.session_state["generated_content"]}</div>', unsafe_allow_html=True)
@@ -1211,31 +1405,34 @@ elif st.session_state["setup_complete"]:
             st.markdown("---")
             st.subheader("🚀 步驟四：疊代升級 (變形題)")
             
+            st.markdown("#### 🎯 選擇變形方案")
+            selected_var_plan = st.selectbox("請選擇變形題數與方案：", list(q_count_options.keys()), key="var_plan")
+            var_q_count = q_count_options[selected_var_plan]
+            
             use_interests_var = st.checkbox("🌟 變形題融合學生興趣情境 (等正式版的時候再開放)", value=False, disabled=True, key="var_interest")
 
             c_var1, c_var2 = st.columns(2)
-            with c_var1: btn_var1 = st.button("產出 5 題變形題 (扣1次額度)", use_container_width=True)
-            with c_var2: btn_var2 = st.button("🔄 再生成一次變形題 (扣1次額度)", use_container_width=True)
+            with c_var1: btn_var1 = st.button("產出變形題", use_container_width=True)
+            with c_var2: btn_var2 = st.button("🔄 重新產出不同變形題", use_container_width=True)
             
             if btn_var1 or btn_var2:
-                if is_trial:
-                    show_trial_conversion_notice()
-                elif deduct_credit() and GEMINI_KEY:
+                if deduct_credit(var_q_count) and GEMINI_KEY:
                     with st.spinner("產出變形題中..."):
                         db_text = fetch_relevant_questions_from_db([edited_text[:30]], limit=10)
                         
                         prompt_var = "錯題內容：\n" + edited_text + "\n\n"
                         prompt_var += "【題庫優先使用】\n" + (db_text if db_text else "(無)") + "\n\n"
-                        prompt_var += "請產出 5 題變形試題。\n\n"
+                        prompt_var += f"請產出 {var_q_count} 題變形試題。\n\n"
                         prompt_var += LAYOUT_NORMAL
                         prompt_var += JSON_TEMPLATE_VAR
                         
                         try:
-                            client = genai.Client(api_key=GEMINI_KEY)
-                            res_var = client.models.generate_content(model="gemini-3.5-flash", contents=[prompt_var])
-                            st.session_state["variation_content"] = re.sub(r'```json.*?```', '', res_var.text, flags=re.DOTALL).strip()
-                            parse_and_insert_9_col_json(res_var.text)
+                            res_text = call_gemini_api([prompt_var])
+                            st.session_state["variation_content"] = re.sub(r'```json.*?```', '', res_text, flags=re.DOTALL).strip()
+                            parse_and_insert_9_col_json(res_text)
                         except Exception as e: handle_api_error(e)
+                else:
+                    show_trial_conversion_notice()
                         
             if st.session_state.get("variation_content"):
                 st.markdown("### 🌟 變形試卷")
@@ -1262,27 +1459,32 @@ elif st.session_state["setup_complete"]:
             
             history_text = st.text_area("欲複習之錯題內容：", value=st.session_state.get("history_mistakes", "請輸入歷史錯題..."), height=100)
             
+            st.markdown("#### 🎯 選擇複習方案")
+            selected_hist_plan = st.selectbox("請選擇複習題數與方案：", list(q_count_options.keys()), key="hist_plan")
+            hist_q_count = q_count_options[selected_hist_plan]
+            
             use_interests_history = st.checkbox("🌟 歷史複習卷融合學生興趣情境 (等正式版的時候再開放)", value=False, disabled=True, key="history_interest")
             
-            if st.button("產生 10 題複習試卷"):
-                if deduct_credit() and GEMINI_KEY:
+            if st.button("產生複習試卷"):
+                if deduct_credit(hist_q_count) and GEMINI_KEY:
                     with st.spinner("產出中..."):
                         db_text = fetch_relevant_questions_from_db([history_text[:30]], limit=15)
                         
                         prompt_hist = "歷史錯題：\n" + history_text + "\n\n"
                         prompt_hist += "【題庫優先使用】\n" + (db_text if db_text else "(無)") + "\n\n"
-                        prompt_hist += "請產出 10 題歷史錯題複習試卷。\n\n"
+                        prompt_hist += f"請產出 {hist_q_count} 題歷史錯題複習試卷。\n\n"
                         prompt_hist += LAYOUT_NORMAL
                         prompt_hist += JSON_TEMPLATE_HIST.replace("TAG_PLACEHOLDER", "歷史複習")
                         
                         try:
-                            client = genai.Client(api_key=GEMINI_KEY)
-                            res_hist = client.models.generate_content(model="gemini-3.5-flash", contents=[prompt_hist])
-                            final_hist_content = re.sub(r'```json.*?```', '', res_hist.text, flags=re.DOTALL).strip()
+                            res_text = call_gemini_api([prompt_hist])
+                            final_hist_content = re.sub(r'```json.*?```', '', res_text, flags=re.DOTALL).strip()
                             st.markdown(f'<div class="printable-exam-area">{final_hist_content}</div>', unsafe_allow_html=True)
                             render_share_buttons(final_hist_content, "hist_res")
-                            parse_and_insert_9_col_json(res_hist.text)
+                            parse_and_insert_9_col_json(res_text)
                         except Exception as e: handle_api_error(e)
+                else:
+                    show_trial_conversion_notice()
 
     with tab_custom:
         st.subheader("⚙️ 題目自組卷 (強大 Hybrid 混合出題) 🔒")
@@ -1304,45 +1506,57 @@ elif st.session_state["setup_complete"]:
             sub_units_options = ["基礎觀念題", "生活情境應用題", "圖形與圖表解析", "進階變化題", "歷屆易錯陷阱題"]
             selected_subs = st.multiselect("請選擇題型方向 (可複選)：", sub_units_options, default=sub_units_options[:2])
             
-            st.markdown("#### 📝 選擇試卷題型與數量")
-            c_q1, c_q2, c_q3 = st.columns(3)
-            with c_q1: tfc_cnt = st.selectbox("是非觀念題", [5, 10, 15])
-            with c_q2: mc_cnt = st.selectbox("選擇題", [10, 15, 20])
-            with c_q3: calc_cnt = st.selectbox("計算題", [5, 10])
+            display_q = 30
+            mc_cnt = 10
+            fill_cnt = 10
+            calc_cnt = 10
+            req_pts = 50
+            
+            st.info(f"💡 預計總題數：**{display_q}** 題 (將扣除 **{req_pts}** 點)")
 
             use_interests_custom = st.checkbox("🌟 自組卷融合學生興趣情境 (等正式版的時候再開放)", value=False, disabled=True, key="custom_exam_interest")
 
             col_cust1, col_cust2 = st.columns(2)
             with col_cust1:
-                btn_cust1 = st.button("產生自組卷 (扣1次額度)", type="primary", use_container_width=True)
+                btn_cust1 = st.button("產生自組卷", type="primary", use_container_width=True)
             with col_cust2:
-                btn_cust2 = st.button("🔄 再生成不同題目的自組卷 (扣1次額度)", use_container_width=True)
+                btn_cust2 = st.button("🔄 重新生成不同題目", use_container_width=True)
 
             if btn_cust1 or btn_cust2:
                 if not selected_mains or not selected_subs: 
                     st.warning("請先選擇主單元與次單元題型！")
-                elif deduct_credit() and GEMINI_KEY:
-                    with st.spinner("智慧組卷中..."):
-                        main_topics_str = "、".join(selected_mains)
-                        sub_topics_str = "、".join(selected_subs)
-                        db_text = fetch_relevant_questions_from_db(selected_mains, limit=20)
+                else:
+                    if "credits" not in st.session_state["user_profile"]:
+                        st.session_state["user_profile"]["credits"] = 15
                         
-                        prompt_custom = f"適用年級與版本：{user_gr} {user_ver}\n"
-                        prompt_custom += "主單元：\n" + main_topics_str + "\n"
-                        prompt_custom += "題型方向：\n" + sub_topics_str + "\n\n"
-                        prompt_custom += "【系統題庫資源】\n" + (db_text if db_text else "(無)") + "\n\n"
-                        prompt_custom += f"請產出 {tfc_cnt}題是非題、{mc_cnt}題選擇題與 {calc_cnt}題計算題。優先使用上方題庫。\n\n"
-                        prompt_custom += LAYOUT_NORMAL
-                        prompt_custom += JSON_TEMPLATE_CUSTOM.replace("UNIT_PLACEHOLDER", main_topics_str)
+                    if st.session_state["user_profile"]["credits"] >= req_pts:
+                        st.session_state["user_profile"]["credits"] -= req_pts
+                        save_user_profile_to_db(st.session_state["user_profile"])
                         
-                        try:
-                            client = genai.Client(api_key=GEMINI_KEY)
-                            res_custom = client.models.generate_content(model="gemini-3.5-flash", contents=[prompt_custom])
-                            final_custom_content = re.sub(r'```json.*?```', '', res_custom.text, flags=re.DOTALL).strip()
+                        with st.spinner("智慧組卷中..."):
+                            main_topics_str = "、".join(selected_mains)
+                            sub_topics_str = "、".join(selected_subs)
+                            db_text = fetch_relevant_questions_from_db(selected_mains, limit=20)
                             
-                            st.session_state["custom_exam_content"] = final_custom_content
-                            parse_and_insert_9_col_json(res_custom.text)
-                        except Exception as e: handle_api_error(e)
+                            prompt_custom = f"適用年級與版本：{user_gr} {user_ver}\n"
+                            prompt_custom += "主單元：\n" + main_topics_str + "\n"
+                            prompt_custom += "題型方向：\n" + sub_topics_str + "\n\n"
+                            prompt_custom += "【系統題庫資源】\n" + (db_text if db_text else "(無)") + "\n\n"
+                            prompt_custom += f"請產出總共 {display_q} 題（嚴格包含 {mc_cnt}題選擇題、{fill_cnt}題填空題與 {calc_cnt}題計算題的組合）。\n"
+                            prompt_custom += "【出題優先順序】：請優先從上方系統題庫資源中出題，若題數不足，剩餘的部分請完全使用 AI 自動生成補充。\n"
+                            prompt_custom += "【出題重要要求】：所有生成的題目與解答請儘量不要與題庫完全重複，至少要修改數字與情境。每道題目務必提供標準解答與解析。\n\n"
+                            prompt_custom += LAYOUT_NORMAL
+                            prompt_custom += JSON_TEMPLATE_CUSTOM.replace("UNIT_PLACEHOLDER", main_topics_str)
+                            
+                            try:
+                                res_text = call_gemini_api([prompt_custom])
+                                final_custom_content = re.sub(r'```json.*?```', '', res_text, flags=re.DOTALL).strip()
+                                
+                                st.session_state["custom_exam_content"] = final_custom_content
+                                parse_and_insert_9_col_json(res_text)
+                            except Exception as e: handle_api_error(e)
+                    else:
+                        show_trial_conversion_notice()
             
             if st.session_state.get("custom_exam_content"):
                 st.markdown(f'<div class="printable-exam-area">{st.session_state["custom_exam_content"]}</div>', unsafe_allow_html=True)
