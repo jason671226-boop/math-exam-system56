@@ -8,8 +8,24 @@ import os
 import random
 import smtplib
 from email.mime.text import MIMEText
-from datetime import date
+from datetime import date, datetime, timedelta
 import base64
+import hashlib
+from pathlib import Path
+
+# 學習地圖模組（MVP）
+try:
+    from learning_map import (
+        get_subunit_names_for_units,
+        get_unit_names_for_profile,
+        render_learning_map,
+    )
+    LEARNING_MAP_AVAILABLE = True
+except ImportError:
+    get_subunit_names_for_units = None
+    get_unit_names_for_profile = None
+    render_learning_map = None
+    LEARNING_MAP_AVAILABLE = False
 
 # 嘗試載入 Pandas (處理 CSV)
 try:
@@ -35,18 +51,31 @@ except ImportError:
     SUPABASE_AVAILABLE = False
 
 try:
-    from PIL import Image, ImageEnhance
+    from PIL import Image, ImageEnhance, ImageDraw
     PIL_AVAILABLE = True
 except ImportError:
+    Image = None
+    ImageEnhance = None
+    ImageDraw = None
     PIL_AVAILABLE = False
 
-# 可選的圖片畫筆元件；若未安裝，系統仍可退回原圖辨識。
+# 雲端穩定版圖片點選元件：
+# 使用兩次點擊建立矩形框，或單次點擊建立圓形標記。
+# 不再依賴 streamlit-drawable-canvas，避免 Streamlit Cloud 背景圖片空白。
 try:
-    from streamlit_drawable_canvas import st_canvas
-    DRAWABLE_CANVAS_AVAILABLE = True
+    from streamlit_image_coordinates import streamlit_image_coordinates
+    IMAGE_COORDINATES_AVAILABLE = True
 except ImportError:
-    st_canvas = None
-    DRAWABLE_CANVAS_AVAILABLE = False
+    streamlit_image_coordinates = None
+    IMAGE_COORDINATES_AVAILABLE = False
+
+# 瀏覽器裝置記憶：只保存曾登入的 Email，不保存密碼或 OTP。
+try:
+    from streamlit_cookies_controller import CookieController
+    COOKIE_CONTROLLER_AVAILABLE = True
+except ImportError:
+    CookieController = None
+    COOKIE_CONTROLLER_AVAILABLE = False
 
 st.set_page_config(
     page_title="AI 數學錯題迭代系統", 
@@ -55,9 +84,103 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- 讀寫本地記憶帳號與紀錄 (Email 自動記憶、儲值紀錄備援) ---
-LOCAL_EMAILS_FILE = "recent_emails.json"
+# 介面微調：側欄 QR Code 自適應，主功能導覽列固定在上方。
+st.markdown(
+    """
+    <style>
+    section[data-testid="stSidebar"] [data-testid="stImage"] img {
+        width: 100% !important;
+        max-width: 260px !important;
+        height: auto !important;
+        object-fit: contain !important;
+        display: block !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+    }
+
+    /*
+      v0.5.9 不再固定 st.tabs 內部頁籤。
+      改用獨立的 Streamlit 原生按鈕導覽列。
+    */
+    .st-key-main_nav_fixed {
+        position: fixed !important;
+        top: 3.35rem !important;
+        left: 21.5rem !important;
+        right: 1.25rem !important;
+        z-index: 999999 !important;
+        background: rgba(255, 255, 255, 0.98) !important;
+        border: 1px solid rgba(49, 51, 63, 0.15) !important;
+        border-radius: 0.65rem !important;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14) !important;
+        padding: 0.45rem 0.55rem !important;
+        backdrop-filter: blur(8px) !important;
+    }
+
+    .st-key-main_nav_fixed [data-testid="stHorizontalBlock"] {
+        gap: 0.35rem !important;
+        flex-wrap: nowrap !important;
+    }
+
+    .st-key-main_nav_fixed button {
+        min-height: 2.55rem !important;
+        padding-left: 0.35rem !important;
+        padding-right: 0.35rem !important;
+    }
+
+    .st-key-main_nav_fixed button p {
+        white-space: nowrap !important;
+        font-size: 0.86rem !important;
+    }
+
+    /* 隱藏原本 st.tabs 的標籤列，只保留內容。 */
+    .st-key-main_tabs_control [data-baseweb="tab-list"],
+    .st-key-main_tabs_control [role="tablist"] {
+        display: none !important;
+    }
+
+    body:has(section[data-testid="stSidebar"][aria-expanded="false"])
+    .st-key-main_nav_fixed {
+        left: 4.5rem !important;
+    }
+
+    @media (max-width: 900px) {
+        .st-key-main_nav_fixed {
+            left: 0.5rem !important;
+            right: 0.5rem !important;
+            top: 3.2rem !important;
+            overflow-x: auto !important;
+        }
+
+        .st-key-main_nav_fixed [data-testid="stHorizontalBlock"] {
+            min-width: 880px !important;
+        }
+    }
+
+    @media (prefers-color-scheme: dark) {
+        .st-key-main_nav_fixed {
+            background: rgba(14, 17, 23, 0.98) !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+APP_VERSION = "v0.5.9"
+APP_DIR = Path(__file__).resolve().parent
+LOCAL_EMAILS_FILE = APP_DIR / "recent_emails.json"
+LINE_PAY_QR_FILE = APP_DIR / "line_pay_qr.jpg"
+
+# --- 裝置 Email 記憶與儲值紀錄備援 ---
+# Email 清單保存在目前瀏覽器 Cookie；不再使用雲端伺服器共用的 recent_emails.json。
+DEVICE_EMAIL_COOKIE = "mathai_recent_emails_v1"
 TOPUP_FILE = "topup_requests.json"
+
+cookie_controller = (
+    CookieController(key="mathai_device_cookie_controller")
+    if COOKIE_CONTROLLER_AVAILABLE
+    else None
+)
 
 today_str = date.today().isoformat()
 
@@ -96,27 +219,129 @@ if "scan_error_message" not in st.session_state: st.session_state["scan_error_me
 if "scan_error_code" not in st.session_state: st.session_state["scan_error_code"] = ""
 if "manual_scan_text" not in st.session_state: st.session_state["manual_scan_text"] = ""
 
-def get_recent_emails():
+def _clean_recent_email_list(value):
+    """將 Cookie 內容整理成安全、去重複的 Email 清單。"""
     try:
-        if os.path.exists(LOCAL_EMAILS_FILE):
-            with open(LOCAL_EMAILS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+        if isinstance(value, str):
+            value = json.loads(value)
+    except Exception:
+        value = []
+
+    if not isinstance(value, list):
+        return []
+
+    cleaned = []
+    for item in value:
+        email = str(item).strip().lower()
+        if (
+            email
+            and "@" in email
+            and email != "trial@example.com"
+            and email not in cleaned
+        ):
+            cleaned.append(email)
+    return cleaned[:10]
+
+
+def is_localhost_request():
+    """只在本機 localhost 開啟開發者快速測試功能。"""
+    try:
+        host = str(st.context.headers.get("Host", "")).lower()
+        return host.startswith("localhost") or host.startswith("127.0.0.1")
+    except Exception:
+        return False
+
+
+def _read_local_recent_emails():
+    """本機開發模式：將曾登入 Email 保存於 C:\\MathAI\\app\\recent_emails.json。"""
+    try:
+        if LOCAL_EMAILS_FILE.exists():
+            return _clean_recent_email_list(
+                json.loads(LOCAL_EMAILS_FILE.read_text(encoding="utf-8"))
+            )
     except Exception:
         pass
     return []
 
+
+def _write_local_recent_emails(emails):
+    try:
+        LOCAL_EMAILS_FILE.write_text(
+            json.dumps(emails[:10], ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
+
+
+def get_recent_emails():
+    """
+    本機：優先讀取 recent_emails.json，重新啟動程式後仍保留。
+    雲端：讀取目前瀏覽器 Cookie。
+    """
+    combined = []
+
+    if is_localhost_request():
+        combined.extend(_read_local_recent_emails())
+
+    if cookie_controller is not None:
+        try:
+            combined.extend(
+                _clean_recent_email_list(
+                    cookie_controller.get(DEVICE_EMAIL_COOKIE)
+                )
+            )
+        except Exception:
+            pass
+
+    return _clean_recent_email_list(combined)
+
+
 def save_recent_email(email):
-    if not email or "@" not in email or email == "trial@example.com": 
+    """記住 Email；本機寫入檔案，瀏覽器同時寫入 Cookie。"""
+    email = str(email or "").strip().lower()
+    if not email or "@" not in email or email == "trial@example.com":
         return
+
     emails = get_recent_emails()
     if email in emails:
         emails.remove(email)
     emails.insert(0, email)
-    try:
-        with open(LOCAL_EMAILS_FILE, "w", encoding="utf-8") as f:
-            json.dump(emails[:10], f, ensure_ascii=False)
-    except Exception:
-        pass
+    emails = emails[:10]
+
+    if is_localhost_request():
+        _write_local_recent_emails(emails)
+
+    if cookie_controller is not None:
+        try:
+            cookie_controller.set(
+                DEVICE_EMAIL_COOKIE,
+                json.dumps(emails, ensure_ascii=False),
+                expires=datetime.now() + timedelta(days=365),
+                same_site="lax",
+            )
+        except Exception:
+            pass
+
+
+def clear_recent_emails():
+    """清除本機檔案與目前瀏覽器 Cookie 中的 Email 清單。"""
+    if is_localhost_request():
+        try:
+            if LOCAL_EMAILS_FILE.exists():
+                LOCAL_EMAILS_FILE.unlink()
+        except Exception:
+            pass
+
+    if cookie_controller is not None:
+        try:
+            cookie_controller.remove(
+                DEVICE_EMAIL_COOKIE,
+                same_site="lax",
+            )
+        except Exception:
+            pass
+
 
 def get_client_ip():
     try:
@@ -451,6 +676,7 @@ def handle_api_error(exc: Exception) -> None:
 # 🌟 全域左側欄 (Sidebar) 核心邏輯 - 直接展開、保證不消失
 # ==========================================
 with st.sidebar:
+    st.caption(f"目前版本：{APP_VERSION}")
     st.markdown(f"### 🪙 目前點數：**{st.session_state['user_profile'].get('credits', 15)}** 點")
     
     st.markdown("---")
@@ -467,9 +693,17 @@ with st.sidebar:
     
     for pt in pay_tabs:
         with pt:
-            st.markdown("🔹 **收款帳戶資訊**\n- 戶名：**陳冠霖**\n- 帳號：**郵局代碼 700，郵局帳號 00210570283172**")
+            st.markdown("🔹 **收款帳戶資訊**\n- 戶名：**陳冠麟**\n- 帳號：**郵局代碼 700，郵局帳號 00210570283172**")
     with pay_tabs[1]:
-        st.info("💡 提示：若有 LINE Pay 條碼，可於此替換圖片。")
+        st.markdown("#### 🟢 LINE Pay 收款碼")
+        if LINE_PAY_QR_FILE.exists():
+            st.image(
+                str(LINE_PAY_QR_FILE),
+                caption="請使用 LINE Pay 掃描付款，付款後再按下方按鈕通知管理員。",
+                use_container_width=True,
+            )
+        else:
+            st.warning("找不到 LINE Pay 收款碼圖片，請確認 line_pay_qr.jpg 已放在 app 資料夾。")
     with pay_tabs[2]:
         st.info("💡 提示：若有街口條碼，可於此替換圖片。")
     with pay_tabs[3]:
@@ -672,7 +906,7 @@ def show_trial_conversion_notice():
         "<b>⚠️ 點數不足或試用額度已用完！</b><br><br>"
         "想要繼續產出更多專屬練習嗎？請至左側選單進行<b>「儲值點數」</b>或點擊頁籤至 <b>[🏠 帳號與設定]</b> 完成免費登入綁定！<br><br>"
         "<b>👉 為什麼你應該立即免費註冊綁定？</b><br>"
-        "• 🎁 <b>免費送點數</b>：新用戶註冊綁定登入後，自動獲贈 <b>30 點</b>！<br>"
+        "• 🎁 <b>免費送點數</b>：新用戶註冊綁定登入後，自動獲贈 <b>100 點</b>！<br>"
         "• 🧠 <b>自動建立專屬學習履歷</b>：系統將自動記錄每一次的錯題，精準追蹤你的知識盲點。<br>"
         "• 🎯 <b>弱點深度分析與迭代</b>：不再盲目刷題！唯有透過個人化錯題累積，才能進行高度客製化的「疊代升級練習」。<br>"
         "• ⚡ <b>倍增學習效率</b>：幫學生省下 80% 整理錯題本的時間，直擊弱點，用最短時間獲得最大幅度進步！<br><br>"
@@ -861,6 +1095,21 @@ q_count_options = {
     "20 題包（全冊總複習試卷） - 扣 50 點": 20
 }
 
+MAIN_TAB_LABELS = [
+    "📸 錯題解析",
+    "🏠 帳號與設定",
+    "🌳 學習地圖",
+    "📂 歷史錯題 🔒",
+    "🧠 學習診斷 🔒",
+    "⚙️ 自組考卷 🔒",
+]
+
+
+def switch_main_tab(tab_label):
+    """由固定導覽列切換主功能。"""
+    st.session_state["main_tabs_control"] = tab_label
+
+
 # ==========================================
 # 第一頁：登入與試用頁面
 # ==========================================
@@ -873,6 +1122,27 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
     )
     st.markdown(welcome_msg, unsafe_allow_html=True)
     st.markdown("---")
+
+    if is_localhost_request():
+        st.info("🧪 本機開發模式：可跳過 Email 與 OTP，直接測試後續功能。此按鈕不會出現在公開網站。")
+        if st.button(
+            "🧪 本機開發者快速進入系統",
+            type="secondary",
+            use_container_width=True,
+        ):
+            remembered = get_recent_emails()
+            dev_email = remembered[0] if remembered else "developer@local.test"
+            st.session_state["user_profile"].update({
+                "email": dev_email,
+                "credits": 9999,
+                "last_name": st.session_state["user_profile"].get("last_name") or "測試",
+                "first_name": st.session_state["user_profile"].get("first_name") or "使用者",
+            })
+            st.session_state["is_verified"] = True
+            st.session_state["is_trial"] = False
+            st.session_state["setup_complete"] = True
+            st.rerun()
+        st.markdown("---")
     
     client_ip = get_client_ip()
     ip_today_key = f"{today_str}_{client_ip}"
@@ -889,7 +1159,7 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
                 st.rerun()
     st.markdown("---")
 
-    st.subheader("📋 註冊綁定 / 登入個人資料庫 (新會員登入即送 30 點)")
+    st.subheader("📋 註冊綁定 / 登入個人資料庫 (新會員登入即送 100 點)")
     up = st.session_state["user_profile"]
 
     current_stored_email = st.session_state["user_profile"].get("email", "")
@@ -897,16 +1167,42 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
 
     if not is_verified:
         recent_emails = get_recent_emails()
-        email_options = ["➕ 手動輸入新 Email..."] + recent_emails
-        
+        manual_email_option = "➕ 手動輸入新 Email..."
+        email_options = recent_emails + [manual_email_option]
+
         st.markdown("#### 📧 請選擇或輸入您的登入 Email (必填)")
-        selected_option = st.selectbox("點擊選擇曾登入過的帳號：", email_options, key="single_email_select")
-        
-        if selected_option == "➕ 手動輸入新 Email...":
-            typed_email = st.text_input("請輸入新的 Email (綁定與驗證用)：", value=st.session_state["pending_email"], placeholder="example@gmail.com")
+        if recent_emails:
+            st.caption("✅ 已載入這台裝置曾驗證過的 Email；最近使用的帳號會排在最前面。")
+        elif not COOKIE_CONTROLLER_AVAILABLE:
+            st.caption("ℹ️ 裝置記憶元件尚未安裝，目前仍可手動輸入 Email。")
+
+        selected_option = st.selectbox(
+            "點擊選擇曾登入過的帳號：",
+            email_options,
+            key="single_email_select",
+        )
+
+        if recent_emails:
+            if st.button(
+                "🧹 清除這台裝置記住的 Email",
+                key="clear_device_emails",
+            ):
+                clear_recent_emails()
+                st.session_state.pop("single_email_select", None)
+                st.session_state["pending_email"] = ""
+                st.success("已清除這台裝置的 Email 記錄。")
+                st.rerun()
+
+        if selected_option == manual_email_option:
+            typed_email = st.text_input(
+                "請輸入新的 Email (綁定與驗證用)：",
+                value=st.session_state["pending_email"],
+                placeholder="example@gmail.com",
+            )
             user_email_input = typed_email.strip()
         else:
             user_email_input = selected_option
+            st.session_state["pending_email"] = user_email_input
             db_profile = fetch_user_profile_from_db(user_email_input)
             if db_profile:
                 st.session_state["user_profile"]["last_name"] = db_profile.get("last_name", "")
@@ -950,9 +1246,9 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
                             
                             db_profile = fetch_user_profile_from_db(st.session_state["pending_email"])
                             if not db_profile:
-                                st.session_state["user_profile"]["credits"] = 30
+                                st.session_state["user_profile"]["credits"] = 100
                             else:
-                                st.session_state["user_profile"]["credits"] = db_profile.get("credits", 30)
+                                st.session_state["user_profile"]["credits"] = db_profile.get("credits", 100)
                             
                             st.rerun()
                         else:
@@ -971,88 +1267,203 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
     def_grade = up.get("grade", "8年級(國二)")
     def_ver = up.get("version", "康軒版")
     def_traits = up.get("traits", [])
+    def_interests = up.get("interests", [])
 
-    st.markdown("#### 👤 學生基本資料設定 (紅標為必填欄位)")
-    
+    st.markdown("#### 👤 學生基本資料設定")
+    st.caption("紅色項目為必填欄位。")
+
+    profile_account_source = current_stored_email or st.session_state.get("pending_email", "new_user")
+    profile_account_key = hashlib.sha256(profile_account_source.encode("utf-8")).hexdigest()[:10]
+
+    def show_required_label(label_text):
+        st.markdown(
+            f"<div style='color:#d32f2f;font-weight:700;margin:0.15rem 0 0.25rem 0;'>"
+            f"{label_text} <span style='font-size:1.05em;'>*</span></div>",
+            unsafe_allow_html=True,
+        )
+
     col_name1, col_name2 = st.columns(2)
-    with col_name1: last_n = st.text_input("姓氏 (必填)：", value=def_ln)
-    with col_name2: first_n = st.text_input("名字 (必填)：", value=def_fn)
-    
+    with col_name1:
+        show_required_label("姓氏")
+        last_n = st.text_input(
+            "姓氏",
+            value=def_ln,
+            label_visibility="collapsed",
+            key=f"profile_last_name_{profile_account_key}",
+        )
+    with col_name2:
+        show_required_label("名字")
+        first_n = st.text_input(
+            "名字",
+            value=def_fn,
+            label_visibility="collapsed",
+            key=f"profile_first_name_{profile_account_key}",
+        )
+
     col_geo1, col_geo2, col_geo3 = st.columns(3)
     with col_geo1:
+        show_required_label("縣市")
         city_idx = taiwan_counties.index(def_city) if def_city in taiwan_counties else 1
-        selected_city = st.selectbox("縣市 (必填)：", taiwan_counties, index=city_idx)
+        selected_city = st.selectbox(
+            "縣市",
+            taiwan_counties,
+            index=city_idx,
+            label_visibility="collapsed",
+            key=f"profile_city_{profile_account_key}",
+        )
     with col_geo2:
+        show_required_label("鄉鎮市區")
         dist_options = taiwan_districts.get(selected_city, ["全區"])
         dist_idx = dist_options.index(def_district) if def_district in dist_options else 0
-        selected_district = st.selectbox("鄉鎮市區 (必填)：", dist_options, index=dist_idx)
+        selected_district = st.selectbox(
+            "鄉鎮市區",
+            dist_options,
+            index=dist_idx,
+            label_visibility="collapsed",
+            key=f"profile_district_{profile_account_key}",
+        )
     with col_geo3:
-        school_name = st.text_input("就讀學校 (必填，例如：樹林國中)：", value=def_school)
+        show_required_label("就讀學校")
+        school_name = st.text_input(
+            "就讀學校",
+            value=def_school,
+            placeholder="例如：樹林國中",
+            label_visibility="collapsed",
+            key=f"profile_school_{profile_account_key}",
+        )
 
     col_edu1, col_geo2_edu = st.columns(2)
     with col_edu1:
+        show_required_label("就讀年級")
         gr_idx = grade_options.index(def_grade) if def_grade in grade_options else 7
-        selected_grade = st.selectbox("就讀年級 (必填)：", grade_options, index=gr_idx)
-        
+        selected_grade = st.selectbox(
+            "就讀年級",
+            grade_options,
+            index=gr_idx,
+            label_visibility="collapsed",
+            key=f"profile_grade_{profile_account_key}",
+        )
+
     is_high_school = any(g in selected_grade for g in ["10年級", "11年級", "12年級", "高"])
     if is_high_school:
         valid_versions = ["A級 (數學A)", "B級 (數學B)", "C級 (數學C)", "報考私中", "參加數學競賽"]
     else:
         valid_versions = ["康軒版", "翰林版", "南一版", "報考私中", "參加數學競賽"]
-        
+
     ver_idx = valid_versions.index(def_ver) if def_ver in valid_versions else 0
     with col_geo2_edu:
-        selected_version = st.selectbox("教科書版本 / 類別 (必填，連動後續自組卷)：", valid_versions, index=ver_idx)
+        show_required_label("教科書版本／類別")
+        selected_version = st.selectbox(
+            "教科書版本／類別",
+            valid_versions,
+            index=ver_idx,
+            label_visibility="collapsed",
+            key=f"profile_version_{profile_account_key}",
+            help="此設定會連動學習地圖與自組考卷。",
+        )
 
     st.markdown("---")
     
-    st.markdown("#### 🧠 學生個人學習狀況 (提示：選填，協助 AI 精準配題)")
-    learning_traits = [
-        "粗心大意", "計算力不足", "基礎觀念不佳", "應用題理解困難", 
-        "空間幾何薄弱", "專注力不足容易分心", "考試時間分配不佳", "缺乏訂正習慣",
-        "對數學有濃厚興趣", "希望挑戰更高難度的數學", "渴望突破現在的數學能力"
-    ]
-    
-    known_traits = set(learning_traits)
-    def_custom_trait = ""
-    def_selected_traits = []
-    for t in def_traits:
-        if t in known_traits:
-            def_selected_traits.append(t)
-        else:
-            def_custom_trait = t
+    st.markdown("#### 🧠 學生個人學習狀況")
+    st.caption("直接勾選即可，可複選；選中的項目會立即整理到下方。")
 
-    selected_traits = st.multiselect("綜合學習狀況：", learning_traits, default=def_selected_traits)
-    custom_trait = st.text_input("📝 學習狀況自填欄 (若上方無符合選項請在此補充)：", value=def_custom_trait)
-    
+    learning_traits = [
+        "粗心大意",
+        "計算力不足",
+        "基礎觀念不佳",
+        "應用題理解困難",
+        "空間幾何薄弱",
+        "專注力不足容易分心",
+        "考試時間分配不佳",
+        "缺乏訂正習慣",
+        "對數學有濃厚興趣",
+        "希望挑戰更高難度的數學",
+        "渴望突破現在的數學能力",
+    ]
+
+    known_traits = set(learning_traits)
+    def_selected_traits = [t for t in def_traits if t in known_traits]
+    custom_trait_values = [t for t in def_traits if t not in known_traits]
+    def_custom_trait = "、".join(custom_trait_values)
+    account_key = profile_account_key
+
+    selected_traits = []
+    trait_columns = st.columns(3)
+    for trait_idx, trait in enumerate(learning_traits):
+        with trait_columns[trait_idx % 3]:
+            if st.checkbox(
+                trait,
+                value=trait in def_selected_traits,
+                key=f"profile_trait_{account_key}_{trait_idx}",
+            ):
+                selected_traits.append(trait)
+
+    custom_trait = st.text_input(
+        "📝 其他學習狀況（選填）",
+        value=def_custom_trait,
+        placeholder="例如：容易看錯題目中的單位",
+        key=f"profile_custom_trait_{account_key}",
+    )
+
     final_traits = selected_traits.copy()
-    if custom_trait:
-        final_traits.append(custom_trait)
-    
-    st.markdown("#### 🌟 學生有興趣的事物 (提示：選填，讓題目情境更生動)")
-    st.info("💡 操作提示：點擊下方分類頁籤，即可展開並勾選您喜歡的熱門 IP/主題！")
-    
+    if custom_trait.strip():
+        final_traits.append(custom_trait.strip())
+
+    if final_traits:
+        st.info("✅ 已選學習狀況：" + "、".join(final_traits))
+    else:
+        st.caption("目前尚未選擇學習狀況。")
+
+    st.markdown("#### 🌟 學生有興趣的事物")
+    st.caption("先點分類頁籤，再直接勾選喜歡的項目；不需要開啟下拉選單。")
+
+    all_catalog_interests = {
+        item
+        for category_items in interests_catalog.values()
+        for item in category_items
+    }
+    def_catalog_interests = {
+        item for item in def_interests if item in all_catalog_interests
+    }
+    def_custom_interests = [
+        item for item in def_interests if item not in all_catalog_interests
+    ]
+
     cat_tabs = st.tabs(list(interests_catalog.keys()))
-    for idx, cat_name in enumerate(interests_catalog.keys()):
-        with cat_tabs[idx]:
-            st.session_state["interest_selections"][cat_name] = st.multiselect(
-                f"勾選「{cat_name}」的熱門細項：",
-                interests_catalog[cat_name],
-                default=st.session_state["interest_selections"][cat_name]
-            )
-    
     all_interests = []
-    for items in st.session_state["interest_selections"].values():
-        all_interests.extend(items)
-        
-    st.session_state["custom_interest"] = st.text_input("其他個人興趣喜好（自行填寫）：", value=st.session_state.get("custom_interest", ""))
-    
+    for cat_idx, cat_name in enumerate(interests_catalog.keys()):
+        with cat_tabs[cat_idx]:
+            category_selected = []
+            interest_columns = st.columns(3)
+            for item_idx, item in enumerate(interests_catalog[cat_name]):
+                with interest_columns[item_idx % 3]:
+                    if st.checkbox(
+                        item,
+                        value=item in def_catalog_interests,
+                        key=f"profile_interest_{account_key}_{cat_idx}_{item_idx}",
+                    ):
+                        category_selected.append(item)
+                        all_interests.append(item)
+            st.session_state["interest_selections"][cat_name] = category_selected
+
+    custom_interest_default = "、".join(def_custom_interests)
+    custom_interest = st.text_input(
+        "其他個人興趣喜好（選填）",
+        value=custom_interest_default,
+        placeholder="例如：恐龍、烘焙、火車",
+        key=f"profile_custom_interest_{account_key}",
+    )
+    st.session_state["custom_interest"] = custom_interest
+
     final_interests = all_interests.copy()
-    if st.session_state["custom_interest"]:
-        final_interests.append(st.session_state["custom_interest"])
-        
-    st.success(f"🎯 **目前已累積的學生興趣清單**：{', '.join(final_interests) if final_interests else '尚未選擇'}")
-    
+    if custom_interest.strip():
+        final_interests.append(custom_interest.strip())
+
+    if final_interests:
+        st.success("🎯 已選興趣：" + "、".join(final_interests))
+    else:
+        st.caption("目前尚未選擇興趣。")
+
     st.markdown("---")
 
     if is_verified:
@@ -1090,10 +1501,44 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
 # ==========================================
 elif st.session_state["setup_complete"]:
     is_trial = st.session_state.get("is_trial", False)
-    
-    tabs = st.tabs(["📸 錯題解析", "🏠 帳號與設定", "📂 歷史錯題 🔒", "🧠 學習診斷 🔒", "⚙️ 自組考卷 🔒"])
-    tab_scan, tab_back, tab_history, tab_diag, tab_custom = tabs[0], tabs[1], tabs[2], tabs[3], tabs[4]
 
+    if "main_tabs_control" not in st.session_state:
+        st.session_state["main_tabs_control"] = MAIN_TAB_LABELS[0]
+
+    with st.container(key="main_nav_fixed"):
+        nav_columns = st.columns(6)
+        for nav_index, (nav_col, tab_label) in enumerate(
+            zip(nav_columns, MAIN_TAB_LABELS)
+        ):
+            with nav_col:
+                is_active_tab = (
+                    st.session_state["main_tabs_control"] == tab_label
+                )
+                st.button(
+                    tab_label,
+                    key=f"main_nav_button_{nav_index}",
+                    type="primary" if is_active_tab else "secondary",
+                    use_container_width=True,
+                    on_click=switch_main_tab,
+                    args=(tab_label,),
+                )
+
+    # fixed 容器不佔原本版面，保留高度避免內容被遮住。
+    st.markdown("<div style='height:4.4rem'></div>", unsafe_allow_html=True)
+
+    tabs = st.tabs(
+        MAIN_TAB_LABELS,
+        key="main_tabs_control",
+        on_change="rerun",
+    )
+    (
+        tab_scan,
+        tab_back,
+        tab_learning,
+        tab_history,
+        tab_diag,
+        tab_custom,
+    ) = tabs
     with tab_back:
         st.subheader("🏠 帳號與個人化設定")
         st.info("💡 您可以在此返回首頁「修改學生資料與興趣」，系統會保留您的登入狀態與歷史紀錄。若要完全登出，請在首頁最下方點擊「登出切換帳號」。")
@@ -1101,6 +1546,12 @@ elif st.session_state["setup_complete"]:
             st.session_state["setup_complete"] = False
             st.session_state["is_trial"] = False
             st.rerun()
+
+    with tab_learning:
+        if LEARNING_MAP_AVAILABLE and render_learning_map is not None:
+            render_learning_map(st.session_state["user_profile"], is_trial=is_trial)
+        else:
+            st.error("學習地圖模組尚未安裝，請確認 learning_map.py 已放在 app.py 同一個資料夾。")
 
     with tab_scan:
         st.subheader("📝 步驟一：上傳照片與解析")
@@ -1132,90 +1583,219 @@ elif st.session_state["setup_complete"]:
                 "圖片處理方式：",
                 ["整張辨識", "圈選標註後辨識"],
                 horizontal=True,
-                help="圈選標註模式可直接在圖片上畫圈、畫線或打叉，AI 會優先參考紅色標記。",
+                help="圈選模式使用雲端穩定的點選標註：矩形框請依序點左上角與右下角；圓形標記只需點一下。",
             )
 
             if mark_mode == "圈選標註後辨識":
-                if DRAWABLE_CANVAS_AVAILABLE:
-                    st.info("請用紅色畫筆圈選、畫線或打叉。完成後直接按下方辨識按鈕；AI 會讀取標註後的圖片。")
-                    tool_col1, tool_col2, tool_col3 = st.columns([1, 1, 1])
+                if IMAGE_COORDINATES_AVAILABLE:
+                    st.info(
+                        "框選題目：選擇「矩形框選」後，在圖片上依序點選題目的左上角與右下角。"
+                        "也可以選擇「圓形標記」，直接點一下要強調的位置。"
+                    )
+                    tool_col1, tool_col2, tool_col3, tool_col4 = st.columns([1.2, 1, 1, 1])
                     with tool_col1:
-                        drawing_mode_label = st.selectbox(
+                        annotation_tool = st.selectbox(
                             "標註工具",
-                            ["自由畫筆", "直線", "矩形", "圓形"],
+                            ["矩形框選", "圓形標記"],
                             index=0,
+                            key="cloud_annotation_tool",
                         )
                     with tool_col2:
-                        stroke_width = st.slider("畫筆粗細", 2, 20, 6)
+                        stroke_width = st.slider(
+                            "線條粗細", 2, 20, 6, key="cloud_annotation_width"
+                        )
                     with tool_col3:
-                        stroke_color = st.color_picker("標註顏色", "#FF0000")
-
-                    drawing_mode_map = {
-                        "自由畫筆": "freedraw",
-                        "直線": "line",
-                        "矩形": "rect",
-                        "圓形": "circle",
-                    }
-
-                    if "canvas_reset_version" not in st.session_state:
-                        st.session_state["canvas_reset_version"] = 0
-
-                    if st.button("🧹 清除所有圖片標記", use_container_width=True):
-                        st.session_state["canvas_reset_version"] += 1
-                        st.rerun()
+                        stroke_color = st.color_picker(
+                            "標註顏色", "#FF0000", key="cloud_annotation_color"
+                        )
+                    with tool_col4:
+                        circle_radius = st.slider(
+                            "圓形半徑", 15, 120, 45, key="cloud_annotation_radius"
+                        )
                 else:
                     st.warning(
-                        "尚未安裝圖片畫筆元件，暫時以原圖顯示。請執行「更新套件.bat」後重新啟動系統。"
+                        "尚未安裝雲端圖片點選元件，暫時以原圖顯示。"
+                        "請更新 requirements.txt 並重新部署。"
                     )
 
-            # 為了手機操作，圖片採上下排列，不使用左右欄位。
+            # 圖片採上下排列，手機與電腦皆較容易操作。
             for idx, img_f in enumerate(valid_files):
                 st.caption(f"錯題照片 {idx + 1}")
-                img_f.seek(0)
-                raw_img = Image.open(img_f).convert("RGB")
+                image_bytes = img_f.getvalue()
+                image_id = hashlib.sha256(image_bytes).hexdigest()[:16]
+                raw_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
 
                 if enable_image_fix and PIL_AVAILABLE:
                     enhancer = ImageEnhance.Contrast(raw_img)
                     raw_img = enhancer.enhance(1.4)
 
-                if mark_mode == "圈選標註後辨識" and DRAWABLE_CANVAS_AVAILABLE:
-                    max_canvas_width = 900
-                    scale = min(1.0, max_canvas_width / max(raw_img.width, 1))
-                    canvas_width = max(320, int(raw_img.width * scale))
-                    canvas_height = max(200, int(raw_img.height * scale))
-                    canvas_background = raw_img.resize(
-                        (canvas_width, canvas_height), Image.Resampling.LANCZOS
+                if mark_mode == "圈選標註後辨識" and IMAGE_COORDINATES_AVAILABLE:
+                    max_display_width = 900
+                    scale = min(1.0, max_display_width / max(raw_img.width, 1))
+                    display_width = max(320, int(raw_img.width * scale))
+                    display_height = max(200, int(raw_img.height * scale))
+                    display_img = raw_img.resize(
+                        (display_width, display_height), Image.Resampling.LANCZOS
                     )
 
-                    canvas_result = st_canvas(
-                        fill_color="rgba(255, 0, 0, 0.08)",
-                        stroke_width=stroke_width,
-                        stroke_color=stroke_color,
-                        background_image=canvas_background,
-                        update_streamlit=True,
-                        height=canvas_height,
-                        width=canvas_width,
-                        drawing_mode=drawing_mode_map[drawing_mode_label],
-                        display_toolbar=True,
+                    boxes_key = f"annotation_shapes_{image_id}"
+                    pending_key = f"annotation_pending_{image_id}"
+                    event_key = f"annotation_last_event_{image_id}"
+                    version_key = f"annotation_version_{image_id}"
+
+                    if boxes_key not in st.session_state:
+                        st.session_state[boxes_key] = []
+                    if pending_key not in st.session_state:
+                        st.session_state[pending_key] = None
+                    if event_key not in st.session_state:
+                        st.session_state[event_key] = None
+                    if version_key not in st.session_state:
+                        st.session_state[version_key] = 0
+
+                    preview_img = display_img.copy()
+                    preview_draw = ImageDraw.Draw(preview_img)
+
+                    for shape in st.session_state[boxes_key]:
+                        shape_type = shape.get("type")
+                        coords = shape.get("coords", [])
+                        color = shape.get("color", "#FF0000")
+                        width = int(shape.get("width", 6))
+                        if shape_type == "rect" and len(coords) == 4:
+                            preview_draw.rectangle(coords, outline=color, width=width)
+                        elif shape_type == "ellipse" and len(coords) == 4:
+                            preview_draw.ellipse(coords, outline=color, width=width)
+
+                    pending_point = st.session_state[pending_key]
+                    if pending_point and annotation_tool == "矩形框選":
+                        x, y = pending_point
+                        marker_r = max(5, stroke_width + 2)
+                        preview_draw.ellipse(
+                            [x - marker_r, y - marker_r, x + marker_r, y + marker_r],
+                            fill=stroke_color,
+                            outline=stroke_color,
+                        )
+                        st.caption("已選取第一點，請再點題目範圍的另一個對角。")
+
+                    click_value = streamlit_image_coordinates(
+                        preview_img,
                         key=(
-                            f"exam_canvas_{idx}_"
-                            f"{st.session_state['canvas_reset_version']}"
+                            f"exam_click_image_{idx}_{image_id}_"
+                            f"{st.session_state[version_key]}"
                         ),
                     )
 
-                    if canvas_result.image_data is not None:
-                        marked_img = Image.fromarray(
-                            canvas_result.image_data.astype("uint8"), "RGBA"
-                        ).convert("RGB")
-                        annotated_images.append(marked_img)
-                    else:
-                        annotated_images.append(canvas_background.convert("RGB"))
+                    if click_value:
+                        click_x = int(click_value.get("x", 0))
+                        click_y = int(click_value.get("y", 0))
+                        event_signature = (
+                            click_x,
+                            click_y,
+                            click_value.get("unix_time"),
+                        )
+
+                        if event_signature != st.session_state[event_key]:
+                            st.session_state[event_key] = event_signature
+
+                            if annotation_tool == "矩形框選":
+                                if st.session_state[pending_key] is None:
+                                    st.session_state[pending_key] = (click_x, click_y)
+                                else:
+                                    x1, y1 = st.session_state[pending_key]
+                                    left, right = sorted((x1, click_x))
+                                    top, bottom = sorted((y1, click_y))
+                                    if right - left >= 5 and bottom - top >= 5:
+                                        st.session_state[boxes_key].append({
+                                            "type": "rect",
+                                            "coords": [left, top, right, bottom],
+                                            "color": stroke_color,
+                                            "width": stroke_width,
+                                        })
+                                    st.session_state[pending_key] = None
+                                st.rerun()
+                            else:
+                                radius = int(circle_radius)
+                                st.session_state[boxes_key].append({
+                                    "type": "ellipse",
+                                    "coords": [
+                                        max(0, click_x - radius),
+                                        max(0, click_y - radius),
+                                        min(display_width - 1, click_x + radius),
+                                        min(display_height - 1, click_y + radius),
+                                    ],
+                                    "color": stroke_color,
+                                    "width": stroke_width,
+                                })
+                                st.rerun()
+
+                    control_col1, control_col2, control_col3 = st.columns(3)
+                    with control_col1:
+                        if st.button(
+                            "↩️ 復原上一個標記",
+                            key=f"undo_annotation_{image_id}",
+                            use_container_width=True,
+                        ):
+                            if st.session_state[pending_key] is not None:
+                                st.session_state[pending_key] = None
+                            elif st.session_state[boxes_key]:
+                                st.session_state[boxes_key].pop()
+                            st.session_state[version_key] += 1
+                            st.rerun()
+                    with control_col2:
+                        if st.button(
+                            "🧹 清除本張標記",
+                            key=f"clear_annotation_{image_id}",
+                            use_container_width=True,
+                        ):
+                            st.session_state[boxes_key] = []
+                            st.session_state[pending_key] = None
+                            st.session_state[version_key] += 1
+                            st.rerun()
+                    with control_col3:
+                        st.metric("目前標記數", len(st.session_state[boxes_key]))
+
+                    # 將顯示座標等比例換算回原始解析度，供 AI 讀取。
+                    annotated_original = raw_img.copy()
+                    original_draw = ImageDraw.Draw(annotated_original)
+                    x_ratio = raw_img.width / max(display_width, 1)
+                    y_ratio = raw_img.height / max(display_height, 1)
+
+                    for shape in st.session_state[boxes_key]:
+                        coords = shape.get("coords", [])
+                        if len(coords) != 4:
+                            continue
+                        scaled_coords = [
+                            int(coords[0] * x_ratio),
+                            int(coords[1] * y_ratio),
+                            int(coords[2] * x_ratio),
+                            int(coords[3] * y_ratio),
+                        ]
+                        scaled_width = max(
+                            2,
+                            int(shape.get("width", 6) * max(x_ratio, y_ratio)),
+                        )
+                        if shape.get("type") == "ellipse":
+                            original_draw.ellipse(
+                                scaled_coords,
+                                outline=shape.get("color", "#FF0000"),
+                                width=scaled_width,
+                            )
+                        else:
+                            original_draw.rectangle(
+                                scaled_coords,
+                                outline=shape.get("color", "#FF0000"),
+                                width=scaled_width,
+                            )
+
+                    annotated_images.append(annotated_original)
                 else:
                     st.image(raw_img, use_container_width=True)
                     annotated_images.append(raw_img)
 
-            if mark_mode == "圈選標註後辨識" and DRAWABLE_CANVAS_AVAILABLE:
-                st.success("標註完成後，請直接按下方「開始免費辨識文字」。")
+            if mark_mode == "圈選標註後辨識" and IMAGE_COORDINATES_AVAILABLE:
+                st.success(
+                    "標註完成後，請按下方「開始免費辨識文字」。"
+                    "AI 會優先辨識紅色矩形或圓形標記附近的題目。"
+                )
 
         def perform_ai_scan(files, mode="normal"):
             """辨識考卷；失敗時切換人工輸入，且不消耗試用次數。"""
@@ -1495,17 +2075,68 @@ elif st.session_state["setup_complete"]:
             user_gr = st.session_state["user_profile"].get("grade", "8年級(國二)")
             st.info(f"💡 目前設定連動：**{user_gr} ({user_ver})**")
             
-            if user_ver not in syllabus_full: 
-                user_ver_key = "康軒版"
+            if LEARNING_MAP_AVAILABLE and get_unit_names_for_profile is not None:
+                unit_options = get_unit_names_for_profile(st.session_state["user_profile"])
             else:
-                user_ver_key = user_ver
-                
-            selected_mains = st.multiselect(f"請選擇【{user_ver_key}】主單元 (可複選)：", syllabus_full.get(user_ver_key, syllabus_full["康軒版"]))
-            
-            st.markdown("#### 📖 選擇次單元/題型方向")
-            sub_units_options = ["基礎觀念題", "生活情境應用題", "圖形與圖表解析", "進階變化題", "歷屆易錯陷阱題"]
-            selected_subs = st.multiselect("請選擇題型方向 (可複選)：", sub_units_options, default=sub_units_options[:2])
-            
+                unit_options = [
+                    "數與量",
+                    "計算與代數",
+                    "分數與小數",
+                    "比與比例",
+                    "幾何與測量",
+                    "統計與機率",
+                    "生活應用與跨單元",
+                ]
+
+            selected_mains = st.multiselect(
+                f"請選擇【{user_ver}】主單元（可複選）：",
+                unit_options,
+                key="custom_exam_main_units",
+            )
+
+            st.markdown("#### 📖 選擇次單元")
+            if (
+                LEARNING_MAP_AVAILABLE
+                and get_subunit_names_for_units is not None
+                and selected_mains
+            ):
+                subunit_options = get_subunit_names_for_units(
+                    st.session_state["user_profile"],
+                    selected_mains,
+                )
+            else:
+                subunit_options = [
+                    "基本概念與定義",
+                    "基本計算與操作",
+                    "文字應用題",
+                    "圖形與測量",
+                    "易錯觀念辨析",
+                    "跨單元綜合",
+                ]
+
+            selected_subunits = st.multiselect(
+                "請選擇要出題的次單元（可複選）：",
+                subunit_options,
+                key="custom_exam_subunits",
+                help="先選主單元後，系統會顯示對應的次單元。",
+            )
+
+            st.markdown("#### 🎯 選擇題型與難度方向")
+            direction_options = [
+                "基本觀念",
+                "進階變形",
+                "資優挑戰",
+                "跨單元會考整合",
+                "考古題風格",
+                "數學競賽風格",
+            ]
+            selected_directions = st.multiselect(
+                "請選擇出題方向（可複選）：",
+                direction_options,
+                default=["基本觀念", "進階變形"],
+                key="custom_exam_directions",
+            )
+
             display_q = 30
             mc_cnt = 10
             fill_cnt = 10
@@ -1523,8 +2154,8 @@ elif st.session_state["setup_complete"]:
                 btn_cust2 = st.button("🔄 重新生成不同題目", use_container_width=True)
 
             if btn_cust1 or btn_cust2:
-                if not selected_mains or not selected_subs: 
-                    st.warning("請先選擇主單元與次單元題型！")
+                if not selected_mains or not selected_subunits or not selected_directions:
+                    st.warning("請先選擇主單元、次單元與出題方向！")
                 else:
                     if "credits" not in st.session_state["user_profile"]:
                         st.session_state["user_profile"]["credits"] = 15
@@ -1535,12 +2166,15 @@ elif st.session_state["setup_complete"]:
                         
                         with st.spinner("智慧組卷中..."):
                             main_topics_str = "、".join(selected_mains)
-                            sub_topics_str = "、".join(selected_subs)
-                            db_text = fetch_relevant_questions_from_db(selected_mains, limit=20)
+                            subunit_topics_str = "、".join(selected_subunits)
+                            direction_topics_str = "、".join(selected_directions)
+                            search_keywords = selected_mains + selected_subunits
+                            db_text = fetch_relevant_questions_from_db(search_keywords, limit=20)
                             
                             prompt_custom = f"適用年級與版本：{user_gr} {user_ver}\n"
                             prompt_custom += "主單元：\n" + main_topics_str + "\n"
-                            prompt_custom += "題型方向：\n" + sub_topics_str + "\n\n"
+                            prompt_custom += "次單元：\n" + subunit_topics_str + "\n"
+                            prompt_custom += "題型與難度方向：\n" + direction_topics_str + "\n\n"
                             prompt_custom += "【系統題庫資源】\n" + (db_text if db_text else "(無)") + "\n\n"
                             prompt_custom += f"請產出總共 {display_q} 題（嚴格包含 {mc_cnt}題選擇題、{fill_cnt}題填空題與 {calc_cnt}題計算題的組合）。\n"
                             prompt_custom += "【出題優先順序】：請優先從上方系統題庫資源中出題，若題數不足，剩餘的部分請完全使用 AI 自動生成補充。\n"
