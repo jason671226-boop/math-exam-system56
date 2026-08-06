@@ -107,48 +107,86 @@ st.markdown(
       改用獨立的 Streamlit 原生按鈕導覽列。
     */
     .st-key-main_nav_fixed {
-        position: fixed !important; top: 2.90rem !important;
-        left: 20rem !important; right: .55rem !important;
-        max-width: calc(100vw - 20.55rem) !important; box-sizing: border-box !important;
-        z-index: 999999 !important; background: rgba(255,255,255,.98) !important;
-        border: 1px solid rgba(49,51,63,.15) !important; border-radius: .65rem !important;
-        box-shadow: 0 4px 14px rgba(0,0,0,.14) !important;
-        padding: .17rem .20rem !important; overflow: hidden !important;
+        position: fixed !important;
+        top: 2.90rem !important;
+        left: 20rem !important;
+        right: 0.55rem !important;
+        width: auto !important;
+        max-width: calc(100vw - 20.55rem) !important;
+        box-sizing: border-box !important;
+        z-index: 999999 !important;
+        background: rgba(255, 255, 255, 0.98) !important;
+        border: 1px solid rgba(49, 51, 63, 0.18) !important;
+        border-radius: 0.65rem !important;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14) !important;
+        padding: 0.20rem 0.25rem !important;
+        overflow: hidden !important;
     }
+
     .st-key-main_nav_fixed [data-testid="stHorizontalBlock"] {
-        gap: .08rem !important; flex-wrap: nowrap !important; width: 100% !important;
+        gap: 0.14rem !important;
+        flex-wrap: nowrap !important;
+        width: 100% !important;
+        margin-bottom: 0.08rem !important;
+        min-width: 0 !important;
     }
+
     .st-key-main_nav_fixed [data-testid="column"] {
-        min-width: 0 !important; flex: 1 1 0 !important;
+        min-width: 0 !important;
+        flex: 1 1 0 !important;
     }
+
     .st-key-main_nav_fixed button {
-        width: 100% !important; min-width: 0 !important;
-        min-height: 1.75rem !important; padding: .03rem .05rem !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        min-height: 1.78rem !important;
+        padding: 0.06rem 0.10rem !important;
     }
+
     .st-key-main_nav_fixed button p {
-        white-space: nowrap !important; font-size: .78rem !important;
-        line-height: 1 !important; overflow: hidden !important;
+        white-space: nowrap !important;
+        font-size: 0.78rem !important;
+        line-height: 1.05 !important;
+        overflow: hidden !important;
         text-overflow: ellipsis !important;
     }
-    body:has(section[data-testid="stSidebar"][aria-expanded="false"]) .st-key-main_nav_fixed {
-        left: 4.2rem !important; max-width: calc(100vw - 4.8rem) !important;
+
+    body:has(section[data-testid="stSidebar"][aria-expanded="false"])
+    .st-key-main_nav_fixed {
+        left: 4.2rem !important;
+        max-width: calc(100vw - 4.8rem) !important;
     }
+
     @media (max-width: 900px) {
         .st-key-main_nav_fixed {
-            left: .20rem !important; right: .20rem !important;
-            max-width: calc(100vw - .4rem) !important;
-            top: 2.90rem !important; padding: .10rem !important;
+            left: 0.20rem !important;
+            right: 0.20rem !important;
+            max-width: calc(100vw - 0.4rem) !important;
+            top: 2.82rem !important;
+            padding: 0.15rem 0.17rem !important;
             overflow: hidden !important;
         }
-        .st-key-main_nav_fixed [data-testid="stHorizontalBlock"] { gap: .03rem !important; }
-        .st-key-main_nav_fixed button { min-height: 1.65rem !important; padding: 0 !important; }
+
+        .st-key-main_nav_fixed [data-testid="stHorizontalBlock"] {
+            gap: 0.08rem !important;
+            min-width: 0 !important;
+        }
+
+        .st-key-main_nav_fixed button {
+            min-height: 1.72rem !important;
+            padding: 0.04rem !important;
+        }
+
         .st-key-main_nav_fixed button p {
-            font-size: clamp(.54rem, 2.65vw, .70rem) !important;
-            letter-spacing: -.025em !important;
+            font-size: 0.70rem !important;
+            letter-spacing: -0.01em !important;
         }
     }
+
     @media (prefers-color-scheme: dark) {
-        .st-key-main_nav_fixed { background: rgba(14,17,23,.98) !important; }
+        .st-key-main_nav_fixed {
+            background: rgba(14, 17, 23, 0.98) !important;
+        }
     }
 
     .mathai-tipbar {
@@ -207,35 +245,12 @@ st.markdown(
         display: none !important;
     }
 
-    body:has(section[data-testid="stSidebar"][aria-expanded="false"])
-    .st-key-main_nav_fixed {
-        left: 4.1rem !important;
-    }
-
-    @media (max-width: 900px) {
-        .st-key-main_nav_fixed {
-            left: 0.35rem !important;
-            right: 0.35rem !important;
-            top: 3.05rem !important;
-            overflow-x: auto !important;
-        }
-
-        .st-key-main_nav_fixed [data-testid="stHorizontalBlock"] {
-            min-width: 640px !important;
-        }
-    }
-
-    @media (prefers-color-scheme: dark) {
-        .st-key-main_nav_fixed {
-            background: rgba(14, 17, 23, 0.98) !important;
-        }
-    }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-APP_VERSION = "v0.6.6"
+APP_VERSION = "v0.6.7"
 APP_DIR = Path(__file__).resolve().parent
 LOCAL_EMAILS_FILE = APP_DIR / "recent_emails.json"
 LINE_PAY_QR_FILE = APP_DIR / "line_pay_qr.jpg"
@@ -294,6 +309,7 @@ if "developer_mode" not in st.session_state: st.session_state["developer_mode"] 
 if "iterative_exam_analysis" not in st.session_state: st.session_state["iterative_exam_analysis"] = ""
 if "scan_scope_warning" not in st.session_state: st.session_state["scan_scope_warning"] = ""
 if "scan_scope_estimate" not in st.session_state: st.session_state["scan_scope_estimate"] = {}
+if "loaded_profile_email" not in st.session_state: st.session_state["loaded_profile_email"] = ""
 
 
 def _profile_control_default(email):
@@ -626,21 +642,125 @@ def init_supabase(url, key):
 
 supabase_client = init_supabase(SUPABASE_URL, SUPABASE_KEY)
 
+def normalize_email(email):
+    return str(email or "").strip().lower()
+
+
+def normalize_profile_list(value):
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, tuple):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return []
+        try:
+            parsed = json.loads(text)
+            if isinstance(parsed, list):
+                return [str(item).strip() for item in parsed if str(item).strip()]
+        except Exception:
+            pass
+        return [
+            item.strip()
+            for item in re.split(r"[、,，;；\n]+", text)
+            if item.strip()
+        ]
+    return []
+
+
 def fetch_user_profile_from_db(email):
-    if not supabase_client or not email or email == "trial@example.com":
+    normalized_email = normalize_email(email)
+    if (
+        not supabase_client
+        or not normalized_email
+        or normalized_email == "trial@example.com"
+    ):
         return None
     try:
-        res = supabase_client.table("user_profiles").select("*").eq("email", email).execute()
-        if res.data and len(res.data) > 0:
+        res = (
+            supabase_client.table("user_profiles")
+            .select("*")
+            .ilike("email", normalized_email)
+            .limit(1)
+            .execute()
+        )
+        if res.data:
             return res.data[0]
     except Exception:
         pass
     return None
 
+
+def apply_user_profile_to_session(profile_data, email=None):
+    if not isinstance(profile_data, dict):
+        return False
+    normalized_email = normalize_email(email or profile_data.get("email", ""))
+    current_credits = st.session_state["user_profile"].get("credits", 15)
+    st.session_state["user_profile"].update({
+        "email": normalized_email or "trial@example.com",
+        "last_name": str(profile_data.get("last_name") or "").strip(),
+        "first_name": str(profile_data.get("first_name") or "").strip(),
+        "city": str(profile_data.get("city") or "新北市").strip(),
+        "district": str(profile_data.get("district") or "土城區").strip(),
+        "school": str(profile_data.get("school") or "").strip(),
+        "grade": str(profile_data.get("grade") or "8年級(國二)").strip(),
+        "version": str(profile_data.get("version") or "康軒版").strip(),
+        "traits": normalize_profile_list(profile_data.get("traits", [])),
+        "interests": normalize_profile_list(profile_data.get("interests", [])),
+        "credits": profile_data.get("credits", current_credits),
+        "last_login_date": today_str,
+    })
+    st.session_state["loaded_profile_email"] = normalized_email
+    return True
+
+
+def clear_profile_widget_state(email):
+    normalized_email = normalize_email(email)
+    account_key = hashlib.sha256(
+        (normalized_email or "new_user").encode("utf-8")
+    ).hexdigest()[:10]
+    exact_keys = {
+        f"profile_last_name_{account_key}",
+        f"profile_first_name_{account_key}",
+        f"profile_city_{account_key}",
+        f"profile_district_{account_key}",
+        f"profile_school_{account_key}",
+        f"profile_grade_{account_key}",
+        f"profile_version_{account_key}",
+        f"profile_custom_trait_{account_key}",
+        f"profile_custom_interest_{account_key}",
+    }
+    prefixes = (
+        f"profile_trait_{account_key}_",
+        f"profile_interest_{account_key}_",
+    )
+    for state_key in list(st.session_state.keys()):
+        if state_key in exact_keys or state_key.startswith(prefixes):
+            st.session_state.pop(state_key, None)
+
+
+def reset_user_profile_for_new_account(email="", credits=100):
+    st.session_state["user_profile"] = {
+        "last_name": "",
+        "first_name": "",
+        "email": normalize_email(email) or "trial@example.com",
+        "city": "新北市",
+        "district": "土城區",
+        "school": "",
+        "grade": "8年級(國二)",
+        "version": "康軒版",
+        "traits": [],
+        "interests": [],
+        "credits": credits,
+        "last_login_date": today_str,
+    }
+
+
 def save_user_profile_to_db(profile_data):
     if not supabase_client:
         return
-    email = profile_data.get("email", "")
+    email = normalize_email(profile_data.get("email", ""))
     if not email or email == "trial@example.com":
         return
     try:
@@ -653,13 +773,14 @@ def save_user_profile_to_db(profile_data):
             "school": profile_data.get("school", ""),
             "grade": profile_data.get("grade", "8年級(國二)"),
             "version": profile_data.get("version", "康軒版"),
-            "traits": profile_data.get("traits", []),
-            "interests": profile_data.get("interests", []),
+            "traits": normalize_profile_list(profile_data.get("traits", [])),
+            "interests": normalize_profile_list(profile_data.get("interests", [])),
             "credits": profile_data.get("credits", 15),
-            "updated_at": today_str
+            "updated_at": today_str,
         }).execute()
     except Exception:
         pass
+
 
 def fetch_relevant_questions_from_db(keywords, limit=20):
     if not supabase_client or not keywords: return ""
@@ -1512,21 +1633,12 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
             )
             user_email_input = typed_email.strip()
         else:
-            user_email_input = selected_option
+            user_email_input = normalize_email(selected_option)
             st.session_state["pending_email"] = user_email_input
-            db_profile = fetch_user_profile_from_db(user_email_input)
-            if db_profile:
-                st.session_state["user_profile"]["last_name"] = db_profile.get("last_name", "")
-                st.session_state["user_profile"]["first_name"] = db_profile.get("first_name", "")
-                st.session_state["user_profile"]["city"] = db_profile.get("city", "新北市")
-                st.session_state["user_profile"]["district"] = db_profile.get("district", "土城區")
-                st.session_state["user_profile"]["school"] = db_profile.get("school", "")
-                st.session_state["user_profile"]["grade"] = db_profile.get("grade", "8年級(國二)")
-                st.session_state["user_profile"]["version"] = db_profile.get("version", "康軒版")
-                st.session_state["user_profile"]["traits"] = db_profile.get("traits", [])
-                st.session_state["user_profile"]["interests"] = db_profile.get("interests", [])
-                if "credits" in db_profile:
-                    st.session_state["user_profile"]["credits"] = db_profile.get("credits")
+            st.caption(
+                "完成 OTP 驗證後，系統會自動載入此帳號之前儲存的資料。"
+            )
+
 
         col_otp1, col_otp2 = st.columns([1, 2])
         with col_otp1:
@@ -1551,16 +1663,26 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
                     
                     if submit_login:
                         if user_otp_input == st.session_state["generated_otp"]:
-                            st.session_state["user_profile"]["email"] = st.session_state["pending_email"]
-                            st.session_state["is_verified"] = True
-                            save_recent_email(st.session_state["pending_email"])
-                            
-                            db_profile = fetch_user_profile_from_db(st.session_state["pending_email"])
-                            if not db_profile:
-                                st.session_state["user_profile"]["credits"] = 100
+                            verified_email = normalize_email(
+                                st.session_state["pending_email"]
+                            )
+                            clear_profile_widget_state(verified_email)
+                            db_profile = fetch_user_profile_from_db(verified_email)
+                            if db_profile:
+                                apply_user_profile_to_session(
+                                    db_profile,
+                                    verified_email,
+                                )
+                                st.session_state["profile_load_notice"] = "existing"
                             else:
-                                st.session_state["user_profile"]["credits"] = db_profile.get("credits", 100)
-                            
+                                reset_user_profile_for_new_account(
+                                    verified_email,
+                                    credits=100,
+                                )
+                                st.session_state["profile_load_notice"] = "new"
+                            st.session_state["is_verified"] = True
+                            st.session_state["otp_sent"] = False
+                            save_recent_email(verified_email)
                             st.rerun()
                         else:
                             st.error("❌ 驗證碼錯誤，請重新確認！")
@@ -1568,7 +1690,17 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
     else:
         st.success(f"✅ 您目前已登入 Email：**{current_stored_email}**")
         st.markdown("---")
-        
+
+    if not is_verified:
+        st.info("請先完成 Email 驗證，驗證成功後才會顯示學生資料。")
+        st.stop()
+
+    profile_load_notice = st.session_state.pop("profile_load_notice", "")
+    if profile_load_notice == "existing":
+        st.success("✅ 已載入此帳號之前儲存的基本資料、學習狀況與興趣。")
+    elif profile_load_notice == "new":
+        st.info("這是新帳號，請完成下方必填資料。")
+
     up = st.session_state["user_profile"]
     def_ln = up.get("last_name", "")
     def_fn = up.get("first_name", "")
@@ -1593,6 +1725,17 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
     profile_account_key = hashlib.sha256(profile_account_source.encode("utf-8")).hexdigest()[:10]
     profile_control = get_profile_control(profile_account_source)
     identity_locked = bool(profile_control.get("identity_locked", False))
+    locked_last_name = str(profile_control.get("locked_last_name") or "").strip()
+    locked_first_name = str(profile_control.get("locked_first_name") or "").strip()
+    name_identity_locked = bool(
+        identity_locked and locked_last_name and locked_first_name
+    )
+
+    if not def_ln and locked_last_name:
+        def_ln = locked_last_name
+    if not def_fn and locked_first_name:
+        def_fn = locked_first_name
+
     grade_version_remaining = remaining_grade_version_changes(profile_control)
 
     def show_required_label(label_text):
@@ -1610,7 +1753,7 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
             value=def_ln,
             label_visibility="collapsed",
             key=f"profile_last_name_{profile_account_key}",
-            disabled=identity_locked and not st.session_state.get("developer_mode", False),
+            disabled=name_identity_locked and not st.session_state.get("developer_mode", False),
             help="姓名首次確認後鎖定，以維持一人一份學習履歷。",
         )
     with col_name2:
@@ -1620,7 +1763,7 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
             value=def_fn,
             label_visibility="collapsed",
             key=f"profile_first_name_{profile_account_key}",
-            disabled=identity_locked and not st.session_state.get("developer_mode", False),
+            disabled=name_identity_locked and not st.session_state.get("developer_mode", False),
             help="姓名首次確認後鎖定，以維持一人一份學習履歷。",
         )
 
@@ -1714,6 +1857,21 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
             elif not school_name.strip():
                 st.error("⚠️ 請填寫學生的就讀學校。")
             else:
+                if not name_identity_locked:
+                    profile_control.update({
+                        "email": profile_account_source,
+                        "identity_locked": True,
+                        "locked_last_name": last_n.strip(),
+                        "locked_first_name": first_n.strip(),
+                        "grade": selected_grade,
+                        "version": selected_version,
+                        "change_year": date.today().year,
+                        "change_count": int(
+                            profile_control.get("change_count") or 0
+                        ),
+                    })
+                    save_profile_control(profile_control)
+
                 st.session_state["user_profile"].update({
                     "last_name": last_n.strip(),
                     "first_name": first_n.strip(),
@@ -1851,7 +2009,7 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
             else:
                 current_year = date.today().year
                 requested_name_changed = (
-                    identity_locked
+                    name_identity_locked
                     and (
                         last_n.strip() != profile_control.get("locked_last_name", "")
                         or first_n.strip() != profile_control.get("locked_first_name", "")
@@ -1880,7 +2038,7 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
                     st.error("本年度年級與版本的 2 次調整額度已用完。")
                     st.stop()
 
-                if not identity_locked:
+                if not name_identity_locked:
                     profile_control.update({
                         "email": profile_account_source,
                         "identity_locked": True,
@@ -1918,9 +2076,14 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
                 st.session_state["setup_complete"] = True
                 st.rerun()
         if st.button("🔄 登出切換帳號", use_container_width=True):
-            st.session_state["user_profile"]["email"] = "trial@example.com"
+            previous_email = st.session_state["user_profile"].get("email", "")
+            clear_profile_widget_state(previous_email)
+            reset_user_profile_for_new_account("", credits=15)
             st.session_state["is_verified"] = False
             st.session_state["otp_sent"] = False
+            st.session_state["pending_email"] = ""
+            st.session_state["loaded_profile_email"] = ""
+            st.session_state["setup_complete"] = False
             st.rerun()
 
 # ==========================================
@@ -1934,24 +2097,31 @@ elif st.session_state["setup_complete"]:
         st.session_state["main_tabs_control"] = MAIN_TAB_LABELS[0]
 
     with st.container(key="main_nav_fixed"):
-        nav_columns = st.columns(5)
-        for nav_index, (nav_col, tab_label, button_label) in enumerate(
-            zip(nav_columns, MAIN_TAB_LABELS, MAIN_NAV_BUTTON_LABELS)
-        ):
-            with nav_col:
-                is_active_tab = (
-                    st.session_state["main_tabs_control"] == tab_label
-                )
-                st.button(
-                    button_label,
-                    key=f"main_nav_button_{nav_index}",
-                    type="primary" if is_active_tab else "secondary",
-                    use_container_width=True,
-                    on_click=switch_main_tab,
-                    args=(tab_label,),
-                )
+        nav_rows = [
+            list(zip(MAIN_TAB_LABELS[:3], MAIN_NAV_BUTTON_LABELS[:3])),
+            list(zip(MAIN_TAB_LABELS[3:], MAIN_NAV_BUTTON_LABELS[3:])),
+        ]
+        for row_index, row_items in enumerate(nav_rows):
+            nav_columns = st.columns(len(row_items))
+            for column_index, (nav_col, item) in enumerate(
+                zip(nav_columns, row_items)
+            ):
+                tab_label, button_label = item
+                nav_index = row_index * 3 + column_index
+                with nav_col:
+                    is_active_tab = (
+                        st.session_state["main_tabs_control"] == tab_label
+                    )
+                    st.button(
+                        button_label,
+                        key=f"main_nav_button_{nav_index}",
+                        type="primary" if is_active_tab else "secondary",
+                        use_container_width=True,
+                        on_click=switch_main_tab,
+                        args=(tab_label,),
+                    )
 
-    st.markdown("<div style='height:3.05rem'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='height:5.05rem'></div>", unsafe_allow_html=True)
 
     tabs = st.tabs(
         MAIN_TAB_LABELS,
