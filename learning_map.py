@@ -24,49 +24,160 @@ def _normalize_grade(grade_text: str) -> str:
 
 DEFAULT_UNIT_OPTIONS = {
     "康軒版": [
-        "數與量",
-        "計算與代數",
-        "分數與小數",
-        "比與比例",
-        "幾何與測量",
-        "統計與機率",
-        "生活應用與跨單元",
+        "數與量", "計算與代數", "分數與小數", "比與比例",
+        "幾何與測量", "統計與機率", "生活應用與跨單元",
     ],
     "翰林版": [
-        "數與量",
-        "計算與代數",
-        "分數與小數",
-        "比與比例",
-        "幾何與測量",
-        "統計與機率",
-        "生活應用與跨單元",
+        "數與量", "計算與代數", "分數與小數", "比與比例",
+        "幾何與測量", "統計與機率", "生活應用與跨單元",
     ],
     "南一版": [
-        "數與量",
-        "計算與代數",
-        "分數與小數",
-        "比與比例",
-        "幾何與測量",
-        "統計與機率",
-        "生活應用與跨單元",
+        "數與量", "計算與代數", "分數與小數", "比與比例",
+        "幾何與測量", "統計與機率", "生活應用與跨單元",
     ],
     "報考私中": [
-        "數與計算",
-        "應用問題",
-        "幾何與測量",
-        "規律與推理",
-        "跨單元綜合",
-        "私中入學題型",
+        "數與計算", "應用問題", "幾何與測量",
+        "規律與推理", "跨單元綜合", "私中入學題型",
     ],
     "參加數學競賽": [
-        "數論",
-        "計數與組合",
-        "幾何",
-        "代數與規律",
-        "邏輯推理",
-        "綜合挑戰",
+        "數論", "計數與組合", "幾何",
+        "代數與規律", "邏輯推理", "綜合挑戰",
     ],
 }
+
+HIGH_SCHOOL_UNIT_OPTIONS = {
+    "A級 (數學A)": [
+        "數與式",
+        "指數與對數",
+        "多項式與多項式函數",
+        "直線與圓",
+        "數列與級數",
+        "排列組合",
+        "機率與統計",
+        "三角比與三角函數",
+        "平面向量",
+        "空間概念",
+    ],
+    "B級 (數學B)": [
+        "數與式",
+        "指數與對數",
+        "多項式函數",
+        "直線與圓",
+        "數列與級數",
+        "排列組合與機率",
+        "數據分析",
+        "三角比",
+        "平面向量",
+        "生活情境應用",
+    ],
+    "C級 (數學C)": [
+        "數與式",
+        "指數與對數",
+        "多項式函數",
+        "直線與圓",
+        "數列與級數",
+        "排列組合與機率",
+        "三角函數",
+        "平面向量",
+        "空間向量",
+        "進階綜合題",
+    ],
+}
+
+JUNIOR_HIGH_UNIT_OPTIONS = [
+    "數與數線",
+    "因數與倍數",
+    "分數與小數運算",
+    "一元一次方程式",
+    "二元一次聯立方程式",
+    "比例與函數",
+    "幾何與測量",
+    "統計與機率",
+    "生活應用與跨單元",
+]
+
+ELEMENTARY_UNIT_OPTIONS = [
+    "數與量",
+    "四則運算",
+    "分數與小數",
+    "比與比例",
+    "幾何與測量",
+    "時間、重量與容量",
+    "統計與資料整理",
+    "生活應用與跨單元",
+]
+
+
+CURRICULUM_HIERARCHY = {
+    ("10", "A級 (數學A)"): {
+        "數與式": {
+            "實數與數線": {
+                "topics": [
+                    "有理數與無理數的判別",
+                    "實數的稠密性與大小比較",
+                    "數線上的區間與距離",
+                ],
+                "question_types": [
+                    "有限小數、循環小數與有理數判別",
+                    "根號數是否為有理數的判別",
+                    "實數大小比較與數線定位",
+                ],
+            },
+            "根式與雙重根式": {
+                "topics": [
+                    "根式的化簡與四則運算",
+                    "雙重根式的拆解",
+                    "共軛根式與有理化",
+                ],
+                "question_types": [
+                    "可直接寫成平方和的雙重根式",
+                    "缺少中間項時的配方判別",
+                    "係數條件較大時的拆項與試配",
+                    "共軛根式乘積與分母有理化",
+                ],
+            },
+            "絕對值": {
+                "topics": [
+                    "絕對值的幾何意義",
+                    "分段討論",
+                    "絕對值方程式與不等式",
+                ],
+                "question_types": [
+                    "單一絕對值方程式",
+                    "多個臨界點的分段討論",
+                    "絕對值不等式與區間表示",
+                    "絕對值函數圖形判讀",
+                ],
+            },
+            "不等式": {
+                "topics": [
+                    "算術平均與幾何平均不等式",
+                    "平方恆非負與配方法",
+                    "基本不等式的等號成立條件",
+                ],
+                "question_types": [
+                    "兩正數的算幾不等式",
+                    "固定和求乘積最大值",
+                    "固定積求和最小值",
+                    "含參數不等式與等號條件",
+                ],
+            },
+        },
+    },
+}
+
+
+def _grade_number(user_profile: Dict[str, Any]) -> str:
+    import re
+    match = re.search(r"(\d+)", str(user_profile.get("grade", "")))
+    return match.group(1) if match else ""
+
+
+def _catalog_for_profile(user_profile: Dict[str, Any]) -> Dict[str, Any]:
+    return CURRICULUM_HIERARCHY.get(
+        (_grade_number(user_profile), str(user_profile.get("version", ""))),
+        {},
+    )
 
 
 def _matching_demo(user_profile: Dict[str, Any]) -> Dict[str, Any]:
@@ -92,7 +203,7 @@ def _all_demo_units(demo: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 
 def get_unit_names_for_profile(user_profile: Dict[str, Any]) -> List[str]:
-    """取得自組考卷可用的主單元，並保證永遠回傳安全選項。"""
+    """依年級與版本取得主單元，避免沿用前一個年級的選項。"""
     demo = _matching_demo(user_profile)
     if demo:
         result: List[str] = []
@@ -103,7 +214,23 @@ def get_unit_names_for_profile(user_profile: Dict[str, Any]) -> List[str]:
         if result:
             return result
 
-    current_version = user_profile.get("version", "康軒版")
+    current_grade_text = str(user_profile.get("grade", ""))
+    current_version = str(user_profile.get("version", "康軒版"))
+    grade_match = __import__("re").search(r"(\d+)", current_grade_text)
+    grade_number = int(grade_match.group(1)) if grade_match else 0
+
+    if current_version in HIGH_SCHOOL_UNIT_OPTIONS:
+        return HIGH_SCHOOL_UNIT_OPTIONS[current_version]
+
+    if grade_number >= 10:
+        return HIGH_SCHOOL_UNIT_OPTIONS["A級 (數學A)"]
+
+    if 7 <= grade_number <= 9:
+        return JUNIOR_HIGH_UNIT_OPTIONS
+
+    if 1 <= grade_number <= 6:
+        return ELEMENTARY_UNIT_OPTIONS
+
     return DEFAULT_UNIT_OPTIONS.get(
         current_version,
         DEFAULT_UNIT_OPTIONS["康軒版"],
@@ -114,7 +241,7 @@ def get_subunit_names_for_units(
     user_profile: Dict[str, Any],
     selected_unit_names: List[str],
 ) -> List[str]:
-    """依已選主單元回傳次單元，尚未建檔時提供通用選項。"""
+    """依主單元回傳真正的次單元；沒有校對資料時回傳空清單。"""
     demo = _matching_demo(user_profile)
     if demo and selected_unit_names:
         results: List[str] = []
@@ -131,14 +258,73 @@ def get_subunit_names_for_units(
         if results:
             return results
 
-    return [
-        "基本概念與定義",
-        "基本計算與操作",
-        "文字應用題",
-        "圖形與測量",
-        "易錯觀念辨析",
-        "跨單元綜合",
-    ]
+    catalog = _catalog_for_profile(user_profile)
+    results: List[str] = []
+    for unit_name in selected_unit_names:
+        for subunit_name in catalog.get(unit_name, {}).keys():
+            label = f"{unit_name} ＞ {subunit_name}"
+            if label not in results:
+                results.append(label)
+    return results
+
+
+def get_topic_names_for_subunits(
+    user_profile: Dict[str, Any],
+    selected_subunit_labels: List[str],
+) -> List[str]:
+    """依次單元回傳學習重點；不使用通用假選項。"""
+    demo = _matching_demo(user_profile)
+    results: List[str] = []
+
+    if demo:
+        selected_set = set(selected_subunit_labels)
+        for unit in _all_demo_units(demo):
+            unit_name = str(unit.get("name", "")).strip()
+            for subunit in unit.get("subunits", []):
+                subunit_name = str(subunit.get("name", "")).strip()
+                label = f"{unit_name} ＞ {subunit_name}"
+                if label not in selected_set:
+                    continue
+                for topic in subunit.get("topics", []):
+                    topic_name = str(topic.get("name", "")).strip()
+                    full_label = f"{label} ＞ {topic_name}"
+                    if topic_name and full_label not in results:
+                        results.append(full_label)
+        if results:
+            return results
+
+    catalog = _catalog_for_profile(user_profile)
+    for selected_label in selected_subunit_labels:
+        parts = [part.strip() for part in selected_label.split("＞")]
+        if len(parts) != 2:
+            continue
+        unit_name, subunit_name = parts
+        subunit_data = catalog.get(unit_name, {}).get(subunit_name, {})
+        for topic_name in subunit_data.get("topics", []):
+            label = f"{unit_name} ＞ {subunit_name} ＞ {topic_name}"
+            if label not in results:
+                results.append(label)
+    return results
+
+
+def get_classic_question_type_names_for_units(
+    user_profile: Dict[str, Any],
+    selected_subunit_labels: List[str],
+) -> List[str]:
+    """依次單元回傳細部題型；沒有可靠資料時回傳空清單。"""
+    catalog = _catalog_for_profile(user_profile)
+    results: List[str] = []
+    for selected_label in selected_subunit_labels:
+        parts = [part.strip() for part in selected_label.split("＞")]
+        if len(parts) != 2:
+            continue
+        unit_name, subunit_name = parts
+        subunit_data = catalog.get(unit_name, {}).get(subunit_name, {})
+        for type_name in subunit_data.get("question_types", []):
+            label = f"{unit_name} ＞ {subunit_name} ＞ {type_name}"
+            if label not in results:
+                results.append(label)
+    return results
 
 
 def _render_pack_group(unit_id: str, pack_group: Dict[str, Any]) -> None:

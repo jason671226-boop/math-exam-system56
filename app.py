@@ -16,13 +16,17 @@ from pathlib import Path
 # 學習地圖模組（MVP）
 try:
     from learning_map import (
+        get_classic_question_type_names_for_units,
         get_subunit_names_for_units,
+        get_topic_names_for_subunits,
         get_unit_names_for_profile,
         render_learning_map,
     )
     LEARNING_MAP_AVAILABLE = True
 except ImportError:
+    get_classic_question_type_names_for_units = None
     get_subunit_names_for_units = None
+    get_topic_names_for_subunits = None
     get_unit_names_for_profile = None
     render_learning_map = None
     LEARNING_MAP_AVAILABLE = False
@@ -103,33 +107,98 @@ st.markdown(
       改用獨立的 Streamlit 原生按鈕導覽列。
     */
     .st-key-main_nav_fixed {
-        position: fixed !important;
-        top: 3.35rem !important;
-        left: 21.5rem !important;
-        right: 1.25rem !important;
-        z-index: 999999 !important;
-        background: rgba(255, 255, 255, 0.98) !important;
-        border: 1px solid rgba(49, 51, 63, 0.15) !important;
-        border-radius: 0.65rem !important;
-        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14) !important;
-        padding: 0.45rem 0.55rem !important;
-        backdrop-filter: blur(8px) !important;
+        position: fixed !important; top: 2.90rem !important;
+        left: 20rem !important; right: .55rem !important;
+        max-width: calc(100vw - 20.55rem) !important; box-sizing: border-box !important;
+        z-index: 999999 !important; background: rgba(255,255,255,.98) !important;
+        border: 1px solid rgba(49,51,63,.15) !important; border-radius: .65rem !important;
+        box-shadow: 0 4px 14px rgba(0,0,0,.14) !important;
+        padding: .17rem .20rem !important; overflow: hidden !important;
     }
-
     .st-key-main_nav_fixed [data-testid="stHorizontalBlock"] {
-        gap: 0.35rem !important;
-        flex-wrap: nowrap !important;
+        gap: .08rem !important; flex-wrap: nowrap !important; width: 100% !important;
     }
-
+    .st-key-main_nav_fixed [data-testid="column"] {
+        min-width: 0 !important; flex: 1 1 0 !important;
+    }
     .st-key-main_nav_fixed button {
-        min-height: 2.55rem !important;
-        padding-left: 0.35rem !important;
-        padding-right: 0.35rem !important;
+        width: 100% !important; min-width: 0 !important;
+        min-height: 1.75rem !important; padding: .03rem .05rem !important;
+    }
+    .st-key-main_nav_fixed button p {
+        white-space: nowrap !important; font-size: .78rem !important;
+        line-height: 1 !important; overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+    body:has(section[data-testid="stSidebar"][aria-expanded="false"]) .st-key-main_nav_fixed {
+        left: 4.2rem !important; max-width: calc(100vw - 4.8rem) !important;
+    }
+    @media (max-width: 900px) {
+        .st-key-main_nav_fixed {
+            left: .20rem !important; right: .20rem !important;
+            max-width: calc(100vw - .4rem) !important;
+            top: 2.90rem !important; padding: .10rem !important;
+            overflow: hidden !important;
+        }
+        .st-key-main_nav_fixed [data-testid="stHorizontalBlock"] { gap: .03rem !important; }
+        .st-key-main_nav_fixed button { min-height: 1.65rem !important; padding: 0 !important; }
+        .st-key-main_nav_fixed button p {
+            font-size: clamp(.54rem, 2.65vw, .70rem) !important;
+            letter-spacing: -.025em !important;
+        }
+    }
+    @media (prefers-color-scheme: dark) {
+        .st-key-main_nav_fixed { background: rgba(14,17,23,.98) !important; }
     }
 
-    .st-key-main_nav_fixed button p {
-        white-space: nowrap !important;
-        font-size: 0.86rem !important;
+    .mathai-tipbar {
+        position: fixed; top: 0.2rem; left: 20rem; right: 0.55rem;
+        z-index: 1000000; display: flex; align-items: center; gap: 0.65rem;
+        min-height: 2.20rem; padding: 0.30rem 0.65rem;
+        border: 1px solid rgba(49,51,63,.14); border-radius: .55rem;
+        background: rgba(255,255,255,.97); box-shadow: 0 2px 10px rgba(0,0,0,.10);
+        overflow: hidden; box-sizing: border-box;
+    }
+    .mathai-tipbar__label {
+        flex: 0 0 auto; font-weight: 700; white-space: nowrap;
+        padding-left: .5rem; border-left: 1px solid rgba(49,51,63,.20);
+    }
+    .mathai-tipbar__viewport {
+        position: relative; flex: 1 1 auto; min-width: 0;
+        height: 1.30rem; overflow: hidden;
+    }
+    .mathai-tipbar__tip {
+        position: absolute; inset: 0; display: flex; align-items: center;
+        opacity: 0; transform: translateY(5px); white-space: nowrap;
+        overflow: hidden; text-overflow: ellipsis;
+        animation-name: mathaiTipSentence;
+        animation-timing-function: ease-in-out;
+        animation-iteration-count: infinite;
+    }
+    @keyframes mathaiTipSentence {
+        0% { opacity: 0; transform: translateY(5px); }
+        1% { opacity: 1; transform: translateY(0); }
+        3.2% { opacity: 1; transform: translateY(0); }
+        4% { opacity: 0; transform: translateY(-4px); }
+        100% { opacity: 0; transform: translateY(-4px); }
+    }
+    body:has(section[data-testid="stSidebar"][aria-expanded="false"]) .mathai-tipbar {
+        left: 4.2rem;
+    }
+    @media (max-width: 900px) {
+        .mathai-tipbar {
+            left: .25rem; right: .25rem; font-size: .73rem;
+            gap: .35rem; padding: .24rem .38rem;
+        }
+        .mathai-tipbar__label { padding-left: .32rem; }
+    }
+    section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] {
+        padding-top: .45rem !important;
+        padding-left: .75rem !important;
+        padding-right: .75rem !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
+        gap: .32rem !important;
     }
 
     /* 隱藏原本 st.tabs 的標籤列，只保留內容。 */
@@ -140,19 +209,19 @@ st.markdown(
 
     body:has(section[data-testid="stSidebar"][aria-expanded="false"])
     .st-key-main_nav_fixed {
-        left: 4.5rem !important;
+        left: 4.1rem !important;
     }
 
     @media (max-width: 900px) {
         .st-key-main_nav_fixed {
-            left: 0.5rem !important;
-            right: 0.5rem !important;
-            top: 3.2rem !important;
+            left: 0.35rem !important;
+            right: 0.35rem !important;
+            top: 3.05rem !important;
             overflow-x: auto !important;
         }
 
         .st-key-main_nav_fixed [data-testid="stHorizontalBlock"] {
-            min-width: 880px !important;
+            min-width: 640px !important;
         }
     }
 
@@ -166,10 +235,11 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-APP_VERSION = "v0.5.9"
+APP_VERSION = "v0.6.6"
 APP_DIR = Path(__file__).resolve().parent
 LOCAL_EMAILS_FILE = APP_DIR / "recent_emails.json"
 LINE_PAY_QR_FILE = APP_DIR / "line_pay_qr.jpg"
+PROFILE_CONTROL_FILE = APP_DIR / "profile_controls.json"
 
 # --- 裝置 Email 記憶與儲值紀錄備援 ---
 # Email 清單保存在目前瀏覽器 Cookie；不再使用雲端伺服器共用的 recent_emails.json。
@@ -218,6 +288,123 @@ if "scan_manual_mode" not in st.session_state: st.session_state["scan_manual_mod
 if "scan_error_message" not in st.session_state: st.session_state["scan_error_message"] = ""
 if "scan_error_code" not in st.session_state: st.session_state["scan_error_code"] = ""
 if "manual_scan_text" not in st.session_state: st.session_state["manual_scan_text"] = ""
+if "custom_exam_content" not in st.session_state: st.session_state["custom_exam_content"] = ""
+if "custom_exam_last_summary" not in st.session_state: st.session_state["custom_exam_last_summary"] = {}
+if "developer_mode" not in st.session_state: st.session_state["developer_mode"] = False
+if "iterative_exam_analysis" not in st.session_state: st.session_state["iterative_exam_analysis"] = ""
+if "scan_scope_warning" not in st.session_state: st.session_state["scan_scope_warning"] = ""
+if "scan_scope_estimate" not in st.session_state: st.session_state["scan_scope_estimate"] = {}
+
+
+def _profile_control_default(email):
+    return {
+        "email": str(email or "").strip().lower(),
+        "identity_locked": False,
+        "locked_last_name": "",
+        "locked_first_name": "",
+        "grade": "",
+        "version": "",
+        "change_year": date.today().year,
+        "change_count": 0,
+    }
+
+
+def _read_profile_controls_local():
+    try:
+        if PROFILE_CONTROL_FILE.exists():
+            data = json.loads(PROFILE_CONTROL_FILE.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                return data
+    except Exception:
+        pass
+    return {}
+
+
+def _write_profile_controls_local(data):
+    try:
+        PROFILE_CONTROL_FILE.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
+
+
+def get_profile_control(email):
+    email = str(email or "").strip().lower()
+    control = _profile_control_default(email)
+    if not email or email == "trial@example.com":
+        return control
+
+    if supabase_client:
+        try:
+            res = (
+                supabase_client.table("student_profile_controls")
+                .select("*")
+                .eq("email", email)
+                .execute()
+            )
+            if res.data:
+                row = res.data[0]
+                control.update({
+                    "identity_locked": bool(row.get("identity_locked", False)),
+                    "locked_last_name": row.get("locked_last_name", "") or "",
+                    "locked_first_name": row.get("locked_first_name", "") or "",
+                    "grade": row.get("grade", "") or "",
+                    "version": row.get("version", "") or "",
+                    "change_year": int(row.get("change_year") or date.today().year),
+                    "change_count": int(row.get("change_count") or 0),
+                })
+                return control
+        except Exception:
+            pass
+
+    local_data = _read_profile_controls_local()
+    if email in local_data and isinstance(local_data[email], dict):
+        control.update(local_data[email])
+    return control
+
+
+def save_profile_control(control):
+    email = str(control.get("email", "")).strip().lower()
+    if not email or email == "trial@example.com":
+        return
+
+    payload = {
+        "email": email,
+        "identity_locked": bool(control.get("identity_locked", False)),
+        "locked_last_name": control.get("locked_last_name", ""),
+        "locked_first_name": control.get("locked_first_name", ""),
+        "grade": control.get("grade", ""),
+        "version": control.get("version", ""),
+        "change_year": int(control.get("change_year") or date.today().year),
+        "change_count": int(control.get("change_count") or 0),
+        "updated_at": datetime.now().isoformat(),
+    }
+
+    saved_to_cloud = False
+    if supabase_client:
+        try:
+            supabase_client.table("student_profile_controls").upsert(payload).execute()
+            saved_to_cloud = True
+        except Exception:
+            saved_to_cloud = False
+
+    if not saved_to_cloud or is_localhost_request():
+        local_data = _read_profile_controls_local()
+        local_data[email] = payload
+        _write_profile_controls_local(local_data)
+
+
+def remaining_grade_version_changes(control):
+    current_year = date.today().year
+    change_year = int(control.get("change_year") or current_year)
+    change_count = int(control.get("change_count") or 0)
+    if change_year != current_year:
+        return 2
+    return max(0, 2 - change_count)
+
+
 
 def _clean_recent_email_list(value):
     """將 Cookie 內容整理成安全、去重複的 Email 清單。"""
@@ -341,6 +528,19 @@ def clear_recent_emails():
             )
         except Exception:
             pass
+
+
+
+def sanitize_multiselect_state(key, valid_options):
+    """移除因上層選項變動而失效的多選值，避免越權或跨單元殘留。"""
+    current = st.session_state.get(key, [])
+    if not isinstance(current, list):
+        current = []
+    valid_set = set(valid_options)
+    cleaned = [item for item in current if item in valid_set]
+    if cleaned != current:
+        st.session_state[key] = cleaned
+
 
 
 def get_client_ip():
@@ -676,74 +876,100 @@ def handle_api_error(exc: Exception) -> None:
 # 🌟 全域左側欄 (Sidebar) 核心邏輯 - 直接展開、保證不消失
 # ==========================================
 with st.sidebar:
-    st.caption(f"目前版本：{APP_VERSION}")
-    st.markdown(f"### 🪙 目前點數：**{st.session_state['user_profile'].get('credits', 15)}** 點")
-    
-    st.markdown("---")
-    st.markdown("### 💳 儲值點數 \n*(儲值 1 點為新臺幣 1 元)*")
-    st.markdown("💰 **選擇儲值方案：**")
-    topup_plan = st.selectbox("請選擇方案", [
-        "儲值 100 元 (給 100 點)", 
-        "儲值 299 元 (給 350 點)", 
-        "儲值 599 元 (給 800 點)"
-    ], label_visibility="collapsed")
-    
-    st.markdown("**支援轉帳方式 (可 QR Code 掃描)：**")
-    pay_tabs = st.tabs(["🏦 銀行", "🟢 LINE Pay", "🔴 街口", "🔵 臺灣 Pay"])
-    
-    for pt in pay_tabs:
-        with pt:
-            st.markdown("🔹 **收款帳戶資訊**\n- 戶名：**陳冠麟**\n- 帳號：**郵局代碼 700，郵局帳號 00210570283172**")
-    with pay_tabs[1]:
-        st.markdown("#### 🟢 LINE Pay 收款碼")
-        if LINE_PAY_QR_FILE.exists():
-            st.image(
-                str(LINE_PAY_QR_FILE),
-                caption="請使用 LINE Pay 掃描付款，付款後再按下方按鈕通知管理員。",
-                use_container_width=True,
-            )
-        else:
-            st.warning("找不到 LINE Pay 收款碼圖片，請確認 line_pay_qr.jpg 已放在 app 資料夾。")
-    with pay_tabs[2]:
-        st.info("💡 提示：若有街口條碼，可於此替換圖片。")
-    with pay_tabs[3]:
-        st.info("💡 提示：若有臺灣 Pay 條碼，可於此替換圖片。")
-        
-    if st.button("🔔 轉帳完畢，通知管理員開通點數", use_container_width=True):
-        amt_match = re.search(r'儲值 (\d+) 元', topup_plan)
-        pts_match = re.search(r'給 (\d+) 點', topup_plan)
-        amount = int(amt_match.group(1)) if amt_match else 0
-        points = int(pts_match.group(1)) if pts_match else 0
-        
-        save_topup_request(st.session_state['user_profile'].get('email'), amount, points)
-        
-        if SMTP_USER and SMTP_PASSWORD:
-            try:
-                admin_msg = MIMEText(f"用戶 Email: {st.session_state['user_profile'].get('email')}\n已完成付款動作，請求系統手動核對帳戶並開通點數。\n申請方案: {topup_plan}")
-                admin_msg["Subject"] = "【系統通知】用戶已匯款，請求開通點數"
-                admin_msg["From"] = SMTP_USER
-                admin_msg["To"] = SMTP_USER
-                with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-                    server.login(SMTP_USER, SMTP_PASSWORD)
-                    server.send_message(admin_msg)
-            except Exception:
-                pass
-        st.success("✅ 已成功發送通知！將根據您儲值的金額為您手動派發點數，請稍候。")
+    sidebar_credits = st.session_state["user_profile"].get("credits", 15)
+    sidebar_email = st.session_state["user_profile"].get("email", "")
+    sidebar_logged_in = bool(sidebar_email and sidebar_email != "trial@example.com")
+    login_label = "已登入" if sidebar_logged_in else "未登入"
+    display_sidebar_email = sidebar_email if sidebar_logged_in else "尚未登入"
 
     st.markdown(
-        "<div style='background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 10px; border-left: 5px solid #ffc107; font-size: 14px;'>"
-        "<b>如果一小時內沒有帳號正確存入，請發 email 或是直接 LINE 下面的連結。</b><br><br>"
-        "✉️ Email: jason671226@gmail.com<br>"
-        "💬 LINE: <a href='https://line.me/ti/p/a6B_R1wmyL' target='_blank'>點擊此處加入 LINE</a>"
-        "</div>", unsafe_allow_html=True
+        f"""
+        <div style="font-size:.74rem;line-height:1.20;margin:0 0 .42rem 0;">
+            <div><b>{sidebar_credits} 點｜{login_label}</b>　<span style="opacity:.65;">{APP_VERSION}</span></div>
+            <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
+                 title="{display_sidebar_email}">👤 {display_sidebar_email}</div>
+            <div style="margin-top:.12rem;margin-bottom:.22rem;">💬 <a href="https://line.me/ti/p/a6B_R1wmyL" target="_blank"
+                 style="font-weight:700;text-decoration:none;">加入 LINE</a></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
-    st.markdown("---")
-    st.markdown("### 💬 使用回饋")
-    st.info("💡 提供一次使用心得或建議，就送 20 點！(一天限回饋一次，一個帳號限回饋 5 次)")
-    feedback_text = st.text_area("歡迎提供系統使用建議：", placeholder="請輸入...", key="sidebar_feedback_input")
+    with st.expander("💳 儲值點數", expanded=False):
+        st.caption("儲值 1 點為新臺幣 1 元")
+        st.markdown("💰 **選擇儲值方案：**")
+        topup_plan = st.selectbox("請選擇方案", [
+            "儲值 100 元 (給 100 點)", 
+            "儲值 299 元 (給 350 點)", 
+            "儲值 599 元 (給 800 點)"
+        ], label_visibility="collapsed")
     
-    if st.button("送出回饋"):
+        st.markdown("**支援轉帳方式 (可 QR Code 掃描)：**")
+        pay_tabs = st.tabs(["🏦 銀行", "🟢 LINE Pay", "🔴 街口", "🔵 臺灣 Pay"])
+    
+        for pt in pay_tabs:
+            with pt:
+                st.markdown("🔹 **收款帳戶資訊**\n- 戶名：**陳冠麟**\n- 帳號：**郵局代碼 700，郵局帳號 00210570283172**")
+        with pay_tabs[1]:
+            st.markdown("#### 🟢 LINE Pay 收款碼")
+            if LINE_PAY_QR_FILE.exists():
+                st.image(
+                    str(LINE_PAY_QR_FILE),
+                    caption="請使用 LINE Pay 掃描付款，付款後再按下方按鈕通知管理員。",
+                    use_container_width=True,
+                )
+            else:
+                st.warning("找不到 LINE Pay 收款碼圖片，請確認 line_pay_qr.jpg 已放在 app 資料夾。")
+        with pay_tabs[2]:
+            st.info("💡 提示：若有街口條碼，可於此替換圖片。")
+        with pay_tabs[3]:
+            st.info("💡 提示：若有臺灣 Pay 條碼，可於此替換圖片。")
+        
+        if st.button("🔔 轉帳完畢，通知管理員開通點數", use_container_width=True):
+            amt_match = re.search(r'儲值 (\d+) 元', topup_plan)
+            pts_match = re.search(r'給 (\d+) 點', topup_plan)
+            amount = int(amt_match.group(1)) if amt_match else 0
+            points = int(pts_match.group(1)) if pts_match else 0
+        
+            save_topup_request(st.session_state['user_profile'].get('email'), amount, points)
+        
+            if SMTP_USER and SMTP_PASSWORD:
+                try:
+                    admin_msg = MIMEText(f"用戶 Email: {st.session_state['user_profile'].get('email')}\n已完成付款動作，請求系統手動核對帳戶並開通點數。\n申請方案: {topup_plan}")
+                    admin_msg["Subject"] = "【系統通知】用戶已匯款，請求開通點數"
+                    admin_msg["From"] = SMTP_USER
+                    admin_msg["To"] = SMTP_USER
+                    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+                        server.login(SMTP_USER, SMTP_PASSWORD)
+                        server.send_message(admin_msg)
+                except Exception:
+                    pass
+            st.success("✅ 已成功發送通知！將根據您儲值的金額為您手動派發點數，請稍候。")
+
+        st.markdown(
+            "<div style='background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 10px; border-left: 5px solid #ffc107; font-size: 14px;'>"
+            "<b>如果一小時內沒有帳號正確存入，請發 email 或是直接 LINE 下面的連結。</b><br><br>"
+            "✉️ Email: jason671226@gmail.com<br>"
+            "💬 LINE: <a href='https://line.me/ti/p/a6B_R1wmyL' target='_blank'>點擊此處加入 LINE</a>"
+            "</div>", unsafe_allow_html=True
+        )
+
+
+    st.markdown("---")
+    st.markdown("#### 💬 使用回饋")
+    st.markdown(
+        """
+        <div style="background:#fff3cd;border-left:4px solid #f0ad4e;
+        border-radius:5px;padding:4px 5px;margin:1px 0 4px 0;
+        font-size:.72rem;font-weight:700;white-space:nowrap;">
+        🎁 回饋一次送 20 點，最高 100 點
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    feedback_text = st.text_area("使用回饋", placeholder="請輸入回饋…", key="sidebar_feedback_input", height=72, label_visibility="collapsed")
+    
+    if st.button("送出回饋", use_container_width=True):
         current_email = st.session_state["user_profile"].get("email", "試用者/未綁定")
         if current_email == "trial@example.com":
             st.warning("請先完成登入綁定，才能領取回饋點數喔！")
@@ -777,9 +1003,9 @@ with st.sidebar:
         
     st.markdown("---")
     notice_html = (
-        "<div style=\"font-size: 1.05em; line-height: 1.6; background-color: #f0f2f6; padding: 12px; border-radius: 8px; border-left: 5px solid #ff4b4b;\">"
-        "<b>本系統為陳冠麟老師獨立開發製作，並擁有完整所有權。</b><br><br>"
-        "目前所需要的開發及維護費用（包含使用的模型費用），皆為個人負擔。<br><br>"
+        "<div style=\"font-size: 0.90em; line-height: 1.45; background-color: #f0f2f6; padding: 9px; border-radius: 8px; border-left: 5px solid #ff4b4b;\">"
+        "<b>本系統為陳冠麟老師獨立開發製作，並擁有完整所有權。</b><br>"
+        "目前所需要的開發及維護費用（包含所有贈送點數的模型費用），皆為個人負擔。<br>"
         "所以只先開放部分使用者測試，<b>每組學生 Email 初始提供試用額度</b>。請多多回饋系統使用經驗！"
         "</div>"
     )
@@ -924,6 +1150,17 @@ def render_share_buttons(content_text, key_prefix):
     is_trial_user = (not user_email or user_email == "trial@example.com")
 
     json_safe_content = json.dumps(content_text)
+    profile = st.session_state.get("user_profile", {})
+    print_student_name = (
+        f"{profile.get('last_name', '')}{profile.get('first_name', '')}".strip()
+        or "學生"
+    )
+    print_grade = profile.get("grade", "")
+    print_version = profile.get("version", "")
+    print_header_text = json.dumps(
+        f"MathAI 試卷｜{print_student_name}｜{print_grade}｜{print_version}",
+        ensure_ascii=False,
+    )
 
     c_share1, c_share2, c_share3 = st.columns(3)
     
@@ -933,8 +1170,11 @@ def render_share_buttons(content_text, key_prefix):
         function printOnlyExam() {{
             var rawContent = {json_safe_content};
             var formattedContent = rawContent
-                .replace(/\\n/g, '<br>')
-                .replace(/## (.*?)(<br>|$)/g, '<h2 class="section-title">$1</h2>');
+                .replace(/^\\s*#\\s*$/gm, '')
+                .replace(/^###\\s+(.+)$/gm, '<h3>$1</h3>')
+                .replace(/^##\\s+(.+)$/gm, '<h2 class="section-title">$1</h2>')
+                .replace(/^#\\s+(.+)$/gm, '<h1 class="section-title">$1</h1>')
+                .replace(/\\n/g, '<br>');
 
             var printWindow = window.open('', '', 'width=950,height=1000');
             printWindow.document.write('<!DOCTYPE html><html><head><title>試題與解答卷</title>');
@@ -944,15 +1184,24 @@ def render_share_buttons(content_text, key_prefix):
             printWindow.document.write('<script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"><\\/script>');
             
             printWindow.document.write('<style>');
-            printWindow.document.write('@page {{ size: A4 portrait; margin: 10mm 12mm; }}');
+            printWindow.document.write('@page {{ size: A4 portrait; margin: 18mm 12mm 17mm 12mm; }}');
             printWindow.document.write('*, *::before, *::after {{ box-sizing: border-box; }}');
-            printWindow.document.write('body {{ font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; font-size: 11pt; line-height: 1.6; color: #000; margin: 0; padding: 0; background: #fff; }}');
-            printWindow.document.write('.section-title {{ font-size: 15pt; font-weight: bold; border-bottom: 2px solid #000; padding-bottom: 5px; margin-top: 15px; margin-bottom: 15px; page-break-before: always; break-before: page; }}');
-            printWindow.document.write('.section-title:first-of-type {{ page-break-before: avoid; break-before: avoid; }}');
+            printWindow.document.write('html, body {{ width: 100%; }}');
+            printWindow.document.write('body {{ font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; font-size: 10.5pt; line-height: 1.45; color: #000; margin: 0; padding: 0; background: #fff; overflow: visible; }}');
+            printWindow.document.write('#exam-body {{ width: 100%; max-width: none; }}');
+            printWindow.document.write('.section-title {{ font-size: 14pt; font-weight: bold; border-bottom: 1.5px solid #000; padding-bottom: 4px; margin: 10px 0 8px 0; break-after: avoid-page; page-break-after: avoid; }}');
+            printWindow.document.write('h1, h2, h3, h4 {{ break-after: avoid-page; page-break-after: avoid; }}');
+            printWindow.document.write('p, li, table, .katex-display {{ orphans: 3; widows: 3; }}');
             printWindow.document.write('.page-break {{ page-break-before: always !important; break-before: page !important; height: 0; margin: 0; padding: 0; clear: both; }}');
-            printWindow.document.write('@media print {{ .no-print {{ display: none !important; }} }}');
+            printWindow.document.write('.print-header {{ position: fixed; top: -12mm; left: 0; right: 0; height: 8mm; border-bottom: 1px solid #666; font-size: 8.5pt; display: flex; justify-content: space-between; align-items: center; }}');
+            printWindow.document.write('.print-footer {{ position: fixed; bottom: -11mm; left: 0; right: 0; height: 8mm; border-top: 1px solid #666; font-size: 8.5pt; display: flex; justify-content: space-between; align-items: center; }}');
+            printWindow.document.write('@media print {{ .no-print {{ display: none !important; }} a {{ color: #000; text-decoration: none; }} }}');
             printWindow.document.write('</style></head><body>');
             
+            var headerText = {print_header_text};
+            printWindow.document.write('<div class="print-header"><span>' + headerText + '</span><span>錯題疊代訓練</span></div>');
+            printWindow.document.write('<div class="print-footer"><span>' + headerText + '</span><span>MathAI 個人化學習履歷</span></div>');
+
             printWindow.document.write('<div class="no-print" style="position: fixed; top: 10px; right: 20px; z-index: 9999;">');
             printWindow.document.write('<button onclick="window.print()" style="padding: 10px 20px; font-size: 13pt; background-color: #ff4b4b; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">🖨️ 立即列印 / 另存為 PDF</button>');
             printWindow.document.write('</div>');
@@ -1099,15 +1348,69 @@ MAIN_TAB_LABELS = [
     "📸 錯題解析",
     "🏠 帳號與設定",
     "🌳 學習地圖",
-    "📂 歷史錯題 🔒",
     "🧠 學習診斷 🔒",
     "⚙️ 自組考卷 🔒",
+]
+
+MAIN_NAV_BUTTON_LABELS = [
+    "錯題解析",
+    "帳號設定",
+    "學習地圖",
+    "學習診斷",
+    "自組試卷",
 ]
 
 
 def switch_main_tab(tab_label):
     """由固定導覽列切換主功能。"""
     st.session_state["main_tabs_control"] = tab_label
+
+
+SYSTEM_TIPS = [
+    "本系統由陳冠林老師團隊獨立開發。",
+    "試用期間免費點數大放送，請多加利用。",
+    "第一次使用請先完成學生資料，AI 才能建立專屬學習履歷。",
+    "每個 Email 建議只綁定一位學生，避免學習紀錄混在一起。",
+    "拍照時盡量包含完整題目，提高辨識率。",
+    "紅筆批改後再拍照，AI 可以更精準分析錯因。",
+    "不知道該練什麼？直接使用錯題疊代即可。",
+    "每完成一份試卷，再重新拍照即可開始下一輪練習。",
+    "AI 會根據錯題，自動調整下一份試卷的難度與順序。",
+    "學習地圖可以快速找到目前最需要補強的觀念。",
+    "累積錯題都在學習診斷裡面。",
+    "自組試卷適合段考、會考與競賽前集中練習。",
+    "五題為一組，可以有效控制學習節奏與點數消耗。",
+    "題目會依主單元、次單元與知識點分類。",
+    "每次錯題都會累積成個人學習履歷。",
+    "同一觀念反覆錯誤時，系統會安排更多基礎題。",
+    "熟悉後，AI 會自動加入適量的進階變化題。",
+    "學習不是刷更多題，而是補強真正不會的地方。",
+    "建議固定使用同一帳號，讓 AI 更了解你的學習狀況。",
+    "回饋建議可獲得點數，也能幫助系統持續優化。",
+    "掃描到不同年級題目時，系統會先提醒再處理。",
+    "學習履歷越完整，個人化出題會越準確。",
+    "目標不是做最多題，而是用最少時間掌握最多重點。",
+]
+
+
+def render_system_tipbar():
+    total_seconds = len(SYSTEM_TIPS) * 6
+    items = []
+    for index, text in enumerate(SYSTEM_TIPS):
+        items.append(
+            f'<div class="mathai-tipbar__tip" '
+            f'style="animation-duration:{total_seconds}s;'
+            f'animation-delay:{index * 6}s;">{text}</div>'
+        )
+    st.markdown(
+        f"""
+        <div class="mathai-tipbar">
+            <div class="mathai-tipbar__viewport">{''.join(items)}</div>
+            <div class="mathai-tipbar__label">使用小訣竅</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 # ==========================================
@@ -1136,8 +1439,16 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
                 "email": dev_email,
                 "credits": 9999,
                 "last_name": st.session_state["user_profile"].get("last_name") or "測試",
-                "first_name": st.session_state["user_profile"].get("first_name") or "使用者",
+                "first_name": st.session_state["user_profile"].get("first_name") or "學生",
+                "city": st.session_state["user_profile"].get("city") or "新北市",
+                "district": st.session_state["user_profile"].get("district") or "土城區",
+                "school": st.session_state["user_profile"].get("school") or "MathAI 測試學校",
+                "grade": st.session_state["user_profile"].get("grade") or "5年級(小五)",
+                "version": st.session_state["user_profile"].get("version") or "康軒版",
+                "traits": st.session_state["user_profile"].get("traits") or ["希望挑戰更高難度的數學"],
+                "interests": st.session_state["user_profile"].get("interests") or ["魔術方塊"],
             })
+            st.session_state["developer_mode"] = True
             st.session_state["is_verified"] = True
             st.session_state["is_trial"] = False
             st.session_state["setup_complete"] = True
@@ -1270,10 +1581,19 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
     def_interests = up.get("interests", [])
 
     st.markdown("#### 👤 學生基本資料設定")
-    st.caption("紅色項目為必填欄位。")
+    st.info(
+        "📚 **一個 Email 建議只綁定一位學生。** "
+        "MathAI 會累積錯題、程度變化、學習進度與歷年紀錄，"
+        "再依個人表現調整下一份題目的難度與順序。多人共用同一帳號，"
+        "會讓學習履歷混在一起，降低個人化出題的準確度。"
+    )
+    st.caption("紅色項目為必填欄位；姓名首次確認後鎖定，年級與版本每年可調整 2 次。")
 
     profile_account_source = current_stored_email or st.session_state.get("pending_email", "new_user")
     profile_account_key = hashlib.sha256(profile_account_source.encode("utf-8")).hexdigest()[:10]
+    profile_control = get_profile_control(profile_account_source)
+    identity_locked = bool(profile_control.get("identity_locked", False))
+    grade_version_remaining = remaining_grade_version_changes(profile_control)
 
     def show_required_label(label_text):
         st.markdown(
@@ -1290,6 +1610,8 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
             value=def_ln,
             label_visibility="collapsed",
             key=f"profile_last_name_{profile_account_key}",
+            disabled=identity_locked and not st.session_state.get("developer_mode", False),
+            help="姓名首次確認後鎖定，以維持一人一份學習履歷。",
         )
     with col_name2:
         show_required_label("名字")
@@ -1298,6 +1620,8 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
             value=def_fn,
             label_visibility="collapsed",
             key=f"profile_first_name_{profile_account_key}",
+            disabled=identity_locked and not st.session_state.get("developer_mode", False),
+            help="姓名首次確認後鎖定，以維持一人一份學習履歷。",
         )
 
     col_geo1, col_geo2, col_geo3 = st.columns(3)
@@ -1332,6 +1656,12 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
             key=f"profile_school_{profile_account_key}",
         )
 
+    if identity_locked and not st.session_state.get("developer_mode", False):
+        st.caption(
+            f"本年度年級／版本尚可調整 **{grade_version_remaining} 次**。"
+            "這項限制可避免多人輪流使用同一帳號，並保護學習履歷的連續性。"
+        )
+
     col_edu1, col_geo2_edu = st.columns(2)
     with col_edu1:
         show_required_label("就讀年級")
@@ -1342,6 +1672,11 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
             index=gr_idx,
             label_visibility="collapsed",
             key=f"profile_grade_{profile_account_key}",
+            disabled=(
+                identity_locked
+                and grade_version_remaining <= 0
+                and not st.session_state.get("developer_mode", False)
+            ),
         )
 
     is_high_school = any(g in selected_grade for g in ["10年級", "11年級", "12年級", "高"])
@@ -1360,8 +1695,49 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
             label_visibility="collapsed",
             key=f"profile_version_{profile_account_key}",
             help="此設定會連動學習地圖與自組考卷。",
+            disabled=(
+                identity_locked
+                and grade_version_remaining <= 0
+                and not st.session_state.get("developer_mode", False)
+            ),
         )
 
+    if is_verified:
+        if st.button(
+            "✅ 完成註冊，儲存必填資料並進入系統",
+            type="primary",
+            use_container_width=True,
+            key="profile_required_save_enter",
+        ):
+            if not last_n.strip() or not first_n.strip():
+                st.error("⚠️ 請完整填寫學生的姓氏與名字。")
+            elif not school_name.strip():
+                st.error("⚠️ 請填寫學生的就讀學校。")
+            else:
+                st.session_state["user_profile"].update({
+                    "last_name": last_n.strip(),
+                    "first_name": first_n.strip(),
+                    "city": selected_city,
+                    "district": selected_district,
+                    "school": school_name.strip(),
+                    "grade": selected_grade,
+                    "version": selected_version,
+                })
+                for stale_key in [
+                    "custom_exam_main_units",
+                    "custom_exam_subunits",
+                    "custom_exam_topics",
+                    "custom_exam_question_types",
+                    "custom_exam_profile_signature",
+                ]:
+                    st.session_state.pop(stale_key, None)
+                save_recent_email(st.session_state["user_profile"]["email"])
+                save_user_profile_to_db(st.session_state["user_profile"])
+                st.session_state["setup_complete"] = True
+                st.success("✅ 必填資料已儲存，正在進入系統。")
+                st.rerun()
+
+    st.caption("下方學習狀況與興趣為選填，之後可以再修改。")
     st.markdown("---")
     
     st.markdown("#### 🧠 學生個人學習狀況")
@@ -1467,55 +1843,107 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
     st.markdown("---")
 
     if is_verified:
-        col_action1, col_action2 = st.columns(2)
-        with col_action1:
-            if st.button("💾 儲存資料並進入系統", type="primary", use_container_width=True):
-                if not last_n.strip() or not first_n.strip():
-                    st.error("⚠️ 請完整填寫學生的「姓氏」與「名字」！")
-                elif not school_name.strip():
-                    st.error("⚠️ 請填寫學生的「就讀學校」！")
-                else:
-                    st.session_state["user_profile"]["last_name"] = last_n.strip()
-                    st.session_state["user_profile"]["first_name"] = first_n.strip()
-                    st.session_state["user_profile"]["city"] = selected_city
-                    st.session_state["user_profile"]["district"] = selected_district
-                    st.session_state["user_profile"]["school"] = school_name.strip()
-                    st.session_state["user_profile"]["grade"] = selected_grade
-                    st.session_state["user_profile"]["version"] = selected_version
-                    st.session_state["user_profile"]["traits"] = final_traits
-                    st.session_state["user_profile"]["interests"] = final_interests
-                    
-                    save_recent_email(st.session_state["user_profile"]["email"])
-                    save_user_profile_to_db(st.session_state["user_profile"])
-                    st.session_state["setup_complete"] = True
-                    st.rerun()
-        with col_action2:
-            if st.button("🔄 登出切換帳號", use_container_width=True):
-                st.session_state["user_profile"]["email"] = "trial@example.com"
-                st.session_state["is_verified"] = False
-                st.session_state["otp_sent"] = False
+        if st.button("💾 儲存資料並進入系統", type="primary", use_container_width=True):
+            if not last_n.strip() or not first_n.strip():
+                st.error("⚠️ 請完整填寫學生的「姓氏」與「名字」！")
+            elif not school_name.strip():
+                st.error("⚠️ 請填寫學生的「就讀學校」！")
+            else:
+                current_year = date.today().year
+                requested_name_changed = (
+                    identity_locked
+                    and (
+                        last_n.strip() != profile_control.get("locked_last_name", "")
+                        or first_n.strip() != profile_control.get("locked_first_name", "")
+                    )
+                )
+                requested_grade_version_changed = (
+                    identity_locked
+                    and (
+                        selected_grade != profile_control.get("grade", def_grade)
+                        or selected_version != profile_control.get("version", def_ver)
+                    )
+                )
+
+                if requested_name_changed and not st.session_state.get("developer_mode", False):
+                    st.error(
+                        "姓名已綁定此學習履歷，不能自行更換。"
+                        "若確實填錯，請聯絡管理員協助更正。"
+                    )
+                    st.stop()
+
+                if (
+                    requested_grade_version_changed
+                    and grade_version_remaining <= 0
+                    and not st.session_state.get("developer_mode", False)
+                ):
+                    st.error("本年度年級與版本的 2 次調整額度已用完。")
+                    st.stop()
+
+                if not identity_locked:
+                    profile_control.update({
+                        "email": profile_account_source,
+                        "identity_locked": True,
+                        "locked_last_name": last_n.strip(),
+                        "locked_first_name": first_n.strip(),
+                        "grade": selected_grade,
+                        "version": selected_version,
+                        "change_year": current_year,
+                        "change_count": 0,
+                    })
+                elif requested_grade_version_changed:
+                    if int(profile_control.get("change_year") or current_year) != current_year:
+                        profile_control["change_year"] = current_year
+                        profile_control["change_count"] = 0
+                    profile_control["change_count"] = int(
+                        profile_control.get("change_count") or 0
+                    ) + 1
+                    profile_control["grade"] = selected_grade
+                    profile_control["version"] = selected_version
+
+                save_profile_control(profile_control)
+
+                st.session_state["user_profile"]["last_name"] = last_n.strip()
+                st.session_state["user_profile"]["first_name"] = first_n.strip()
+                st.session_state["user_profile"]["city"] = selected_city
+                st.session_state["user_profile"]["district"] = selected_district
+                st.session_state["user_profile"]["school"] = school_name.strip()
+                st.session_state["user_profile"]["grade"] = selected_grade
+                st.session_state["user_profile"]["version"] = selected_version
+                st.session_state["user_profile"]["traits"] = final_traits
+                st.session_state["user_profile"]["interests"] = final_interests
+                
+                save_recent_email(st.session_state["user_profile"]["email"])
+                save_user_profile_to_db(st.session_state["user_profile"])
+                st.session_state["setup_complete"] = True
                 st.rerun()
+        if st.button("🔄 登出切換帳號", use_container_width=True):
+            st.session_state["user_profile"]["email"] = "trial@example.com"
+            st.session_state["is_verified"] = False
+            st.session_state["otp_sent"] = False
+            st.rerun()
 
 # ==========================================
 # 第二頁：主系統畫面
 # ==========================================
 elif st.session_state["setup_complete"]:
+    render_system_tipbar()
     is_trial = st.session_state.get("is_trial", False)
 
     if "main_tabs_control" not in st.session_state:
         st.session_state["main_tabs_control"] = MAIN_TAB_LABELS[0]
 
     with st.container(key="main_nav_fixed"):
-        nav_columns = st.columns(6)
-        for nav_index, (nav_col, tab_label) in enumerate(
-            zip(nav_columns, MAIN_TAB_LABELS)
+        nav_columns = st.columns(5)
+        for nav_index, (nav_col, tab_label, button_label) in enumerate(
+            zip(nav_columns, MAIN_TAB_LABELS, MAIN_NAV_BUTTON_LABELS)
         ):
             with nav_col:
                 is_active_tab = (
                     st.session_state["main_tabs_control"] == tab_label
                 )
                 st.button(
-                    tab_label,
+                    button_label,
                     key=f"main_nav_button_{nav_index}",
                     type="primary" if is_active_tab else "secondary",
                     use_container_width=True,
@@ -1523,8 +1951,7 @@ elif st.session_state["setup_complete"]:
                     args=(tab_label,),
                 )
 
-    # fixed 容器不佔原本版面，保留高度避免內容被遮住。
-    st.markdown("<div style='height:4.4rem'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='height:3.05rem'></div>", unsafe_allow_html=True)
 
     tabs = st.tabs(
         MAIN_TAB_LABELS,
@@ -1535,14 +1962,21 @@ elif st.session_state["setup_complete"]:
         tab_scan,
         tab_back,
         tab_learning,
-        tab_history,
         tab_diag,
         tab_custom,
     ) = tabs
     with tab_back:
         st.subheader("🏠 帳號與個人化設定")
-        st.info("💡 您可以在此返回首頁「修改學生資料與興趣」，系統會保留您的登入狀態與歷史紀錄。若要完全登出，請在首頁最下方點擊「登出切換帳號」。")
-        if st.button("🔙 返回首頁 / 修改學生資料", type="primary"):
+        if st.session_state.get("developer_mode", False):
+            st.info(
+                "🧪 開發者模式已自動填入測試資料。您可以返回首頁，只修改「年級」與「教材版本」後再次進入系統；其他欄位暫時不用重填。"
+            )
+            back_button_label = "🔙 返回首頁修改年級／版本"
+        else:
+            st.info("💡 您可以返回首頁修改學生資料與興趣，系統會保留登入狀態與歷史紀錄。")
+            back_button_label = "🔙 返回首頁 / 修改學生資料"
+
+        if st.button(back_button_label, type="primary"):
             st.session_state["setup_complete"] = False
             st.session_state["is_trial"] = False
             st.rerun()
@@ -1821,7 +2255,8 @@ elif st.session_state["setup_complete"]:
                         "若圖片上有使用者後加的紅色圈選、方框、畫線或打叉，請將被標記的題目視為最高優先。\n"
                         "優先擷取有紅筆加註、留白、打叉或訂正痕跡的題目。\n"
                         "打勾（✓）通常代表答對，請不要列入。\n"
-                        "只輸出錯題文字，不要加入其他說明。\n"
+                        "第一行請先輸出格式：[[SCOPE|grade=推測年級|version=推測版本或無法判定|confidence=高中低]]。\n"
+                        "從第二行開始只輸出錯題文字，不要加入其他說明。\n"
                     )
                 else:
                     prompt = (
@@ -1830,7 +2265,8 @@ elif st.session_state["setup_complete"]:
                         "若圖片上有使用者後加的紅色圈選、方框、畫線或打叉，請將被標記的題目視為最高優先。\n"
                         "只擷取有紅筆加註、留白或打叉（X）的題目。\n"
                         "打勾（✓）代表答對，請絕對不要列入。\n"
-                        "只輸出錯題文字，不要加入其他說明。\n"
+                        "第一行請先輸出格式：[[SCOPE|grade=推測年級|version=推測版本或無法判定|confidence=高中低]]。\n"
+                        "從第二行開始只輸出錯題文字，不要加入其他說明。\n"
                     )
 
                 if is_trial:
@@ -1848,8 +2284,61 @@ elif st.session_state["setup_complete"]:
                         user_message="AI 沒有辨識到有效題目，請改用人工輸入模式。",
                     )
 
-                st.session_state["scanned_text"] = response_text.strip()
-                st.session_state["manual_scan_text"] = response_text.strip()
+                scope_match = re.search(
+                    r"^\[\[SCOPE\|grade=(.*?)\|version=(.*?)\|confidence=(.*?)\]\]\s*",
+                    response_text.strip(),
+                )
+                cleaned_response_text = response_text.strip()
+                st.session_state["scan_scope_warning"] = ""
+                st.session_state["scan_scope_estimate"] = {}
+
+                if scope_match:
+                    estimated_grade = scope_match.group(1).strip()
+                    estimated_version = scope_match.group(2).strip()
+                    estimated_confidence = scope_match.group(3).strip()
+                    cleaned_response_text = re.sub(
+                        r"^\[\[SCOPE\|grade=.*?\|version=.*?\|confidence=.*?\]\]\s*",
+                        "",
+                        cleaned_response_text,
+                        count=1,
+                    ).strip()
+
+                    st.session_state["scan_scope_estimate"] = {
+                        "grade": estimated_grade,
+                        "version": estimated_version,
+                        "confidence": estimated_confidence,
+                    }
+
+                    profile_grade = st.session_state["user_profile"].get("grade", "")
+                    profile_version = st.session_state["user_profile"].get("version", "")
+                    profile_grade_number = re.search(r"(\d+)", profile_grade)
+                    estimated_grade_number = re.search(r"(\d+)", estimated_grade)
+
+                    grade_mismatch = (
+                        profile_grade_number
+                        and estimated_grade_number
+                        and profile_grade_number.group(1) != estimated_grade_number.group(1)
+                        and estimated_confidence in ["高", "中"]
+                    )
+                    version_mismatch = (
+                        estimated_version
+                        and estimated_version != "無法判定"
+                        and profile_version
+                        and estimated_version not in profile_version
+                        and profile_version not in estimated_version
+                        and estimated_confidence == "高"
+                    )
+
+                    if grade_mismatch or version_mismatch:
+                        st.session_state["scan_scope_warning"] = (
+                            f"系統推測這份題目屬於「{estimated_grade}／{estimated_version}」，"
+                            f"但目前帳號設定是「{profile_grade}／{profile_version}」。"
+                            "仍可繼續辨識；若只是臨時替別人查題，建議使用試用模式，"
+                            "避免把其他學生內容寫進這個帳號的學習履歷。"
+                        )
+
+                st.session_state["scanned_text"] = cleaned_response_text
+                st.session_state["manual_scan_text"] = cleaned_response_text
                 st.session_state["scan_manual_mode"] = False
                 st.session_state["scan_error_message"] = ""
                 st.session_state["scan_error_code"] = ""
@@ -1922,6 +2411,9 @@ elif st.session_state["setup_complete"]:
 
         st.markdown("---")
         
+        if st.session_state.get("scan_scope_warning"):
+            st.warning("⚠️ " + st.session_state["scan_scope_warning"])
+
         edited_text = st.text_area("確認題目內容 (可在框內直接微調要輸出的錯題)：", value=st.session_state["scanned_text"], height=120)
         st.session_state["scanned_text"] = edited_text
 
@@ -2019,11 +2511,490 @@ elif st.session_state["setup_complete"]:
                 st.markdown(f'<div class="printable-exam-area">{st.session_state["variation_content"]}</div>', unsafe_allow_html=True)
                 render_share_buttons(st.session_state["variation_content"], "var_res")
 
-    with tab_history:
-        st.subheader("📂 學生歷史錯題與學習履歷 🔒")
+    with tab_custom:
+        st.subheader("⚙️ 自組試卷系統 🔒")
+        st.caption("依學生年級、教材版本、主單元、次單元與題型產生專屬試卷。")
+
+        st.info(
+            "🔁 **更省事的方式：錯題迭代訓練**  \n"
+            "把之前由系統產生、學生已作答並用紅筆批改的考卷拍照上傳。"
+            "系統會辨識錯題、空白題與常見錯誤，直接產生下一份最適合的練習，"
+            "不必每次重新選單元與題型。"
+        )
+
         if is_trial:
             show_trial_conversion_notice()
         else:
+            user_profile = st.session_state["user_profile"]
+            user_ver = user_profile.get("version", "康軒版")
+            user_gr = user_profile.get("grade", "8年級(國二)")
+            st.info(f"目前學生設定：**{user_gr}｜{user_ver}**")
+
+            # 第一步：主單元
+            st.markdown("### 1️⃣ 選擇出題範圍")
+            if LEARNING_MAP_AVAILABLE and get_unit_names_for_profile is not None:
+                unit_options = get_unit_names_for_profile(user_profile)
+            else:
+                unit_options = [
+                    "數與量",
+                    "計算與代數",
+                    "分數與小數",
+                    "比與比例",
+                    "幾何與測量",
+                    "統計與機率",
+                    "生活應用與跨單元",
+                ]
+
+            sanitize_multiselect_state("custom_exam_main_units", unit_options)
+            selected_mains = st.multiselect(
+                f"主單元（{user_ver}，可複選）",
+                unit_options,
+                key="custom_exam_main_units",
+                placeholder="請先選擇主單元",
+            )
+
+            # 第二步：次單元，嚴格依主單元連動
+            if selected_mains and LEARNING_MAP_AVAILABLE and get_subunit_names_for_units is not None:
+                subunit_options = get_subunit_names_for_units(
+                    user_profile,
+                    selected_mains,
+                )
+            else:
+                subunit_options = []
+
+            sanitize_multiselect_state("custom_exam_subunits", subunit_options)
+            selected_subunits = st.multiselect(
+                "次單元（依上方主單元連動）",
+                subunit_options,
+                key="custom_exam_subunits",
+                placeholder="請先選擇主單元" if not selected_mains else "請選擇次單元",
+                disabled=not selected_mains,
+            )
+            if selected_mains and not subunit_options:
+                st.info("此年級／版本／主單元的次單元資料正在校對，暫不顯示通用假選項。")
+
+            # 第三步：學習重點，嚴格依次單元連動
+            if selected_subunits and LEARNING_MAP_AVAILABLE and get_topic_names_for_subunits is not None:
+                topic_options = get_topic_names_for_subunits(
+                    user_profile,
+                    selected_subunits,
+                )
+            else:
+                topic_options = []
+
+            sanitize_multiselect_state("custom_exam_topics", topic_options)
+            selected_topics = st.multiselect(
+                "學習重點（依上方次單元連動）",
+                topic_options,
+                key="custom_exam_topics",
+                placeholder="可不選；不選時由系統平均出題",
+                disabled=not selected_subunits,
+            )
+
+            st.markdown("### 2️⃣ 選擇題型與難度")
+
+            if selected_subunits and LEARNING_MAP_AVAILABLE and get_classic_question_type_names_for_units is not None:
+                classic_type_options = get_classic_question_type_names_for_units(
+                    user_profile,
+                    selected_subunits,
+                )
+            else:
+                classic_type_options = []
+
+            sanitize_multiselect_state("custom_exam_question_types", classic_type_options)
+            if classic_type_options:
+                selected_question_types = st.multiselect(
+                    "細部題型（依次單元連動，可複選）",
+                    classic_type_options,
+                    key="custom_exam_question_types",
+                    placeholder="可不選；不選時由系統混合出題",
+                )
+            else:
+                selected_question_types = []
+                if selected_subunits:
+                    st.caption("此範圍的細部題型尚未完成校對，因此暫時不顯示。")
+
+            difficulty_options = ["基礎", "標準", "進階", "挑戰"]
+            sanitize_multiselect_state(
+                "custom_exam_difficulties",
+                difficulty_options,
+            )
+            if not st.session_state.get("custom_exam_difficulties"):
+                st.session_state["custom_exam_difficulties"] = ["標準"]
+
+            selected_difficulties = st.multiselect(
+                "難度（可複選）",
+                difficulty_options,
+                key="custom_exam_difficulties",
+                help="例如同時選擇「標準」與「進階」，系統會混合兩種難度。",
+            )
+            difficulty = "、".join(selected_difficulties) if selected_difficulties else "標準"
+
+            col_format1, col_format2 = st.columns(2)
+            with col_format1:
+                pack_label = st.selectbox(
+                    "題數與點數",
+                    list(q_count_options.keys()),
+                    index=0,
+                    key="custom_exam_pack",
+                )
+            display_q = q_count_options[pack_label]
+            req_pts = get_required_credits(display_q)
+
+            format_presets = {
+                5: {
+                    "混合題型：2 選擇＋1 填空＋2 計算": (2, 1, 2),
+                    "全計算題：5 計算": (0, 0, 5),
+                    "觀念練習：3 選擇＋2 填空": (3, 2, 0),
+                },
+                10: {
+                    "混合題型：4 選擇＋3 填空＋3 計算": (4, 3, 3),
+                    "計算加強：2 選擇＋2 填空＋6 計算": (2, 2, 6),
+                    "觀念練習：6 選擇＋4 填空": (6, 4, 0),
+                },
+                15: {
+                    "混合題型：5 選擇＋5 填空＋5 計算": (5, 5, 5),
+                    "計算加強：3 選擇＋3 填空＋9 計算": (3, 3, 9),
+                    "觀念練習：9 選擇＋6 填空": (9, 6, 0),
+                },
+                20: {
+                    "混合題型：7 選擇＋6 填空＋7 計算": (7, 6, 7),
+                    "計算加強：4 選擇＋4 填空＋12 計算": (4, 4, 12),
+                    "觀念練習：12 選擇＋8 填空": (12, 8, 0),
+                },
+            }
+
+            with col_format2:
+                format_label = st.selectbox(
+                    "題目配置",
+                    list(format_presets[display_q].keys()),
+                    key=f"custom_exam_format_{display_q}",
+                )
+
+            mc_cnt, fill_cnt, calc_cnt = format_presets[display_q][format_label]
+
+            st.markdown("### 3️⃣ 確認本次試卷")
+            summary_col1, summary_col2, summary_col3, summary_col4 = st.columns(4)
+            summary_col1.metric("總題數", f"{display_q} 題")
+            summary_col2.metric("難度", difficulty)
+            summary_col3.metric("題型配置", f"{mc_cnt}/{fill_cnt}/{calc_cnt}")
+            summary_col4.metric("需要點數", f"{req_pts} 點")
+
+            with st.expander("查看完整出題設定", expanded=True):
+                st.markdown(f"**主單元：** {'、'.join(selected_mains) if selected_mains else '尚未選擇'}")
+                st.markdown(f"**次單元：** {'、'.join(selected_subunits) if selected_subunits else '尚未選擇'}")
+                st.markdown(f"**學習重點：** {'、'.join(selected_topics) if selected_topics else '系統平均分配'}")
+                st.markdown(f"**細部題型：** {'、'.join(selected_question_types) if selected_question_types else '系統混合題型'}")
+                st.markdown(
+                    f"**題目配置：** 選擇題 {mc_cnt} 題、填空題 {fill_cnt} 題、計算題 {calc_cnt} 題"
+                )
+
+            current_credits = user_profile.get("credits", 0)
+            if current_credits < req_pts:
+                st.warning(f"目前只有 {current_credits} 點，本次需要 {req_pts} 點。")
+
+            generate_col, clear_col = st.columns([2, 1])
+            with generate_col:
+                btn_generate = st.button(
+                    f"✨ 產生 {display_q} 題自組試卷（扣 {req_pts} 點）",
+                    type="primary",
+                    use_container_width=True,
+                    disabled=current_credits < req_pts,
+                )
+            with clear_col:
+                btn_clear = st.button(
+                    "清除目前試卷",
+                    use_container_width=True,
+                )
+
+            if btn_clear:
+                st.session_state["custom_exam_content"] = ""
+                st.session_state["custom_exam_last_summary"] = {}
+                st.rerun()
+
+            if btn_generate:
+                if not selected_mains:
+                    st.warning("請先選擇至少一個主單元。")
+                elif not selected_subunits:
+                    st.warning("請先選擇至少一個次單元。")
+                else:
+                    # 只在資料完整且點數足夠時扣點
+                    if deduct_credit(display_q):
+                        with st.spinner("正在依照教材範圍智慧組卷，請稍候…"):
+                            main_topics_str = "、".join(selected_mains)
+                            subunit_topics_str = "、".join(selected_subunits)
+                            topic_str = "、".join(selected_topics) if selected_topics else "由系統平均分配"
+                            type_str = "、".join(selected_question_types) if selected_question_types else "混合題型"
+                            search_keywords = selected_mains + selected_subunits + selected_topics
+                            db_text = fetch_relevant_questions_from_db(
+                                search_keywords,
+                                limit=max(20, display_q * 2),
+                            )
+
+                            prompt_custom = f"""
+你是臺灣數學教師與試卷命題專家。請依照以下設定產生一份可直接給學生作答的數學試卷。
+
+【學生與教材】
+年級：{user_gr}
+教材版本：{user_ver}
+
+【出題範圍】
+主單元：{main_topics_str}
+次單元：{subunit_topics_str}
+學習重點：{topic_str}
+指定細部題型：{type_str}
+難度：{difficulty}
+
+【題數配置】
+總題數：{display_q}
+選擇題：{mc_cnt}
+填空題：{fill_cnt}
+計算題：{calc_cnt}
+
+【系統題庫參考】
+{db_text if db_text else "(目前沒有可用的系統題庫資料，請由 AI 依教材範圍補足)"}
+
+【必要規則】
+1. 題目只能出現在本次選定的主單元、次單元與學習重點內，不可跨越未選範圍。
+2. 題目難度必須符合「{difficulty}」。
+3. 嚴格符合選擇題、填空題、計算題的數量。
+4. 選擇題每題提供四個選項。
+5. 每題都要有標準答案與簡潔解析。
+6. 題庫題只能作為參考，請調整數字、敘述或情境，避免直接複製。
+7. 先輸出「學生作答卷」，再輸出「答案與解析」。
+8. 使用繁體中文，數學符號清楚，題號連續。
+"""
+
+                            prompt_custom += "\n" + LAYOUT_NORMAL
+                            prompt_custom += "\n" + JSON_TEMPLATE_CUSTOM.replace(
+                                "UNIT_PLACEHOLDER",
+                                main_topics_str,
+                            )
+
+                            try:
+                                res_text = call_gemini_api([prompt_custom])
+                                final_custom_content = re.sub(
+                                    r"```json.*?```",
+                                    "",
+                                    res_text,
+                                    flags=re.DOTALL,
+                                ).strip()
+
+                                st.session_state["custom_exam_content"] = final_custom_content
+                                st.session_state["custom_exam_last_summary"] = {
+                                    "grade": user_gr,
+                                    "version": user_ver,
+                                    "main_units": selected_mains,
+                                    "subunits": selected_subunits,
+                                    "topics": selected_topics,
+                                    "question_types": selected_question_types,
+                                    "difficulty": difficulty,
+                                    "question_count": display_q,
+                                    "points": req_pts,
+                                }
+                                parse_and_insert_9_col_json(res_text)
+                                st.success("試卷已產生，點數已扣除。")
+                            except Exception as e:
+                                # AI 失敗時退回本次扣除的點數
+                                st.session_state["user_profile"]["credits"] += req_pts
+                                save_user_profile_to_db(st.session_state["user_profile"])
+                                handle_api_error(e)
+                    else:
+                        st.warning("點數不足，請先儲值或調整題數。")
+
+            if st.session_state.get("custom_exam_content"):
+                st.markdown("---")
+                st.markdown("### 📄 本次自組試卷")
+                last_summary = st.session_state.get("custom_exam_last_summary", {})
+                if last_summary:
+                    st.caption(
+                        f"{last_summary.get('grade', '')}｜"
+                        f"{last_summary.get('version', '')}｜"
+                        f"{last_summary.get('difficulty', '')}｜"
+                        f"{last_summary.get('question_count', '')} 題"
+                    )
+
+                st.markdown(
+                    f'<div class="printable-exam-area">{st.session_state["custom_exam_content"]}</div>',
+                    unsafe_allow_html=True,
+                )
+                render_share_buttons(
+                    st.session_state["custom_exam_content"],
+                    "cust_res",
+                )
+
+    with tab_diag:
+        st.subheader("🧠 學習診斷與累積錯題 🔒")
+        st.info(
+            "這裡集中顯示累積錯題、常見錯因、弱點單元與下一份推薦練習。"
+            "原本的「歷史錯題」已整合到本頁。"
+        )
+
+        if not is_trial:
+            diag_profile = st.session_state["user_profile"]
+            diag_email = diag_profile.get("email", "")
+            diag_credits = diag_profile.get("credits", 0)
+            d1, d2, d3, d4 = st.columns(4)
+            d1.metric("目前點數", f"{diag_credits} 點")
+            d2.metric("累積錯題", "讀取中")
+            d3.metric("優先補強", "待累積資料")
+            d4.metric("能力趨勢", "待累積資料")
+
+            st.markdown("### 📌 診斷內容規劃")
+            st.markdown(
+                "1. 累積錯題與原題紀錄  \n"
+                "2. 主單元、次單元與學習重點的錯誤次數  \n"
+                "3. 觀念錯誤、計算失誤、題意理解等錯因  \n"
+                "4. 基礎、標準、進階能力變化  \n"
+                "5. 最需要補強的三個知識點  \n"
+                "6. AI 推薦下一份練習與錯題疊代"
+            )
+
+        st.markdown("---")
+        st.markdown("### 📂 累積錯題與錯題疊代")
+        if is_trial:
+            show_trial_conversion_notice()
+        else:
+            user_profile = st.session_state["user_profile"]
+            user_ver = user_profile.get("version", "康軒版")
+            user_gr = user_profile.get("grade", "8年級(國二)")
+
+            current_exam_profile_signature = f"{user_gr}|{user_ver}"
+            previous_exam_profile_signature = st.session_state.get(
+                "custom_exam_profile_signature",
+                "",
+            )
+            if previous_exam_profile_signature != current_exam_profile_signature:
+                for stale_key in [
+                    "custom_exam_main_units",
+                    "custom_exam_subunits",
+                    "custom_exam_topics",
+                    "custom_exam_question_types",
+                ]:
+                    st.session_state.pop(stale_key, None)
+                st.session_state["custom_exam_profile_signature"] = (
+                    current_exam_profile_signature
+                )
+
+            with st.expander(
+                "🔁 上傳紅筆訂正考卷，直接產生下一份練習",
+                expanded=False,
+            ):
+                st.markdown(
+                    "請上傳 **1～2 張清楚的考卷照片**。建議老師或家長先用紅筆："
+                    "打叉、圈出錯誤、寫上正確答案，或標示空白未作答題。"
+                )
+                iterative_files = st.file_uploader(
+                    "上傳已作答並紅筆批改的考卷",
+                    type=["jpg", "jpeg", "png"],
+                    accept_multiple_files=True,
+                    key="iterative_exam_upload",
+                )
+
+                iterative_count = st.selectbox(
+                    "下一份練習題數",
+                    [5, 10],
+                    index=0,
+                    key="iterative_exam_count",
+                )
+                iterative_strategy = st.multiselect(
+                    "下一份試卷的出題策略（可複選）",
+                    [
+                        "針對錯題觀念重新練習",
+                        "相同題型更換數字與情境",
+                        "加入少量進階題",
+                        "複習空白未作答題",
+                    ],
+                    default=[
+                        "針對錯題觀念重新練習",
+                        "相同題型更換數字與情境",
+                        "加入少量進階題",
+                    ],
+                    key="iterative_exam_strategy",
+                )
+
+                iterative_points = get_required_credits(iterative_count)
+                st.caption(
+                    f"本次需要 {iterative_points} 點。建議配置："
+                    "約 70% 錯題補強＋30% 適度進階。"
+                )
+
+                iterative_generate = st.button(
+                    f"🧠 分析紅筆考卷並產生下一份（扣 {iterative_points} 點）",
+                    type="primary",
+                    use_container_width=True,
+                    key="iterative_exam_generate",
+                    disabled=user_profile.get("credits", 0) < iterative_points,
+                )
+
+                if iterative_generate:
+                    valid_iterative_files = (iterative_files or [])[:2]
+                    if not valid_iterative_files:
+                        st.warning("請先上傳至少一張已批改考卷照片。")
+                    elif not iterative_strategy:
+                        st.warning("請至少選擇一項出題策略。")
+                    elif deduct_credit(iterative_count):
+                        with st.spinner("正在辨識紅筆批改結果並安排下一階段練習…"):
+                            try:
+                                iterative_prompt = f"""
+你是臺灣數學教師與錯題診斷專家。請閱讀上傳的學生考卷照片。
+照片可能包含學生作答、紅筆打叉、紅筆圈選、教師訂正答案與空白題。
+
+【學生資料】
+年級：{user_gr}
+教材版本：{user_ver}
+
+【任務】
+1. 辨識學生答錯、空白未答、被紅筆圈選或打叉的題目。
+2. 推論每一題對應的主單元、次單元、核心觀念與錯誤原因。
+3. 先輸出「錯題診斷摘要」，內容包括：
+   - 發現的錯題或弱點
+   - 可能的錯誤原因
+   - 建議優先補強順序
+4. 再產生下一份 {iterative_count} 題練習。
+5. 出題策略：{'、'.join(iterative_strategy)}
+6. 約 70% 題目用於補強本次錯誤，約 30% 題目在學生可負擔範圍內適度進階。
+7. 題目不可直接複製原題；要更換數字、敘述、圖形條件或生活情境。
+8. 先輸出「學生作答卷」，再輸出「答案與解析」。
+9. 使用繁體中文，題號連續，每題解答清楚。
+10. 若照片無法確認某題是否錯誤，要明確標示不確定，不可捏造。
+"""
+                                contents = [iterative_prompt]
+                                for uploaded_file in valid_iterative_files:
+                                    uploaded_file.seek(0)
+                                    image = Image.open(uploaded_file).convert("RGB")
+                                    contents.append(image)
+
+                                iterative_result = call_gemini_api(contents)
+                                if not iterative_result.strip():
+                                    raise AIServiceError(
+                                        code="EMPTY_ITERATIVE_RESULT",
+                                        user_message="AI 沒有辨識到有效的批改內容，請重新拍攝較清楚的照片。",
+                                    )
+
+                                st.session_state["iterative_exam_analysis"] = iterative_result.strip()
+                                st.session_state["custom_exam_content"] = iterative_result.strip()
+                                st.session_state["custom_exam_last_summary"] = {
+                                    "grade": user_gr,
+                                    "version": user_ver,
+                                    "main_units": ["依紅筆錯題自動判定"],
+                                    "subunits": ["依錯誤觀念自動判定"],
+                                    "topics": iterative_strategy,
+                                    "question_types": ["錯題補強＋適度進階"],
+                                    "difficulty": "依學生作答自動調整",
+                                    "question_count": iterative_count,
+                                    "points": iterative_points,
+                                }
+                                st.success("已完成錯題診斷，並產生下一份練習。")
+                            except Exception as exc:
+                                st.session_state["user_profile"]["credits"] += iterative_points
+                                save_user_profile_to_db(st.session_state["user_profile"])
+                                handle_api_error(exc)
+                    else:
+                        st.warning("點數不足，請先儲值。")
+
+            st.markdown("---")
+            st.markdown("### 或者：自行選擇範圍組卷")
             st.info("這裡會記錄您過往上傳的所有錯題，這是建立專屬學習履歷最重要的一環！您也可以在下方手動補充錯題來產出考卷。")
             
             if supabase_client and st.session_state["user_profile"]["email"] != "trial@example.com":
@@ -2066,139 +3037,3 @@ elif st.session_state["setup_complete"]:
                 else:
                     show_trial_conversion_notice()
 
-    with tab_custom:
-        st.subheader("⚙️ 題目自組卷 (強大 Hybrid 混合出題) 🔒")
-        if is_trial:
-            show_trial_conversion_notice()
-        else:
-            user_ver = st.session_state["user_profile"].get("version", "康軒版")
-            user_gr = st.session_state["user_profile"].get("grade", "8年級(國二)")
-            st.info(f"💡 目前設定連動：**{user_gr} ({user_ver})**")
-            
-            if LEARNING_MAP_AVAILABLE and get_unit_names_for_profile is not None:
-                unit_options = get_unit_names_for_profile(st.session_state["user_profile"])
-            else:
-                unit_options = [
-                    "數與量",
-                    "計算與代數",
-                    "分數與小數",
-                    "比與比例",
-                    "幾何與測量",
-                    "統計與機率",
-                    "生活應用與跨單元",
-                ]
-
-            selected_mains = st.multiselect(
-                f"請選擇【{user_ver}】主單元（可複選）：",
-                unit_options,
-                key="custom_exam_main_units",
-            )
-
-            st.markdown("#### 📖 選擇次單元")
-            if (
-                LEARNING_MAP_AVAILABLE
-                and get_subunit_names_for_units is not None
-                and selected_mains
-            ):
-                subunit_options = get_subunit_names_for_units(
-                    st.session_state["user_profile"],
-                    selected_mains,
-                )
-            else:
-                subunit_options = [
-                    "基本概念與定義",
-                    "基本計算與操作",
-                    "文字應用題",
-                    "圖形與測量",
-                    "易錯觀念辨析",
-                    "跨單元綜合",
-                ]
-
-            selected_subunits = st.multiselect(
-                "請選擇要出題的次單元（可複選）：",
-                subunit_options,
-                key="custom_exam_subunits",
-                help="先選主單元後，系統會顯示對應的次單元。",
-            )
-
-            st.markdown("#### 🎯 選擇題型與難度方向")
-            direction_options = [
-                "基本觀念",
-                "進階變形",
-                "資優挑戰",
-                "跨單元會考整合",
-                "考古題風格",
-                "數學競賽風格",
-            ]
-            selected_directions = st.multiselect(
-                "請選擇出題方向（可複選）：",
-                direction_options,
-                default=["基本觀念", "進階變形"],
-                key="custom_exam_directions",
-            )
-
-            display_q = 30
-            mc_cnt = 10
-            fill_cnt = 10
-            calc_cnt = 10
-            req_pts = 50
-            
-            st.info(f"💡 預計總題數：**{display_q}** 題 (將扣除 **{req_pts}** 點)")
-
-            use_interests_custom = st.checkbox("🌟 自組卷融合學生興趣情境 (等正式版的時候再開放)", value=False, disabled=True, key="custom_exam_interest")
-
-            col_cust1, col_cust2 = st.columns(2)
-            with col_cust1:
-                btn_cust1 = st.button("產生自組卷", type="primary", use_container_width=True)
-            with col_cust2:
-                btn_cust2 = st.button("🔄 重新生成不同題目", use_container_width=True)
-
-            if btn_cust1 or btn_cust2:
-                if not selected_mains or not selected_subunits or not selected_directions:
-                    st.warning("請先選擇主單元、次單元與出題方向！")
-                else:
-                    if "credits" not in st.session_state["user_profile"]:
-                        st.session_state["user_profile"]["credits"] = 15
-                        
-                    if st.session_state["user_profile"]["credits"] >= req_pts:
-                        st.session_state["user_profile"]["credits"] -= req_pts
-                        save_user_profile_to_db(st.session_state["user_profile"])
-                        
-                        with st.spinner("智慧組卷中..."):
-                            main_topics_str = "、".join(selected_mains)
-                            subunit_topics_str = "、".join(selected_subunits)
-                            direction_topics_str = "、".join(selected_directions)
-                            search_keywords = selected_mains + selected_subunits
-                            db_text = fetch_relevant_questions_from_db(search_keywords, limit=20)
-                            
-                            prompt_custom = f"適用年級與版本：{user_gr} {user_ver}\n"
-                            prompt_custom += "主單元：\n" + main_topics_str + "\n"
-                            prompt_custom += "次單元：\n" + subunit_topics_str + "\n"
-                            prompt_custom += "題型與難度方向：\n" + direction_topics_str + "\n\n"
-                            prompt_custom += "【系統題庫資源】\n" + (db_text if db_text else "(無)") + "\n\n"
-                            prompt_custom += f"請產出總共 {display_q} 題（嚴格包含 {mc_cnt}題選擇題、{fill_cnt}題填空題與 {calc_cnt}題計算題的組合）。\n"
-                            prompt_custom += "【出題優先順序】：請優先從上方系統題庫資源中出題，若題數不足，剩餘的部分請完全使用 AI 自動生成補充。\n"
-                            prompt_custom += "【出題重要要求】：所有生成的題目與解答請儘量不要與題庫完全重複，至少要修改數字與情境。每道題目務必提供標準解答與解析。\n\n"
-                            prompt_custom += LAYOUT_NORMAL
-                            prompt_custom += JSON_TEMPLATE_CUSTOM.replace("UNIT_PLACEHOLDER", main_topics_str)
-                            
-                            try:
-                                res_text = call_gemini_api([prompt_custom])
-                                final_custom_content = re.sub(r'```json.*?```', '', res_text, flags=re.DOTALL).strip()
-                                
-                                st.session_state["custom_exam_content"] = final_custom_content
-                                parse_and_insert_9_col_json(res_text)
-                            except Exception as e: handle_api_error(e)
-                    else:
-                        show_trial_conversion_notice()
-            
-            if st.session_state.get("custom_exam_content"):
-                st.markdown(f'<div class="printable-exam-area">{st.session_state["custom_exam_content"]}</div>', unsafe_allow_html=True)
-                render_share_buttons(st.session_state["custom_exam_content"], "cust_res")
-
-    with tab_diag:
-        st.subheader("🧠 學習診斷 🔒")
-        if is_trial:
-            show_trial_conversion_notice()
-        else:
-            st.info("敬請期待學習圖表分析！")
