@@ -108,6 +108,112 @@ ELEMENTARY_UNIT_OPTIONS = [
 ]
 
 
+JUNIOR_HIGH_HIERARCHY = {
+    "數與數線": {
+        "正負數與數線": {
+            "topics": ["正負數概念", "數線定位與大小比較", "相反數與絕對值"],
+            "question_types": ["數線判讀", "正負數大小比較", "絕對值與距離"],
+        },
+        "科學記號與近似值": {
+            "topics": ["科學記號表示", "有效數字", "誤差與近似值"],
+            "question_types": ["科學記號互換", "近似值判讀", "誤差範圍"],
+        },
+    },
+    "因數與倍數": {
+        "質因數分解": {
+            "topics": ["質數與合數", "短除法", "標準分解式"],
+            "question_types": ["質因數分解", "指數形式判讀", "整除判斷"],
+        },
+        "最大公因數": {
+            "topics": ["公因數", "最大公因數", "分組與分配應用"],
+            "question_types": ["列舉法", "短除法", "最大公因數應用題"],
+        },
+        "最小公倍數": {
+            "topics": ["公倍數", "最小公倍數", "週期與同時發生問題"],
+            "question_types": ["列舉法", "短除法", "最小公倍數應用題"],
+        },
+    },
+    "分數與小數運算": {
+        "分數四則運算": {
+            "topics": ["約分與通分", "分數加減", "分數乘除"],
+            "question_types": ["異分母加減", "連乘連除", "混合運算"],
+        },
+        "小數與分數互換": {
+            "topics": ["有限小數", "循環小數", "分數小數互換"],
+            "question_types": ["小數化分數", "分數化小數", "循環小數判讀"],
+        },
+    },
+    "一元一次方程式": {
+        "代數式與同類項": {
+            "topics": ["文字符號", "代數式化簡", "同類項合併"],
+            "question_types": ["代數式表示", "去括號", "同類項化簡"],
+        },
+        "一元一次方程式": {
+            "topics": ["等量公理", "移項法則", "方程式求解"],
+            "question_types": ["基本方程式", "含括號方程式", "分數係數方程式"],
+        },
+        "應用問題": {
+            "topics": ["年齡問題", "行程問題", "分配問題"],
+            "question_types": ["列一元一次方程式", "文字題轉換", "答案合理性檢查"],
+        },
+    },
+    "二元一次聯立方程式": {
+        "二元一次方程式": {
+            "topics": ["二元一次方程式", "解的意義", "圖形表示"],
+            "question_types": ["判斷解", "代入驗證", "直線交點"],
+        },
+        "聯立方程式解法": {
+            "topics": ["代入消去法", "加減消去法", "特殊解情形"],
+            "question_types": ["代入法", "加減法", "無解與無限多解"],
+        },
+        "聯立方程式應用": {
+            "topics": ["雞兔問題", "價格數量問題", "行程問題"],
+            "question_types": ["列聯立方程式", "生活情境題", "表格整理題"],
+        },
+    },
+    "比例與函數": {
+        "比與比例式": {
+            "topics": ["比值", "比例式", "正比與反比"],
+            "question_types": ["比例式求值", "正比應用", "反比應用"],
+        },
+        "一次函數": {
+            "topics": ["函數概念", "一次函數圖形", "斜率與截距"],
+            "question_types": ["函數值", "畫一次函數圖形", "由圖形求關係式"],
+        },
+    },
+    "幾何與測量": {
+        "平面幾何": {
+            "topics": ["角與平行線", "三角形性質", "多邊形"],
+            "question_types": ["角度計算", "三角形內外角", "多邊形內角和"],
+        },
+        "尺規作圖與全等": {
+            "topics": ["基本作圖", "三角形全等", "垂直平分線"],
+            "question_types": ["尺規作圖步驟", "全等判定", "幾何證明"],
+        },
+        "圓與相似形": {
+            "topics": ["圓的性質", "相似三角形", "比例線段"],
+            "question_types": ["圓周角", "相似判定", "比例線段計算"],
+        },
+    },
+    "統計與機率": {
+        "統計資料整理": {
+            "topics": ["次數分配表", "平均數中位數眾數", "盒狀圖"],
+            "question_types": ["統計表判讀", "代表值計算", "資料比較"],
+        },
+        "機率": {
+            "topics": ["樣本空間", "理論機率", "實驗機率"],
+            "question_types": ["列舉樣本空間", "單一步驟機率", "樹狀圖"],
+        },
+    },
+    "生活應用與跨單元": {
+        "跨單元綜合": {
+            "topics": ["代數與幾何整合", "比例與統計整合", "生活情境建模"],
+            "question_types": ["多步驟應用題", "圖表整合題", "素養題"],
+        },
+    },
+}
+
+
 CURRICULUM_HIERARCHY = {
     ("10", "A級 (數學A)"): {
         "數與式": {
@@ -174,10 +280,20 @@ def _grade_number(user_profile: Dict[str, Any]) -> str:
 
 
 def _catalog_for_profile(user_profile: Dict[str, Any]) -> Dict[str, Any]:
-    return CURRICULUM_HIERARCHY.get(
-        (_grade_number(user_profile), str(user_profile.get("version", ""))),
+    grade_number = _grade_number(user_profile)
+    version = str(user_profile.get("version", ""))
+
+    exact_catalog = CURRICULUM_HIERARCHY.get(
+        (grade_number, version),
         {},
     )
+    if exact_catalog:
+        return exact_catalog
+
+    if grade_number in {"7", "8", "9"}:
+        return JUNIOR_HIGH_HIERARCHY
+
+    return {}
 
 
 def _matching_demo(user_profile: Dict[str, Any]) -> Dict[str, Any]:

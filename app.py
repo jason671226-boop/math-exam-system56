@@ -307,7 +307,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-APP_VERSION = "v0.6.10"
+APP_VERSION = "v0.6.11"
 APP_DIR = Path(__file__).resolve().parent
 LOCAL_EMAILS_FILE = APP_DIR / "recent_emails.json"
 LINE_PAY_QR_FILE = APP_DIR / "line_pay_qr.jpg"
@@ -1408,7 +1408,19 @@ def deduct_credit(q_count=5):
 
 def handle_api_error(exc: Exception) -> None:
     """顯示一般使用者可理解的 AI 錯誤；完整技術資訊僅供管理員查看。"""
+    error_code = get_ai_error_code(exc)
     st.error(f"⚠️ {get_ai_error_message(exc)}")
+
+    if error_code in {
+        "MISSING_API_KEY",
+        "AUTHENTICATION_FAILED",
+        "PERMISSION_DENIED",
+    }:
+        st.info(
+            "管理員請到 Streamlit Cloud → App settings → Secrets，"
+            "確認已設定有效的 GEMINI_API_KEY 或 GOOGLE_API_KEY。"
+            "本次產生失敗不會扣點。"
+        )
 
     if st.session_state.get("admin_unlocked", False):
         with st.expander("管理員技術資訊"):
@@ -3201,6 +3213,23 @@ elif st.session_state["setup_complete"]:
             user_profile = st.session_state["user_profile"]
             user_ver = user_profile.get("version", "康軒版")
             user_gr = user_profile.get("grade", "8年級(國二)")
+
+            custom_exam_profile_signature = f"{user_gr}|{user_ver}"
+            if (
+                st.session_state.get("custom_exam_profile_signature")
+                != custom_exam_profile_signature
+            ):
+                for state_key in (
+                    "custom_exam_main_units",
+                    "custom_exam_subunits",
+                    "custom_exam_topics",
+                    "custom_exam_question_types",
+                ):
+                    st.session_state.pop(state_key, None)
+                st.session_state[
+                    "custom_exam_profile_signature"
+                ] = custom_exam_profile_signature
+
             st.info(f"目前學生設定：**{user_gr}｜{user_ver}**")
 
             # 第一步：主單元

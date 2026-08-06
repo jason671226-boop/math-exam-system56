@@ -31,12 +31,34 @@ def _secret(name: str, default: str = "") -> str:
         return default
 
 
+def _clean_api_key(value: str) -> str:
+    value = str(value or "").strip()
+    if (
+        len(value) >= 2
+        and value[0] == value[-1]
+        and value[0] in {"'", '"'}
+    ):
+        value = value[1:-1].strip()
+    return value
+
+
 def _get_gemini_key() -> str:
-    api_key = _secret("GEMINI_KEY") or _secret("GEMINI_API_KEY")
+    # 同時支援 Google 官方常用名稱與 MathAI 舊名稱。
+    api_key = (
+        _secret("GEMINI_API_KEY")
+        or _secret("GOOGLE_API_KEY")
+        or _secret("GEMINI_KEY")
+        or _secret("GOOGLE_GENAI_API_KEY")
+    )
+    api_key = _clean_api_key(api_key)
     if not api_key:
         raise AIServiceError(
             code="MISSING_API_KEY",
-            user_message="系統尚未設定 Gemini API Key。",
+            user_message=(
+                "系統尚未設定 Gemini API Key。"
+                "管理員請在 Streamlit Secrets 設定 "
+                "GEMINI_API_KEY 或 GOOGLE_API_KEY。"
+            ),
         )
     return api_key
 
@@ -194,8 +216,8 @@ def _candidate_models(requested_model: str | None = None) -> list[str]:
     # Last-resort aliases. They are tried only when discovery yields nothing or
     # the configured alias is unavailable.
     for name in (
+        "gemini-3.6-flash",
         "gemini-3.5-flash",
-        "gemini-3-flash-preview",
         "gemini-2.5-flash-lite",
         "gemini-2.5-flash",
     ):
