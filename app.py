@@ -106,7 +106,8 @@ st.markdown(
       v0.5.9 不再固定 st.tabs 內部頁籤。
       改用獨立的 Streamlit 原生按鈕導覽列。
     */
-    .st-key-main_nav_fixed {
+    /* 桌面版：固定顯示五個功能按鈕。 */
+    .st-key-main_nav_desktop {
         position: fixed !important;
         top: 2.90rem !important;
         left: 20rem !important;
@@ -123,27 +124,26 @@ st.markdown(
         overflow: hidden !important;
     }
 
-    .st-key-main_nav_fixed [data-testid="stHorizontalBlock"] {
-        gap: 0.14rem !important;
+    .st-key-main_nav_desktop [data-testid="stHorizontalBlock"] {
+        gap: 0.12rem !important;
         flex-wrap: nowrap !important;
         width: 100% !important;
-        margin-bottom: 0.08rem !important;
         min-width: 0 !important;
     }
 
-    .st-key-main_nav_fixed [data-testid="column"] {
+    .st-key-main_nav_desktop [data-testid="column"] {
         min-width: 0 !important;
         flex: 1 1 0 !important;
     }
 
-    .st-key-main_nav_fixed button {
+    .st-key-main_nav_desktop button {
         width: 100% !important;
         min-width: 0 !important;
-        min-height: 1.78rem !important;
+        min-height: 1.82rem !important;
         padding: 0.06rem 0.10rem !important;
     }
 
-    .st-key-main_nav_fixed button p {
+    .st-key-main_nav_desktop button p {
         white-space: nowrap !important;
         font-size: 0.78rem !important;
         line-height: 1.05 !important;
@@ -152,40 +152,85 @@ st.markdown(
     }
 
     body:has(section[data-testid="stSidebar"][aria-expanded="false"])
-    .st-key-main_nav_fixed {
+    .st-key-main_nav_desktop {
         left: 4.2rem !important;
         max-width: calc(100vw - 4.8rem) !important;
     }
 
+    /* 手機版：不用橫滑，改用可點選的下拉式選單。 */
+    .st-key-main_nav_mobile {
+        display: none !important;
+    }
+
+    .main-nav-content-spacer {
+        height: 3.05rem;
+    }
+
+    .mathai-mobile-guide {
+        display: none;
+    }
+
     @media (max-width: 900px) {
-        .st-key-main_nav_fixed {
-            left: 0.20rem !important;
-            right: 0.20rem !important;
-            max-width: calc(100vw - 0.4rem) !important;
-            top: 2.82rem !important;
-            padding: 0.15rem 0.17rem !important;
-            overflow: hidden !important;
+        .st-key-main_nav_desktop {
+            display: none !important;
         }
 
-        .st-key-main_nav_fixed [data-testid="stHorizontalBlock"] {
-            gap: 0.08rem !important;
-            min-width: 0 !important;
+        .st-key-main_nav_mobile {
+            display: block !important;
+            position: sticky !important;
+            top: 2.65rem !important;
+            z-index: 999999 !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+            margin-top: 2.65rem !important;
+            margin-bottom: 0.40rem !important;
+            padding: 0.42rem 0.50rem 0.46rem 0.50rem !important;
+            background: rgba(255, 255, 255, 0.98) !important;
+            border: 1px solid rgba(49, 51, 63, 0.18) !important;
+            border-radius: 0.58rem !important;
+            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12) !important;
+            overflow: visible !important;
         }
 
-        .st-key-main_nav_fixed button {
-            min-height: 1.72rem !important;
-            padding: 0.04rem !important;
+        .st-key-main_nav_mobile [data-testid="stSelectbox"] {
+            margin-bottom: 0 !important;
         }
 
-        .st-key-main_nav_fixed button p {
-            font-size: 0.70rem !important;
-            letter-spacing: -0.01em !important;
+        .st-key-main_nav_mobile [data-baseweb="select"] > div {
+            min-height: 2.55rem !important;
+            font-size: 0.94rem !important;
+            font-weight: 700 !important;
+            border-width: 2px !important;
+        }
+
+        .st-key-main_nav_mobile p {
+            margin-bottom: 0.18rem !important;
+        }
+
+        .main-nav-content-spacer {
+            height: 0.10rem;
+        }
+
+        .mathai-mobile-guide {
+            display: block;
+            margin: 0.45rem 0 0.55rem 0;
+            padding: 0.58rem 0.65rem;
+            border-left: 4px solid #1c83e1;
+            border-radius: 0.45rem;
+            background: #eef6ff;
+            font-size: 0.80rem;
+            line-height: 1.45;
         }
     }
 
     @media (prefers-color-scheme: dark) {
-        .st-key-main_nav_fixed {
+        .st-key-main_nav_desktop,
+        .st-key-main_nav_mobile {
             background: rgba(14, 17, 23, 0.98) !important;
+        }
+
+        .mathai-mobile-guide {
+            background: rgba(28, 131, 225, 0.14);
         }
     }
 
@@ -250,7 +295,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-APP_VERSION = "v0.6.7"
+APP_VERSION = "v0.6.9"
 APP_DIR = Path(__file__).resolve().parent
 LOCAL_EMAILS_FILE = APP_DIR / "recent_emails.json"
 LINE_PAY_QR_FILE = APP_DIR / "line_pay_qr.jpg"
@@ -312,14 +357,48 @@ if "scan_scope_estimate" not in st.session_state: st.session_state["scan_scope_e
 if "loaded_profile_email" not in st.session_state: st.session_state["loaded_profile_email"] = ""
 
 
+def _profile_list_value(value):
+    """兼容 Supabase jsonb、文字 JSON 與一般文字格式。"""
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, tuple):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return []
+        try:
+            parsed = json.loads(text)
+            if isinstance(parsed, list):
+                return [
+                    str(item).strip()
+                    for item in parsed
+                    if str(item).strip()
+                ]
+        except Exception:
+            pass
+        return [
+            item.strip()
+            for item in re.split(r"[、,，;；\n]+", text)
+            if item.strip()
+        ]
+    return []
+
+
 def _profile_control_default(email):
     return {
         "email": str(email or "").strip().lower(),
         "identity_locked": False,
         "locked_last_name": "",
         "locked_first_name": "",
+        "city": "",
+        "district": "",
+        "school": "",
         "grade": "",
         "version": "",
+        "traits": [],
+        "interests": [],
+        "credits": None,
         "change_year": date.today().year,
         "change_count": 0,
     }
@@ -328,7 +407,9 @@ def _profile_control_default(email):
 def _read_profile_controls_local():
     try:
         if PROFILE_CONTROL_FILE.exists():
-            data = json.loads(PROFILE_CONTROL_FILE.read_text(encoding="utf-8"))
+            data = json.loads(
+                PROFILE_CONTROL_FILE.read_text(encoding="utf-8")
+            )
             if isinstance(data, dict):
                 return data
     except Exception:
@@ -357,19 +438,40 @@ def get_profile_control(email):
             res = (
                 supabase_client.table("student_profile_controls")
                 .select("*")
-                .eq("email", email)
+                .ilike("email", email)
+                .limit(1)
                 .execute()
             )
             if res.data:
                 row = res.data[0]
                 control.update({
-                    "identity_locked": bool(row.get("identity_locked", False)),
-                    "locked_last_name": row.get("locked_last_name", "") or "",
-                    "locked_first_name": row.get("locked_first_name", "") or "",
-                    "grade": row.get("grade", "") or "",
-                    "version": row.get("version", "") or "",
-                    "change_year": int(row.get("change_year") or date.today().year),
-                    "change_count": int(row.get("change_count") or 0),
+                    "identity_locked": bool(
+                        row.get("identity_locked", False)
+                    ),
+                    "locked_last_name": str(
+                        row.get("locked_last_name") or ""
+                    ).strip(),
+                    "locked_first_name": str(
+                        row.get("locked_first_name") or ""
+                    ).strip(),
+                    "city": str(row.get("city") or "").strip(),
+                    "district": str(row.get("district") or "").strip(),
+                    "school": str(row.get("school") or "").strip(),
+                    "grade": str(row.get("grade") or "").strip(),
+                    "version": str(row.get("version") or "").strip(),
+                    "traits": _profile_list_value(
+                        row.get("traits", [])
+                    ),
+                    "interests": _profile_list_value(
+                        row.get("interests", [])
+                    ),
+                    "credits": row.get("credits"),
+                    "change_year": int(
+                        row.get("change_year") or date.today().year
+                    ),
+                    "change_count": int(
+                        row.get("change_count") or 0
+                    ),
                 })
                 return control
         except Exception:
@@ -377,44 +479,92 @@ def get_profile_control(email):
 
     local_data = _read_profile_controls_local()
     if email in local_data and isinstance(local_data[email], dict):
-        control.update(local_data[email])
+        local_row = local_data[email]
+        control.update(local_row)
+        control["traits"] = _profile_list_value(
+            local_row.get("traits", [])
+        )
+        control["interests"] = _profile_list_value(
+            local_row.get("interests", [])
+        )
     return control
 
 
 def save_profile_control(control):
     email = str(control.get("email", "")).strip().lower()
     if not email or email == "trial@example.com":
-        return
+        return False
 
+    traits = _profile_list_value(control.get("traits", []))
+    interests = _profile_list_value(
+        control.get("interests", [])
+    )
     payload = {
         "email": email,
-        "identity_locked": bool(control.get("identity_locked", False)),
-        "locked_last_name": control.get("locked_last_name", ""),
-        "locked_first_name": control.get("locked_first_name", ""),
-        "grade": control.get("grade", ""),
-        "version": control.get("version", ""),
-        "change_year": int(control.get("change_year") or date.today().year),
-        "change_count": int(control.get("change_count") or 0),
+        "identity_locked": bool(
+            control.get("identity_locked", False)
+        ),
+        "locked_last_name": str(
+            control.get("locked_last_name", "")
+        ).strip(),
+        "locked_first_name": str(
+            control.get("locked_first_name", "")
+        ).strip(),
+        "city": str(control.get("city", "")).strip(),
+        "district": str(control.get("district", "")).strip(),
+        "school": str(control.get("school", "")).strip(),
+        "grade": str(control.get("grade", "")).strip(),
+        "version": str(control.get("version", "")).strip(),
+        "traits": traits,
+        "interests": interests,
+        "credits": control.get("credits"),
+        "change_year": int(
+            control.get("change_year") or date.today().year
+        ),
+        "change_count": int(
+            control.get("change_count") or 0
+        ),
         "updated_at": datetime.now().isoformat(),
     }
 
     saved_to_cloud = False
     if supabase_client:
         try:
-            supabase_client.table("student_profile_controls").upsert(payload).execute()
+            supabase_client.table(
+                "student_profile_controls"
+            ).upsert(payload).execute()
             saved_to_cloud = True
         except Exception:
-            saved_to_cloud = False
+            try:
+                text_payload = dict(payload)
+                text_payload["traits"] = json.dumps(
+                    traits,
+                    ensure_ascii=False,
+                )
+                text_payload["interests"] = json.dumps(
+                    interests,
+                    ensure_ascii=False,
+                )
+                supabase_client.table(
+                    "student_profile_controls"
+                ).upsert(text_payload).execute()
+                saved_to_cloud = True
+            except Exception:
+                saved_to_cloud = False
 
     if not saved_to_cloud or is_localhost_request():
         local_data = _read_profile_controls_local()
         local_data[email] = payload
         _write_profile_controls_local(local_data)
 
+    return saved_to_cloud
+
 
 def remaining_grade_version_changes(control):
     current_year = date.today().year
-    change_year = int(control.get("change_year") or current_year)
+    change_year = int(
+        control.get("change_year") or current_year
+    )
     change_count = int(control.get("change_count") or 0)
     if change_year != current_year:
         return 2
@@ -647,26 +797,69 @@ def normalize_email(email):
 
 
 def normalize_profile_list(value):
-    if isinstance(value, list):
-        return [str(item).strip() for item in value if str(item).strip()]
-    if isinstance(value, tuple):
-        return [str(item).strip() for item in value if str(item).strip()]
-    if isinstance(value, str):
-        text = value.strip()
-        if not text:
-            return []
-        try:
-            parsed = json.loads(text)
-            if isinstance(parsed, list):
-                return [str(item).strip() for item in parsed if str(item).strip()]
-        except Exception:
-            pass
-        return [
-            item.strip()
-            for item in re.split(r"[、,，;；\n]+", text)
-            if item.strip()
+    return _profile_list_value(value)
+
+
+def normalize_city_name(value):
+    city = str(value or "").strip()
+    city_aliases = {
+        "臺北市": "台北市",
+        "臺中市": "台中市",
+        "臺南市": "台南市",
+        "臺東縣": "台東縣",
+    }
+    return city_aliases.get(city, city)
+
+
+def normalize_grade_name(value):
+    text = str(value or "").strip()
+    if text in grade_options:
+        return text
+    match = re.search(r"(\d+)", text)
+    if match:
+        grade_number = int(match.group(1))
+        for option in grade_options:
+            if option.startswith(f"{grade_number}年級"):
+                return option
+    return "8年級(國二)"
+
+
+def normalize_version_name(value, grade_value=""):
+    text = str(value or "").strip()
+    aliases = {
+        "康軒": "康軒版",
+        "翰林": "翰林版",
+        "南一": "南一版",
+        "數學A": "A級 (數學A)",
+        "A級": "A級 (數學A)",
+        "數學B": "B級 (數學B)",
+        "B級": "B級 (數學B)",
+        "數學C": "C級 (數學C)",
+        "C級": "C級 (數學C)",
+    }
+    text = aliases.get(text, text)
+    is_high_school = any(
+        grade_marker in str(grade_value)
+        for grade_marker in ["10年級", "11年級", "12年級"]
+    )
+    valid_versions = (
+        [
+            "A級 (數學A)",
+            "B級 (數學B)",
+            "C級 (數學C)",
+            "報考私中",
+            "參加數學競賽",
         ]
-    return []
+        if is_high_school
+        else [
+            "康軒版",
+            "翰林版",
+            "南一版",
+            "報考私中",
+            "參加數學競賽",
+        ]
+    )
+    return text if text in valid_versions else valid_versions[0]
 
 
 def fetch_user_profile_from_db(email):
@@ -677,6 +870,7 @@ def fetch_user_profile_from_db(email):
         or normalized_email == "trial@example.com"
     ):
         return None
+
     try:
         res = (
             supabase_client.table("user_profiles")
@@ -692,26 +886,161 @@ def fetch_user_profile_from_db(email):
     return None
 
 
+def build_complete_user_profile(email):
+    """合併兩張資料表，避免只載入姓名、漏掉其他資料。"""
+    normalized_email = normalize_email(email)
+    profile_row = fetch_user_profile_from_db(
+        normalized_email
+    ) or {}
+    control = get_profile_control(normalized_email)
+
+    has_existing_data = bool(
+        profile_row
+        or control.get("identity_locked")
+        or control.get("locked_last_name")
+        or control.get("school")
+        or control.get("grade")
+        or control.get("traits")
+        or control.get("interests")
+    )
+    if not has_existing_data:
+        return None
+
+    def choose_text(*values):
+        for value in values:
+            text = str(value or "").strip()
+            if text:
+                return text
+        return ""
+
+    raw_grade = choose_text(
+        control.get("grade"),
+        profile_row.get("grade"),
+        "8年級(國二)",
+    )
+    normalized_grade = normalize_grade_name(raw_grade)
+
+    raw_traits = normalize_profile_list(
+        profile_row.get("traits", [])
+    )
+    if not raw_traits:
+        raw_traits = normalize_profile_list(
+            control.get("traits", [])
+        )
+
+    raw_interests = normalize_profile_list(
+        profile_row.get("interests", [])
+    )
+    if not raw_interests:
+        raw_interests = normalize_profile_list(
+            control.get("interests", [])
+        )
+
+    profile_credits = profile_row.get("credits")
+    if profile_credits is None:
+        profile_credits = control.get("credits")
+    if profile_credits is None:
+        profile_credits = 100
+
+    return {
+        "email": normalized_email,
+        "last_name": choose_text(
+            control.get("locked_last_name"),
+            profile_row.get("last_name"),
+        ),
+        "first_name": choose_text(
+            control.get("locked_first_name"),
+            profile_row.get("first_name"),
+        ),
+        "city": normalize_city_name(
+            choose_text(
+                profile_row.get("city"),
+                control.get("city"),
+                "新北市",
+            )
+        ),
+        "district": choose_text(
+            profile_row.get("district"),
+            control.get("district"),
+            "土城區",
+        ),
+        "school": choose_text(
+            profile_row.get("school"),
+            control.get("school"),
+        ),
+        "grade": normalized_grade,
+        "version": normalize_version_name(
+            choose_text(
+                control.get("version"),
+                profile_row.get("version"),
+            ),
+            normalized_grade,
+        ),
+        "traits": raw_traits,
+        "interests": raw_interests,
+        "credits": profile_credits,
+        "last_login_date": today_str,
+    }
+
+
 def apply_user_profile_to_session(profile_data, email=None):
     if not isinstance(profile_data, dict):
         return False
-    normalized_email = normalize_email(email or profile_data.get("email", ""))
-    current_credits = st.session_state["user_profile"].get("credits", 15)
+
+    normalized_email = normalize_email(
+        email or profile_data.get("email", "")
+    )
+    city = normalize_city_name(
+        profile_data.get("city", "新北市")
+    )
+    if city not in taiwan_counties:
+        city = "新北市"
+
+    district_options = taiwan_districts.get(
+        city,
+        ["全區"],
+    )
+    district = str(
+        profile_data.get("district") or ""
+    ).strip()
+    if district not in district_options:
+        district = district_options[0]
+
+    grade = normalize_grade_name(
+        profile_data.get("grade")
+    )
+    version = normalize_version_name(
+        profile_data.get("version"),
+        grade,
+    )
+
     st.session_state["user_profile"].update({
         "email": normalized_email or "trial@example.com",
-        "last_name": str(profile_data.get("last_name") or "").strip(),
-        "first_name": str(profile_data.get("first_name") or "").strip(),
-        "city": str(profile_data.get("city") or "新北市").strip(),
-        "district": str(profile_data.get("district") or "土城區").strip(),
-        "school": str(profile_data.get("school") or "").strip(),
-        "grade": str(profile_data.get("grade") or "8年級(國二)").strip(),
-        "version": str(profile_data.get("version") or "康軒版").strip(),
-        "traits": normalize_profile_list(profile_data.get("traits", [])),
-        "interests": normalize_profile_list(profile_data.get("interests", [])),
-        "credits": profile_data.get("credits", current_credits),
+        "last_name": str(
+            profile_data.get("last_name") or ""
+        ).strip(),
+        "first_name": str(
+            profile_data.get("first_name") or ""
+        ).strip(),
+        "city": city,
+        "district": district,
+        "school": str(
+            profile_data.get("school") or ""
+        ).strip(),
+        "grade": grade,
+        "version": version,
+        "traits": normalize_profile_list(
+            profile_data.get("traits", [])
+        ),
+        "interests": normalize_profile_list(
+            profile_data.get("interests", [])
+        ),
+        "credits": profile_data.get("credits", 100),
         "last_login_date": today_str,
     })
-    st.session_state["loaded_profile_email"] = normalized_email
+    st.session_state["loaded_profile_email"] = (
+        normalized_email
+    )
     return True
 
 
@@ -720,6 +1049,7 @@ def clear_profile_widget_state(email):
     account_key = hashlib.sha256(
         (normalized_email or "new_user").encode("utf-8")
     ).hexdigest()[:10]
+
     exact_keys = {
         f"profile_last_name_{account_key}",
         f"profile_first_name_{account_key}",
@@ -735,16 +1065,24 @@ def clear_profile_widget_state(email):
         f"profile_trait_{account_key}_",
         f"profile_interest_{account_key}_",
     )
+
     for state_key in list(st.session_state.keys()):
-        if state_key in exact_keys or state_key.startswith(prefixes):
+        if (
+            state_key in exact_keys
+            or state_key.startswith(prefixes)
+        ):
             st.session_state.pop(state_key, None)
 
 
-def reset_user_profile_for_new_account(email="", credits=100):
+def reset_user_profile_for_new_account(
+    email="",
+    credits=100,
+):
     st.session_state["user_profile"] = {
         "last_name": "",
         "first_name": "",
-        "email": normalize_email(email) or "trial@example.com",
+        "email": normalize_email(email)
+        or "trial@example.com",
         "city": "新北市",
         "district": "土城區",
         "school": "",
@@ -758,28 +1096,99 @@ def reset_user_profile_for_new_account(email="", credits=100):
 
 
 def save_user_profile_to_db(profile_data):
-    if not supabase_client:
-        return
-    email = normalize_email(profile_data.get("email", ""))
+    """雙寫兩張表；其中一張成功，完整資料就不會只剩姓名。"""
+    if not isinstance(profile_data, dict):
+        return False
+
+    email = normalize_email(
+        profile_data.get("email", "")
+    )
     if not email or email == "trial@example.com":
-        return
-    try:
-        supabase_client.table("user_profiles").upsert({
+        return False
+
+    grade = normalize_grade_name(
+        profile_data.get("grade")
+    )
+    version = normalize_version_name(
+        profile_data.get("version"),
+        grade,
+    )
+    traits = normalize_profile_list(
+        profile_data.get("traits", [])
+    )
+    interests = normalize_profile_list(
+        profile_data.get("interests", [])
+    )
+
+    control = get_profile_control(email)
+    control.update({
+        "email": email,
+        "locked_last_name": str(
+            profile_data.get("last_name") or ""
+        ).strip(),
+        "locked_first_name": str(
+            profile_data.get("first_name") or ""
+        ).strip(),
+        "city": normalize_city_name(
+            profile_data.get("city")
+        ),
+        "district": str(
+            profile_data.get("district") or ""
+        ).strip(),
+        "school": str(
+            profile_data.get("school") or ""
+        ).strip(),
+        "grade": grade,
+        "version": version,
+        "traits": traits,
+        "interests": interests,
+        "credits": profile_data.get("credits", 15),
+    })
+    control_saved = save_profile_control(control)
+
+    user_profile_saved = False
+    if supabase_client:
+        payload = {
             "email": email,
-            "last_name": profile_data.get("last_name", ""),
-            "first_name": profile_data.get("first_name", ""),
-            "city": profile_data.get("city", "新北市"),
-            "district": profile_data.get("district", "土城區"),
-            "school": profile_data.get("school", ""),
-            "grade": profile_data.get("grade", "8年級(國二)"),
-            "version": profile_data.get("version", "康軒版"),
-            "traits": normalize_profile_list(profile_data.get("traits", [])),
-            "interests": normalize_profile_list(profile_data.get("interests", [])),
-            "credits": profile_data.get("credits", 15),
-            "updated_at": today_str,
-        }).execute()
-    except Exception:
-        pass
+            "last_name": control["locked_last_name"],
+            "first_name": control["locked_first_name"],
+            "city": control["city"],
+            "district": control["district"],
+            "school": control["school"],
+            "grade": grade,
+            "version": version,
+            "traits": traits,
+            "interests": interests,
+            "credits": control["credits"],
+            "updated_at": datetime.now().isoformat(),
+        }
+        try:
+            supabase_client.table(
+                "user_profiles"
+            ).upsert(payload).execute()
+            user_profile_saved = True
+        except Exception:
+            try:
+                text_payload = dict(payload)
+                text_payload["traits"] = json.dumps(
+                    traits,
+                    ensure_ascii=False,
+                )
+                text_payload["interests"] = json.dumps(
+                    interests,
+                    ensure_ascii=False,
+                )
+                supabase_client.table(
+                    "user_profiles"
+                ).upsert(text_payload).execute()
+                user_profile_saved = True
+            except Exception as save_error:
+                st.session_state[
+                    "profile_cloud_save_warning"
+                ] = str(save_error)
+
+    return bool(control_saved or user_profile_saved)
+
 
 
 def fetch_relevant_questions_from_db(keywords, limit=20):
@@ -997,6 +1406,7 @@ def handle_api_error(exc: Exception) -> None:
 # 🌟 全域左側欄 (Sidebar) 核心邏輯 - 直接展開、保證不消失
 # ==========================================
 with st.sidebar:
+    st.caption("📱 儲值點數與問題回饋")
     sidebar_credits = st.session_state["user_profile"].get("credits", 15)
     sidebar_email = st.session_state["user_profile"].get("email", "")
     sidebar_logged_in = bool(sidebar_email and sidebar_email != "trial@example.com")
@@ -1483,13 +1893,23 @@ MAIN_NAV_BUTTON_LABELS = [
 
 
 def switch_main_tab(tab_label):
-    """由固定導覽列切換主功能。"""
+    """由桌面固定導覽列切換主功能。"""
     st.session_state["main_tabs_control"] = tab_label
+
+
+def switch_main_tab_from_mobile():
+    """由手機下拉式選單切換主功能。"""
+    selected_tab = st.session_state.get("mobile_main_nav_selector")
+    if selected_tab in MAIN_TAB_LABELS:
+        st.session_state["main_tabs_control"] = selected_tab
 
 
 SYSTEM_TIPS = [
     "本系統由陳冠林老師團隊獨立開發。",
     "試用期間免費點數大放送，請多加利用。",
+    "點擊左上方雙箭頭，可以回饋問題增加免費點數，也可以儲值點數。",
+    "手機版請從上方功能選單切換五個主要功能，不需要左右滑動。",
+    "手機橫向旋轉可獲得更寬畫面，查看試卷與功能會更方便。",
     "第一次使用請先完成學生資料，AI 才能建立專屬學習履歷。",
     "每個 Email 建議只綁定一位學生，避免學習紀錄混在一起。",
     "拍照時盡量包含完整題目，提高辨識率。",
@@ -1545,6 +1965,17 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
         "</div>"
     )
     st.markdown(welcome_msg, unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div class="mathai-mobile-guide">
+            📱 <b>手機操作提醒</b><br>
+            點擊左上方雙箭頭，可以回饋問題增加免費點數、儲值點數。
+            完成註冊進入系統後，請從上方的「功能選單（共 5 項）」切換功能；
+            將手機橫向旋轉，可以獲得較寬的試卷與內容畫面。
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     st.markdown("---")
 
     if is_localhost_request():
@@ -1667,7 +2098,7 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
                                 st.session_state["pending_email"]
                             )
                             clear_profile_widget_state(verified_email)
-                            db_profile = fetch_user_profile_from_db(verified_email)
+                            db_profile = build_complete_user_profile(verified_email)
                             if db_profile:
                                 apply_user_profile_to_session(
                                     db_profile,
@@ -1695,11 +2126,43 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
         st.info("請先完成 Email 驗證，驗證成功後才會顯示學生資料。")
         st.stop()
 
+    verified_profile_email = normalize_email(
+        st.session_state["user_profile"].get("email", "")
+    )
+    if (
+        verified_profile_email
+        and verified_profile_email != "trial@example.com"
+        and st.session_state.get("loaded_profile_email")
+        != verified_profile_email
+    ):
+        complete_profile = build_complete_user_profile(
+            verified_profile_email
+        )
+        if complete_profile:
+            clear_profile_widget_state(
+                verified_profile_email
+            )
+            apply_user_profile_to_session(
+                complete_profile,
+                verified_profile_email,
+            )
+
     profile_load_notice = st.session_state.pop("profile_load_notice", "")
     if profile_load_notice == "existing":
         st.success("✅ 已載入此帳號之前儲存的基本資料、學習狀況與興趣。")
     elif profile_load_notice == "new":
         st.info("這是新帳號，請完成下方必填資料。")
+
+    profile_save_warning = st.session_state.pop(
+        "profile_cloud_save_warning",
+        "",
+    )
+    if profile_save_warning:
+        st.warning(
+            "會員資料欄位尚未完整建立於 Supabase。"
+            "請執行更新包內的「Supabase_會員完整資料欄位補強.sql」，"
+            "再重新儲存一次學生資料。"
+        )
 
     up = st.session_state["user_profile"]
     def_ln = up.get("last_name", "")
@@ -2096,32 +2559,60 @@ elif st.session_state["setup_complete"]:
     if "main_tabs_control" not in st.session_state:
         st.session_state["main_tabs_control"] = MAIN_TAB_LABELS[0]
 
-    with st.container(key="main_nav_fixed"):
-        nav_rows = [
-            list(zip(MAIN_TAB_LABELS[:3], MAIN_NAV_BUTTON_LABELS[:3])),
-            list(zip(MAIN_TAB_LABELS[3:], MAIN_NAV_BUTTON_LABELS[3:])),
-        ]
-        for row_index, row_items in enumerate(nav_rows):
-            nav_columns = st.columns(len(row_items))
-            for column_index, (nav_col, item) in enumerate(
-                zip(nav_columns, row_items)
-            ):
-                tab_label, button_label = item
-                nav_index = row_index * 3 + column_index
-                with nav_col:
-                    is_active_tab = (
-                        st.session_state["main_tabs_control"] == tab_label
-                    )
-                    st.button(
-                        button_label,
-                        key=f"main_nav_button_{nav_index}",
-                        type="primary" if is_active_tab else "secondary",
-                        use_container_width=True,
-                        on_click=switch_main_tab,
-                        args=(tab_label,),
-                    )
+    with st.container(key="main_nav_desktop"):
+        nav_columns = st.columns(5)
+        for nav_index, (nav_col, tab_label, button_label) in enumerate(
+            zip(
+                nav_columns,
+                MAIN_TAB_LABELS,
+                MAIN_NAV_BUTTON_LABELS,
+            )
+        ):
+            with nav_col:
+                is_active_tab = (
+                    st.session_state["main_tabs_control"] == tab_label
+                )
+                st.button(
+                    button_label,
+                    key=f"main_nav_button_{nav_index}",
+                    type="primary" if is_active_tab else "secondary",
+                    use_container_width=True,
+                    on_click=switch_main_tab,
+                    args=(tab_label,),
+                )
 
-    st.markdown("<div style='height:5.05rem'></div>", unsafe_allow_html=True)
+    current_main_tab = st.session_state["main_tabs_control"]
+    if (
+        st.session_state.get("mobile_main_nav_selector")
+        not in MAIN_TAB_LABELS
+        or st.session_state.get("mobile_main_nav_selector")
+        != current_main_tab
+    ):
+        st.session_state["mobile_main_nav_selector"] = current_main_tab
+
+    with st.container(key="main_nav_mobile"):
+        st.markdown("**📱 功能選單（共 5 項）**")
+        st.selectbox(
+            "選擇功能",
+            MAIN_TAB_LABELS,
+            key="mobile_main_nav_selector",
+            on_change=switch_main_tab_from_mobile,
+            label_visibility="collapsed",
+        )
+        st.markdown(
+            """
+            <div class="mathai-mobile-guide" style="margin-bottom:0;">
+                點擊左上方雙箭頭，可以回饋問題增加免費點數、儲值點數；
+                旋轉成橫向畫面，可更方便查看試卷與較寬的內容。
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    st.markdown(
+        "<div class='main-nav-content-spacer'></div>",
+        unsafe_allow_html=True,
+    )
 
     tabs = st.tabs(
         MAIN_TAB_LABELS,
