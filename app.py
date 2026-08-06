@@ -177,19 +177,20 @@ st.markdown(
 
         .st-key-main_nav_mobile {
             display: block !important;
-            position: sticky !important;
-            top: 2.65rem !important;
-            z-index: 999999 !important;
+            position: relative !important;
+            top: auto !important;
+            z-index: 20 !important;
             width: 100% !important;
             box-sizing: border-box !important;
-            margin-top: 2.65rem !important;
-            margin-bottom: 0.40rem !important;
-            padding: 0.42rem 0.50rem 0.46rem 0.50rem !important;
+            margin-top: 3.05rem !important;
+            margin-bottom: 0.65rem !important;
+            padding: 0.46rem 0.52rem 0.50rem 0.52rem !important;
             background: rgba(255, 255, 255, 0.98) !important;
             border: 1px solid rgba(49, 51, 63, 0.18) !important;
             border-radius: 0.58rem !important;
             box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12) !important;
             overflow: visible !important;
+            clear: both !important;
         }
 
         .st-key-main_nav_mobile [data-testid="stSelectbox"] {
@@ -197,8 +198,8 @@ st.markdown(
         }
 
         .st-key-main_nav_mobile [data-baseweb="select"] > div {
-            min-height: 2.55rem !important;
-            font-size: 0.94rem !important;
+            min-height: 2.65rem !important;
+            font-size: 0.96rem !important;
             font-weight: 700 !important;
             border-width: 2px !important;
         }
@@ -284,10 +285,21 @@ st.markdown(
         gap: .32rem !important;
     }
 
-    /* 隱藏原本 st.tabs 的標籤列，只保留內容。 */
+    /* 隱藏主功能原生頁籤列，只保留內容；付款方式等其他 tabs 不受影響。 */
     .st-key-main_tabs_control [data-baseweb="tab-list"],
-    .st-key-main_tabs_control [role="tablist"] {
+    .st-key-main_tabs_control [role="tablist"],
+    .st-key-main_tabs_control > div:first-child > div:first-child {
         display: none !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+    }
+
+    .st-key-main_tabs_control {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
     }
 
     </style>
@@ -295,7 +307,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-APP_VERSION = "v0.6.9"
+APP_VERSION = "v0.6.10"
 APP_DIR = Path(__file__).resolve().parent
 LOCAL_EMAILS_FILE = APP_DIR / "recent_emails.json"
 LINE_PAY_QR_FILE = APP_DIR / "line_pay_qr.jpg"
@@ -2591,7 +2603,7 @@ elif st.session_state["setup_complete"]:
         st.session_state["mobile_main_nav_selector"] = current_main_tab
 
     with st.container(key="main_nav_mobile"):
-        st.markdown("**📱 功能選單（共 5 項）**")
+        st.markdown("**📱 功能選單（共 5 項），點選下拉選擇功能**")
         st.selectbox(
             "選擇功能",
             MAIN_TAB_LABELS,
