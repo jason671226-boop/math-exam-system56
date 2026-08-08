@@ -9,6 +9,7 @@ import random
 import smtplib
 from email.mime.text import MIMEText
 from datetime import date, datetime, timedelta
+import uuid
 import base64
 import hashlib
 from pathlib import Path
@@ -307,7 +308,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-APP_VERSION = "v0.6.11"
+APP_VERSION = "v0.7.0"
 APP_DIR = Path(__file__).resolve().parent
 LOCAL_EMAILS_FILE = APP_DIR / "recent_emails.json"
 LINE_PAY_QR_FILE = APP_DIR / "line_pay_qr.jpg"
@@ -367,6 +368,13 @@ if "iterative_exam_analysis" not in st.session_state: st.session_state["iterativ
 if "scan_scope_warning" not in st.session_state: st.session_state["scan_scope_warning"] = ""
 if "scan_scope_estimate" not in st.session_state: st.session_state["scan_scope_estimate"] = {}
 if "loaded_profile_email" not in st.session_state: st.session_state["loaded_profile_email"] = ""
+if "is_new_account_registration" not in st.session_state: st.session_state["is_new_account_registration"] = False
+if "registration_source_result" not in st.session_state: st.session_state["registration_source_result"] = ""
+if "last_exam_email_sent_at" not in st.session_state: st.session_state["last_exam_email_sent_at"] = None
+if "request_scroll_to_top" not in st.session_state: st.session_state["request_scroll_to_top"] = False
+if "source_edit_mode" not in st.session_state: st.session_state["source_edit_mode"] = False
+if "wallet_synced_email" not in st.session_state: st.session_state["wallet_synced_email"] = ""
+if "wallet_last_message" not in st.session_state: st.session_state["wallet_last_message"] = ""
 
 
 def _profile_list_value(value):
@@ -398,7 +406,9 @@ def _profile_list_value(value):
 
 
 def _profile_control_default(email):
+    """v0.7.0：會員資料唯一正式來源為 student_profile_controls。"""
     return {
+        "_found": False,
         "email": str(email or "").strip().lower(),
         "identity_locked": False,
         "locked_last_name": "",
@@ -410,13 +420,17 @@ def _profile_control_default(email):
         "version": "",
         "traits": [],
         "interests": [],
-        "credits": None,
+        "discovery_source": "",
+        "source_detail": "",
+        "source_reward_status": "none",
+        "referral_eligible_override": False,
         "change_year": date.today().year,
         "change_count": 0,
     }
 
 
 def _read_profile_controls_local():
+    """僅供 Supabase 完全未設定時的離線本機開發備援。"""
     try:
         if PROFILE_CONTROL_FILE.exists():
             data = json.loads(
@@ -440,6 +454,10 @@ def _write_profile_controls_local(data):
 
 
 def get_profile_control(email):
+    """讀取會員主檔。
+
+    有 Supabase 時只讀安全 RPC；本機 JSON 不再覆蓋雲端資料。
+    """
     email = str(email or "").strip().lower()
     control = _profile_control_default(email)
     if not email or email == "trial@example.com":
@@ -447,16 +465,16 @@ def get_profile_control(email):
 
     if supabase_client:
         try:
-            res = (
-                supabase_client.table("student_profile_controls")
-                .select("*")
-                .ilike("email", email)
-                .limit(1)
-                .execute()
-            )
-            if res.data:
-                row = res.data[0]
+            result = supabase_client.rpc(
+                "mathai_profile_get_v070",
+                {"p_email": email},
+            ).execute()
+            rows = result.data or []
+            row = rows[0] if isinstance(rows, list) and rows else rows
+            if isinstance(row, dict) and bool(row.get("found", False)):
                 control.update({
+                    "_found": True,
+                    "email": email,
                     "identity_locked": bool(
                         row.get("identity_locked", False)
                     ),
@@ -477,7 +495,18 @@ def get_profile_control(email):
                     "interests": _profile_list_value(
                         row.get("interests", [])
                     ),
-                    "credits": row.get("credits"),
+                    "discovery_source": str(
+                        row.get("discovery_source") or ""
+                    ).strip(),
+                    "source_detail": str(
+                        row.get("source_detail") or ""
+                    ).strip(),
+                    "source_reward_status": str(
+                        row.get("source_reward_status") or "none"
+                    ).strip(),
+                    "referral_eligible_override": bool(
+                        row.get("referral_eligible_override", False)
+                    ),
                     "change_year": int(
                         row.get("change_year") or date.today().year
                     ),
@@ -485,14 +514,16 @@ def get_profile_control(email):
                         row.get("change_count") or 0
                     ),
                 })
-                return control
-        except Exception:
-            pass
+            return control
+        except Exception as exc:
+            st.session_state["profile_cloud_read_warning"] = str(exc)
+            return control
 
     local_data = _read_profile_controls_local()
     if email in local_data and isinstance(local_data[email], dict):
         local_row = local_data[email]
         control.update(local_row)
+        control["_found"] = True
         control["traits"] = _profile_list_value(
             local_row.get("traits", [])
         )
@@ -503,73 +534,76 @@ def get_profile_control(email):
 
 
 def save_profile_control(control):
+    """儲存會員主檔；正式環境只寫 Supabase RPC。"""
     email = str(control.get("email", "")).strip().lower()
     if not email or email == "trial@example.com":
         return False
 
-    traits = _profile_list_value(control.get("traits", []))
-    interests = _profile_list_value(
-        control.get("interests", [])
-    )
     payload = {
-        "email": email,
-        "identity_locked": bool(
+        "p_email": email,
+        "p_identity_locked": bool(
             control.get("identity_locked", False)
         ),
-        "locked_last_name": str(
+        "p_locked_last_name": str(
             control.get("locked_last_name", "")
         ).strip(),
-        "locked_first_name": str(
+        "p_locked_first_name": str(
             control.get("locked_first_name", "")
         ).strip(),
-        "city": str(control.get("city", "")).strip(),
-        "district": str(control.get("district", "")).strip(),
-        "school": str(control.get("school", "")).strip(),
-        "grade": str(control.get("grade", "")).strip(),
-        "version": str(control.get("version", "")).strip(),
-        "traits": traits,
-        "interests": interests,
-        "credits": control.get("credits"),
-        "change_year": int(
+        "p_city": str(control.get("city", "")).strip(),
+        "p_district": str(control.get("district", "")).strip(),
+        "p_school": str(control.get("school", "")).strip(),
+        "p_grade": str(control.get("grade", "")).strip(),
+        "p_version": str(control.get("version", "")).strip(),
+        "p_traits": _profile_list_value(
+            control.get("traits", [])
+        ),
+        "p_interests": _profile_list_value(
+            control.get("interests", [])
+        ),
+        "p_discovery_source": str(
+            control.get("discovery_source", "")
+        ).strip(),
+        "p_source_detail": str(
+            control.get("source_detail", "")
+        ).strip(),
+        "p_source_reward_status": str(
+            control.get("source_reward_status", "none")
+        ).strip() or "none",
+        "p_referral_eligible_override": bool(
+            control.get("referral_eligible_override", False)
+        ),
+        "p_change_year": int(
             control.get("change_year") or date.today().year
         ),
-        "change_count": int(
+        "p_change_count": int(
             control.get("change_count") or 0
         ),
-        "updated_at": datetime.now().isoformat(),
     }
 
-    saved_to_cloud = False
     if supabase_client:
         try:
-            supabase_client.table(
-                "student_profile_controls"
-            ).upsert(payload).execute()
-            saved_to_cloud = True
-        except Exception:
-            try:
-                text_payload = dict(payload)
-                text_payload["traits"] = json.dumps(
-                    traits,
-                    ensure_ascii=False,
-                )
-                text_payload["interests"] = json.dumps(
-                    interests,
-                    ensure_ascii=False,
-                )
-                supabase_client.table(
-                    "student_profile_controls"
-                ).upsert(text_payload).execute()
-                saved_to_cloud = True
-            except Exception:
-                saved_to_cloud = False
+            result = supabase_client.rpc(
+                "mathai_profile_save_v070",
+                payload,
+            ).execute()
+            saved = bool(result.data)
+            if saved:
+                return True
+            st.session_state["profile_cloud_save_warning"] = (
+                "mathai_profile_save_v070 未回傳成功。"
+            )
+            return False
+        except Exception as exc:
+            st.session_state["profile_cloud_save_warning"] = str(exc)
+            return False
 
-    if not saved_to_cloud or is_localhost_request():
-        local_data = _read_profile_controls_local()
-        local_data[email] = payload
-        _write_profile_controls_local(local_data)
-
-    return saved_to_cloud
+    local_data = _read_profile_controls_local()
+    local_copy = dict(control)
+    local_copy["_found"] = True
+    local_data[email] = local_copy
+    _write_profile_controls_local(local_data)
+    return True
 
 
 def remaining_grade_version_changes(control):
@@ -781,15 +815,26 @@ try:
     raw_supa_url = st.secrets.get("SUPABASE_URL", "")
     SUPABASE_URL = raw_supa_url.replace("/rest/v1/", "").replace("/rest/v1", "")
     SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "")
-    GEMINI_KEY = st.secrets.get("GEMINI_KEY", "")
+    GEMINI_KEY = (
+        st.secrets.get("GEMINI_API_KEY", "")
+        or st.secrets.get("GOOGLE_API_KEY", "")
+        or st.secrets.get("GEMINI_KEY", "")
+    )
     SMTP_USER = st.secrets.get("SMTP_USER", "")
-    SMTP_PASSWORD = st.secrets.get("SMTP_PASSWORD", "")
+    SMTP_PASSWORD = (
+        st.secrets.get("SMTP_PASSWORD", "")
+        or st.secrets.get("SMTP_APP_PASSWORD", "")
+    )
+    SMTP_HOST = st.secrets.get("SMTP_HOST", "smtp.gmail.com")
+    SMTP_PORT = int(st.secrets.get("SMTP_PORT", 465))
 except Exception:
     SUPABASE_URL = ""
     SUPABASE_KEY = ""
     GEMINI_KEY = ""
     SMTP_USER = ""
     SMTP_PASSWORD = ""
+    SMTP_HOST = "smtp.gmail.com"
+    SMTP_PORT = 465
 
 # 安全原則：金鑰只從 .streamlit/secrets.toml 讀取。
 # 若缺少設定，不使用任何寫死的備援金鑰。
@@ -803,6 +848,15 @@ def init_supabase(url, key):
         return None
 
 supabase_client = init_supabase(SUPABASE_URL, SUPABASE_KEY)
+
+# ==========================================
+# v0.7.0 資料架構規則
+# 1. student_profile_controls = 唯一會員主檔
+# 2. member_wallets = 唯一正式點數來源
+# 3. referrals / user_activity_events = 推薦與有效使用紀錄
+# 4. Session State 只做畫面鏡像，不能反向覆蓋雲端資料
+# 5. user_profiles 與本機 profile JSON 僅視為舊資料／離線開發備援
+# ==========================================
 
 def normalize_email(email):
     return str(email or "").strip().lower()
@@ -875,41 +929,23 @@ def normalize_version_name(value, grade_value=""):
 
 
 def fetch_user_profile_from_db(email):
-    normalized_email = normalize_email(email)
-    if (
-        not supabase_client
-        or not normalized_email
-        or normalized_email == "trial@example.com"
-    ):
+    """相容舊呼叫名稱；v0.7.0 實際讀取 canonical profile RPC。"""
+    control = get_profile_control(email)
+    if not control.get("_found", False):
         return None
-
-    try:
-        res = (
-            supabase_client.table("user_profiles")
-            .select("*")
-            .ilike("email", normalized_email)
-            .limit(1)
-            .execute()
-        )
-        if res.data:
-            return res.data[0]
-    except Exception:
-        pass
-    return None
+    return control
 
 
 def build_complete_user_profile(email):
-    """合併兩張資料表，避免只載入姓名、漏掉其他資料。"""
+    """會員資料只由 student_profile_controls 組成；點數不在此處理。"""
     normalized_email = normalize_email(email)
-    profile_row = fetch_user_profile_from_db(
-        normalized_email
-    ) or {}
     control = get_profile_control(normalized_email)
 
     has_existing_data = bool(
-        profile_row
+        control.get("_found")
         or control.get("identity_locked")
         or control.get("locked_last_name")
+        or control.get("locked_first_name")
         or control.get("school")
         or control.get("grade")
         or control.get("traits")
@@ -918,84 +954,54 @@ def build_complete_user_profile(email):
     if not has_existing_data:
         return None
 
-    def choose_text(*values):
-        for value in values:
-            text = str(value or "").strip()
-            if text:
-                return text
-        return ""
-
-    raw_grade = choose_text(
-        control.get("grade"),
-        profile_row.get("grade"),
-        "8年級(國二)",
-    )
+    raw_grade = str(
+        control.get("grade") or "8年級(國二)"
+    ).strip()
     normalized_grade = normalize_grade_name(raw_grade)
-
-    raw_traits = normalize_profile_list(
-        profile_row.get("traits", [])
-    )
-    if not raw_traits:
-        raw_traits = normalize_profile_list(
-            control.get("traits", [])
-        )
-
-    raw_interests = normalize_profile_list(
-        profile_row.get("interests", [])
-    )
-    if not raw_interests:
-        raw_interests = normalize_profile_list(
-            control.get("interests", [])
-        )
-
-    profile_credits = profile_row.get("credits")
-    if profile_credits is None:
-        profile_credits = control.get("credits")
-    if profile_credits is None:
-        profile_credits = 100
 
     return {
         "email": normalized_email,
-        "last_name": choose_text(
-            control.get("locked_last_name"),
-            profile_row.get("last_name"),
-        ),
-        "first_name": choose_text(
-            control.get("locked_first_name"),
-            profile_row.get("first_name"),
-        ),
+        "last_name": str(
+            control.get("locked_last_name") or ""
+        ).strip(),
+        "first_name": str(
+            control.get("locked_first_name") or ""
+        ).strip(),
         "city": normalize_city_name(
-            choose_text(
-                profile_row.get("city"),
-                control.get("city"),
-                "新北市",
-            )
+            control.get("city") or "新北市"
         ),
-        "district": choose_text(
-            profile_row.get("district"),
-            control.get("district"),
-            "土城區",
-        ),
-        "school": choose_text(
-            profile_row.get("school"),
-            control.get("school"),
-        ),
+        "district": str(
+            control.get("district") or "土城區"
+        ).strip(),
+        "school": str(
+            control.get("school") or ""
+        ).strip(),
         "grade": normalized_grade,
         "version": normalize_version_name(
-            choose_text(
-                control.get("version"),
-                profile_row.get("version"),
-            ),
+            control.get("version"),
             normalized_grade,
         ),
-        "traits": raw_traits,
-        "interests": raw_interests,
-        "credits": profile_credits,
+        "traits": normalize_profile_list(
+            control.get("traits", [])
+        ),
+        "interests": normalize_profile_list(
+            control.get("interests", [])
+        ),
+        "discovery_source": str(
+            control.get("discovery_source") or ""
+        ).strip(),
+        "source_detail": str(
+            control.get("source_detail") or ""
+        ).strip(),
+        "source_reward_status": str(
+            control.get("source_reward_status") or "none"
+        ).strip(),
         "last_login_date": today_str,
     }
 
 
 def apply_user_profile_to_session(profile_data, email=None):
+    """Session 只鏡像會員資料；絕不從會員主檔覆蓋點數。"""
     if not isinstance(profile_data, dict):
         return False
 
@@ -1008,19 +1014,12 @@ def apply_user_profile_to_session(profile_data, email=None):
     if city not in taiwan_counties:
         city = "新北市"
 
-    district_options = taiwan_districts.get(
-        city,
-        ["全區"],
-    )
-    district = str(
-        profile_data.get("district") or ""
-    ).strip()
+    district_options = taiwan_districts.get(city, ["全區"])
+    district = str(profile_data.get("district") or "").strip()
     if district not in district_options:
         district = district_options[0]
 
-    grade = normalize_grade_name(
-        profile_data.get("grade")
-    )
+    grade = normalize_grade_name(profile_data.get("grade"))
     version = normalize_version_name(
         profile_data.get("version"),
         grade,
@@ -1047,12 +1046,18 @@ def apply_user_profile_to_session(profile_data, email=None):
         "interests": normalize_profile_list(
             profile_data.get("interests", [])
         ),
-        "credits": profile_data.get("credits", 100),
+        "discovery_source": str(
+            profile_data.get("discovery_source") or ""
+        ).strip(),
+        "source_detail": str(
+            profile_data.get("source_detail") or ""
+        ).strip(),
+        "source_reward_status": str(
+            profile_data.get("source_reward_status") or "none"
+        ).strip(),
         "last_login_date": today_str,
     })
-    st.session_state["loaded_profile_email"] = (
-        normalized_email
-    )
+    st.session_state["loaded_profile_email"] = normalized_email
     return True
 
 
@@ -1103,37 +1108,31 @@ def reset_user_profile_for_new_account(
         "traits": [],
         "interests": [],
         "credits": credits,
+        "discovery_source": "",
+        "source_detail": "",
+        "source_reward_status": "none",
         "last_login_date": today_str,
     }
 
 
 def save_user_profile_to_db(profile_data):
-    """雙寫兩張表；其中一張成功，完整資料就不會只剩姓名。"""
+    """會員主檔單寫 student_profile_controls；credits 永不從此函式寫入。"""
     if not isinstance(profile_data, dict):
         return False
 
-    email = normalize_email(
-        profile_data.get("email", "")
-    )
+    email = normalize_email(profile_data.get("email", ""))
     if not email or email == "trial@example.com":
         return False
 
-    grade = normalize_grade_name(
-        profile_data.get("grade")
-    )
+    grade = normalize_grade_name(profile_data.get("grade"))
     version = normalize_version_name(
         profile_data.get("version"),
         grade,
     )
-    traits = normalize_profile_list(
-        profile_data.get("traits", [])
-    )
-    interests = normalize_profile_list(
-        profile_data.get("interests", [])
-    )
 
     control = get_profile_control(email)
     control.update({
+        "_found": True,
         "email": email,
         "locked_last_name": str(
             profile_data.get("last_name") or ""
@@ -1152,54 +1151,23 @@ def save_user_profile_to_db(profile_data):
         ).strip(),
         "grade": grade,
         "version": version,
-        "traits": traits,
-        "interests": interests,
-        "credits": profile_data.get("credits", 15),
+        "traits": normalize_profile_list(
+            profile_data.get("traits", [])
+        ),
+        "interests": normalize_profile_list(
+            profile_data.get("interests", [])
+        ),
+        "discovery_source": str(
+            profile_data.get("discovery_source") or ""
+        ).strip(),
+        "source_detail": str(
+            profile_data.get("source_detail") or ""
+        ).strip(),
+        "source_reward_status": str(
+            profile_data.get("source_reward_status") or "none"
+        ).strip(),
     })
-    control_saved = save_profile_control(control)
-
-    user_profile_saved = False
-    if supabase_client:
-        payload = {
-            "email": email,
-            "last_name": control["locked_last_name"],
-            "first_name": control["locked_first_name"],
-            "city": control["city"],
-            "district": control["district"],
-            "school": control["school"],
-            "grade": grade,
-            "version": version,
-            "traits": traits,
-            "interests": interests,
-            "credits": control["credits"],
-            "updated_at": datetime.now().isoformat(),
-        }
-        try:
-            supabase_client.table(
-                "user_profiles"
-            ).upsert(payload).execute()
-            user_profile_saved = True
-        except Exception:
-            try:
-                text_payload = dict(payload)
-                text_payload["traits"] = json.dumps(
-                    traits,
-                    ensure_ascii=False,
-                )
-                text_payload["interests"] = json.dumps(
-                    interests,
-                    ensure_ascii=False,
-                )
-                supabase_client.table(
-                    "user_profiles"
-                ).upsert(text_payload).execute()
-                user_profile_saved = True
-            except Exception as save_error:
-                st.session_state[
-                    "profile_cloud_save_warning"
-                ] = str(save_error)
-
-    return bool(control_saved or user_profile_saved)
+    return save_profile_control(control)
 
 
 
@@ -1248,7 +1216,7 @@ def send_otp_email(target_email, otp_code):
             msg["Subject"] = "AI 數學錯題迭代系統 - 帳號登入驗證碼"
             msg["From"] = SMTP_USER
             msg["To"] = target_email
-            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=30) as server:
                 server.login(SMTP_USER, SMTP_PASSWORD)
                 server.send_message(msg)
             return True
@@ -1285,7 +1253,7 @@ def send_exam_email(target_email, exam_content):
             msg["Subject"] = "【AI 數學錯題迭代系統】您的專屬考卷與解答"
             msg["From"] = SMTP_USER
             msg["To"] = target_email
-            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=30) as server:
                 server.login(SMTP_USER, SMTP_PASSWORD)
                 server.send_message(msg)
             return True
@@ -1371,23 +1339,901 @@ def approve_topup_request(req_id):
         except Exception:
             pass
 
-def add_user_credits(email, points):
-    if not email: return False
-    
-    if supabase_client:
+def wallet_lookup(email):
+    """只讀 Supabase 正式錢包，不使用 Session 猜測餘額。"""
+    email = normalize_email(email)
+    if (
+        not supabase_client
+        or not email
+        or email == "trial@example.com"
+        or st.session_state.get("developer_mode", False)
+    ):
+        return None
+
+    try:
+        result = supabase_client.rpc(
+            "mathai_wallet_lookup_v070",
+            {"p_email": email},
+        ).execute()
+        rows = result.data or []
+        row = rows[0] if isinstance(rows, list) and rows else rows
+        if isinstance(row, dict):
+            return {
+                "found": bool(row.get("found", False)),
+                "credits": (
+                    int(row["credits"])
+                    if row.get("credits") is not None
+                    else None
+                ),
+            }
+    except Exception as exc:
+        st.session_state["wallet_rpc_debug"] = str(exc)
+    return None
+
+
+def wallet_bootstrap(email, is_new_account=False):
+    """由 Supabase 決定首次錢包餘額；Session 不參與初始化。"""
+    email = normalize_email(email)
+    if (
+        not supabase_client
+        or not email
+        or email == "trial@example.com"
+        or st.session_state.get("developer_mode", False)
+    ):
+        return None
+
+    try:
+        result = supabase_client.rpc(
+            "mathai_wallet_bootstrap_v070",
+            {
+                "p_email": email,
+                "p_is_new_account": bool(is_new_account),
+            },
+        ).execute()
+        rows = result.data or []
+        row = rows[0] if isinstance(rows, list) and rows else rows
+        if not isinstance(row, dict):
+            return None
+
+        credits = row.get("credits")
+        if credits is None:
+            return None
+
+        credits = int(credits)
+        st.session_state["user_profile"]["credits"] = credits
+        st.session_state["wallet_synced_email"] = email
+
+        pending_applied = int(row.get("pending_applied") or 0)
+        if pending_applied > 0:
+            st.session_state["wallet_last_message"] = (
+                f"🎁 已自動補入待領取點數 {pending_applied} 點。"
+            )
+        return credits
+    except Exception as exc:
+        st.session_state["wallet_rpc_debug"] = str(exc)
+        return None
+
+
+def wallet_adjust(
+    email,
+    delta,
+    reason="manual_adjustment",
+    reference_type="",
+    reference_id="",
+):
+    """正式點數異動只走 member_wallets RPC。"""
+    email = normalize_email(email)
+    delta = int(delta or 0)
+    if (
+        not supabase_client
+        or not email
+        or email == "trial@example.com"
+        or delta == 0
+        or st.session_state.get("developer_mode", False)
+    ):
+        return False, None, "無法處理點數異動。"
+
+    try:
+        result = supabase_client.rpc(
+            "mathai_wallet_adjust_v070",
+            {
+                "p_email": email,
+                "p_delta": delta,
+                "p_reason": str(reason or "manual_adjustment"),
+                "p_reference_type": str(reference_type or ""),
+                "p_reference_id": str(reference_id or ""),
+            },
+        ).execute()
+        rows = result.data or []
+        row = rows[0] if isinstance(rows, list) and rows else rows
+        if isinstance(row, dict):
+            success = bool(row.get("success", False))
+            balance = row.get("new_balance")
+            message = str(row.get("message") or "")
+            if balance is not None:
+                balance = int(balance)
+                if (
+                    normalize_email(
+                        st.session_state["user_profile"].get("email", "")
+                    ) == email
+                ):
+                    st.session_state["user_profile"]["credits"] = balance
+            return success, balance, message
+    except Exception as exc:
+        st.session_state["wallet_rpc_debug"] = str(exc)
+
+    return False, None, "點數服務暫時無法使用。"
+
+
+def sync_wallet_balance_to_session(
+    email=None,
+    force=False,
+    is_new_account=None,
+):
+    """把 Supabase wallet 鏡像到 Session；雲端永遠優先。"""
+    email = normalize_email(
+        email or st.session_state["user_profile"].get("email", "")
+    )
+    if (
+        not email
+        or email == "trial@example.com"
+        or st.session_state.get("developer_mode", False)
+    ):
+        return st.session_state["user_profile"].get("credits")
+
+    if (
+        not force
+        and st.session_state.get("wallet_synced_email") == email
+    ):
+        return st.session_state["user_profile"].get("credits")
+
+    lookup = wallet_lookup(email)
+    if lookup and lookup.get("found"):
+        cloud_credits = int(lookup.get("credits") or 0)
+        st.session_state["user_profile"]["credits"] = cloud_credits
+        st.session_state["wallet_synced_email"] = email
+        return cloud_credits
+
+    if is_new_account is None:
+        is_new_account = bool(
+            st.session_state.get("is_new_account_registration", False)
+        )
+
+    return wallet_bootstrap(
+        email,
+        is_new_account=is_new_account,
+    )
+
+
+def add_user_credits(
+    email,
+    points,
+    reason="manual_adjustment",
+    reference_type="",
+    reference_id="",
+):
+    success, _, _ = wallet_adjust(
+        email,
+        int(points or 0),
+        reason=reason,
+        reference_type=reference_type,
+        reference_id=reference_id or str(uuid.uuid4()),
+    )
+    return success
+
+
+
+def _table_first(table_name, filters=None, columns="*"):
+    if not supabase_client:
+        return None
+    try:
+        query = supabase_client.table(table_name).select(columns)
+        for operator, field, value in filters or []:
+            if operator == "eq":
+                query = query.eq(field, value)
+            elif operator == "ilike":
+                query = query.ilike(field, value)
+        result = query.limit(1).execute()
+        if result.data:
+            return result.data[0]
+    except Exception:
+        pass
+    return None
+
+
+def _effective_usage_count(email, limit=3):
+    email = normalize_email(email)
+    if not supabase_client or not email:
+        return 0
+
+    try:
+        result = (
+            supabase_client.table("user_activity_events")
+            .select("id")
+            .ilike("user_email", email)
+            .limit(limit)
+            .execute()
+        )
+        count = len(result.data or [])
+        if count:
+            return count
+    except Exception:
+        pass
+
+    # 舊會員尚未建立事件紀錄時，以已存入的題目作為使用證明。
+    try:
+        result = (
+            supabase_client.table("item_bank")
+            .select("id")
+            .ilike("user_id", email)
+            .limit(limit)
+            .execute()
+        )
+        return len(result.data or [])
+    except Exception:
+        return 0
+
+
+def _has_approved_topup(email):
+    email = normalize_email(email)
+    if not supabase_client or not email:
+        return False
+    return bool(
+        _table_first(
+            "topup_requests",
+            [
+                ("ilike", "user_email", email),
+                ("eq", "status", "approved"),
+            ],
+            "id",
+        )
+    )
+
+
+def get_referrer_status_rpc(email):
+    """只取推薦資格狀態，不暴露 student_profile_controls 的個資欄位。"""
+    email = normalize_email(email)
+    if not supabase_client or not email:
+        return None
+    try:
+        result = supabase_client.rpc(
+            "mathai_referrer_status_v070",
+            {"p_email": email},
+        ).execute()
+        rows = result.data or []
+        if isinstance(rows, list) and rows:
+            return rows[0]
+        if isinstance(rows, dict):
+            return rows
+    except Exception as exc:
+        st.session_state["referrer_rpc_debug"] = str(exc)
+    return None
+
+
+def validate_referrer(referrer_email, referred_email):
+    referrer_email = normalize_email(referrer_email)
+    referred_email = normalize_email(referred_email)
+
+    if not referrer_email or "@" not in referrer_email:
+        return False, "請輸入正確的介紹人 Email。"
+    if referrer_email == referred_email:
+        return False, "不能填寫自己的 Email 作為介紹人。"
+
+    # 優先使用 SECURITY DEFINER RPC。
+    # student_profile_controls 開啟 RLS 時，匿名 App 不能直接 select；
+    # RPC 只回傳資格狀態，既能正確判斷又不暴露會員個資。
+    rpc_status = get_referrer_status_rpc(referrer_email)
+    if rpc_status is not None:
+        found = bool(rpc_status.get("found", False))
+        override_eligible = bool(
+            rpc_status.get("override_eligible", False)
+        )
+        profile_complete = bool(
+            rpc_status.get("profile_complete", False)
+        )
+        effective_use_count = int(
+            rpc_status.get("effective_use_count") or 0
+        )
+        has_approved_topup = bool(
+            rpc_status.get("has_approved_topup", False)
+        )
+        eligible = bool(rpc_status.get("eligible", False))
+
+        if override_eligible:
+            return True, "介紹人資格確認成功（管理員指定合格推薦人）。"
+        if not found:
+            return False, "資料庫中找不到這位介紹人的會員帳號。"
+        if not profile_complete:
+            return False, "已找到此會員，但介紹人尚未完成學生基本資料。"
+        if eligible:
+            if has_approved_topup:
+                return True, "介紹人資格確認成功（已有儲值紀錄）。"
+            return (
+                True,
+                f"介紹人資格確認成功（已有 {effective_use_count} 次有效使用）。",
+            )
+        return (
+            False,
+            "已找到此會員，但目前只有 "
+            f"{effective_use_count}/3 次有效使用，且尚無已核准儲值紀錄。",
+        )
+
+    # RPC 尚未建立時保留舊版 fallback，方便 localhost 測試。
+    raw_profile = fetch_user_profile_from_db(referrer_email) or {}
+    control = get_profile_control(referrer_email)
+    complete_profile = build_complete_user_profile(referrer_email)
+
+    control_has_account = bool(
+        control.get("identity_locked")
+        or str(control.get("locked_last_name") or "").strip()
+        or str(control.get("locked_first_name") or "").strip()
+        or str(control.get("grade") or "").strip()
+        or str(control.get("version") or "").strip()
+        or control.get("referral_eligible_override")
+    )
+
+    if not raw_profile and not control_has_account and not complete_profile:
+        return False, "資料庫中找不到這位介紹人的會員帳號。"
+
+    if bool(control.get("referral_eligible_override", False)):
+        return True, "介紹人資格確認成功（管理員指定合格推薦人）。"
+
+    merged = complete_profile or {}
+    has_basic_profile = bool(
+        str(merged.get("last_name") or "").strip()
+        and str(merged.get("first_name") or "").strip()
+        and str(merged.get("school") or "").strip()
+    )
+    if not has_basic_profile:
+        return False, "已找到此會員，但介紹人尚未完成學生基本資料。"
+
+    usage_count = _effective_usage_count(referrer_email, limit=3)
+    has_topup = _has_approved_topup(referrer_email)
+    if has_topup or usage_count >= 3:
+        return True, "介紹人資格確認成功。"
+
+    return (
+        False,
+        f"已找到此會員，但目前只有 {usage_count}/3 次有效使用，"
+        "且尚無已核准儲值紀錄。",
+    )
+
+
+
+def get_registration_source_claim_status(user_email):
+    """安全查詢此會員是否已經成功占用來源獎勵資格。"""
+    user_email = normalize_email(user_email)
+    if not supabase_client or not user_email:
+        return {
+            "has_claim": False,
+            "claim_type": "",
+            "claim_status": "",
+        }
+
+    try:
+        result = supabase_client.rpc(
+            "mathai_source_claim_status",
+            {"p_email": user_email},
+        ).execute()
+        rows = result.data or []
+        if isinstance(rows, list) and rows:
+            return rows[0]
+        if isinstance(rows, dict):
+            return rows
+    except Exception as exc:
+        st.session_state["source_claim_rpc_debug"] = str(exc)
+
+    # RPC 尚未建立時使用舊版 fallback。
+    # RLS 可能讓 fallback 看不到資料，所以只作相容用途。
+    for referral_status in (
+        "pending",
+        "processing",
+        "awarded",
+        "monthly_limit",
+    ):
+        if _table_first(
+            "referrals",
+            [
+                ("ilike", "referred_email", user_email),
+                ("eq", "status", referral_status),
+            ],
+            "id",
+        ):
+            return {
+                "has_claim": True,
+                "claim_type": "referral",
+                "claim_status": referral_status,
+            }
+
+    if _table_first(
+        "promo_redemptions",
+        [("ilike", "user_email", user_email)],
+        "id",
+    ):
+        return {
+            "has_claim": True,
+            "claim_type": "promo",
+            "claim_status": "awarded",
+        }
+
+    for acquisition_status in ("pending", "approved", "awarded"):
+        if _table_first(
+            "acquisition_claims",
+            [
+                ("ilike", "user_email", user_email),
+                ("eq", "status", acquisition_status),
+            ],
+            "id",
+        ):
+            return {
+                "has_claim": True,
+                "claim_type": "acquisition",
+                "claim_status": acquisition_status,
+            }
+
+    return {
+        "has_claim": False,
+        "claim_type": "",
+        "claim_status": "",
+    }
+
+
+def has_registration_source_claim(user_email):
+    status = get_registration_source_claim_status(user_email)
+    return bool(status.get("has_claim", False))
+
+
+
+def save_source_retry_state(
+    user_email,
+    source_type,
+    source_detail,
+    status="retry_allowed",
+):
+    """透過 RPC 保存失敗推薦／優惠資料，跨登入與跨裝置仍可重填。"""
+    user_email = normalize_email(user_email)
+    if not supabase_client or not user_email:
+        return False
+    try:
+        result = supabase_client.rpc(
+            "mathai_save_source_retry",
+            {
+                "p_email": user_email,
+                "p_source_type": str(source_type or "").strip(),
+                "p_source_detail": str(source_detail or "").strip(),
+                "p_status": str(status or "retry_allowed").strip(),
+            },
+        ).execute()
+        return bool(result.data)
+    except Exception as exc:
+        st.session_state["source_retry_rpc_debug"] = str(exc)
+        return False
+
+
+def load_source_retry_state(user_email):
+    """讀取跨登入保存的失敗推薦／優惠資料。"""
+    user_email = normalize_email(user_email)
+    if not supabase_client or not user_email:
+        return None
+    try:
+        result = supabase_client.rpc(
+            "mathai_get_source_retry",
+            {"p_email": user_email},
+        ).execute()
+        rows = result.data or []
+        if isinstance(rows, list) and rows:
+            return rows[0]
+        if isinstance(rows, dict):
+            return rows
+    except Exception as exc:
+        st.session_state["source_retry_rpc_debug"] = str(exc)
+    return None
+
+
+def clear_source_retry_state(user_email):
+    """推薦／優惠成功或主動放棄後，清除重填旗標。"""
+    user_email = normalize_email(user_email)
+    if not supabase_client or not user_email:
+        return False
+    try:
+        result = supabase_client.rpc(
+            "mathai_clear_source_retry",
+            {"p_email": user_email},
+        ).execute()
+        return bool(result.data)
+    except Exception as exc:
+        st.session_state["source_retry_rpc_debug"] = str(exc)
+        return False
+
+
+def restore_retry_state_to_session():
+    """登入後自動恢復尚未完成的推薦／優惠重填狀態。"""
+    user_email = normalize_email(
+        st.session_state["user_profile"].get("email", "")
+    )
+    if not user_email or user_email == "trial@example.com":
+        return False
+
+    retry_state = load_source_retry_state(user_email)
+    if not retry_state:
+        return False
+
+    status = str(retry_state.get("status") or "").strip()
+    if status != "retry_allowed":
+        return False
+
+    st.session_state["user_profile"]["source_reward_status"] = "retry_allowed"
+    st.session_state["user_profile"]["discovery_source"] = str(
+        retry_state.get("source_type") or "親友／老師介紹"
+    ).strip()
+    st.session_state["user_profile"]["source_detail"] = str(
+        retry_state.get("source_detail") or ""
+    ).strip()
+    return True
+
+
+
+def validate_promo_code(code):
+    normalized_code = str(code or "").strip().upper()
+    if not normalized_code:
+        return False, None, "請輸入優惠碼。"
+
+    promo = _table_first(
+        "promo_codes",
+        [
+            ("eq", "code", normalized_code),
+            ("eq", "active", True),
+        ],
+        "*",
+    )
+    if not promo:
+        return False, None, "找不到有效的優惠碼。"
+
+    expires_at = promo.get("expires_at")
+    if expires_at:
         try:
-            db_profile = fetch_user_profile_from_db(email)
-            if db_profile:
-                new_credits = db_profile.get("credits", 0) + points
-                supabase_client.table("user_profiles").update({"credits": new_credits}).eq("email", email).execute()
-            else:
-                supabase_client.table("user_profiles").insert({"email": email, "credits": points}).execute()
+            expiry = datetime.fromisoformat(
+                str(expires_at).replace("Z", "+00:00")
+            )
+            now = datetime.now(expiry.tzinfo) if expiry.tzinfo else datetime.now()
+            if expiry < now:
+                return False, promo, "這組優惠碼已經過期。"
         except Exception:
             pass
-            
-    if st.session_state["user_profile"].get("email") == email:
-        st.session_state["user_profile"]["credits"] += points
-    return True
+
+    max_uses = int(promo.get("max_uses") or 0)
+    usage_count = int(promo.get("usage_count") or 0)
+    if max_uses > 0 and usage_count >= max_uses:
+        return False, promo, "這組優惠碼已達使用次數上限。"
+
+    return True, promo, "優惠碼驗證成功。"
+
+
+def create_pending_referral_rpc(
+    referrer_email,
+    referred_email,
+):
+    """建立推薦後再次查 DB 驗證，避免出現「假成功」訊息。"""
+    referrer_email = normalize_email(referrer_email)
+    referred_email = normalize_email(referred_email)
+
+    if not supabase_client:
+        return False, "目前未連接會員資料庫。"
+
+    try:
+        result = supabase_client.rpc(
+            "mathai_create_referral_v070",
+            {
+                "p_referrer_email": referrer_email,
+                "p_referred_email": referred_email,
+            },
+        ).execute()
+        rows = result.data or []
+        row = rows[0] if isinstance(rows, list) and rows else rows
+
+        rpc_success = (
+            isinstance(row, dict)
+            and row.get("success") is True
+        )
+        rpc_message = (
+            str(row.get("message") or "")
+            if isinstance(row, dict)
+            else ""
+        )
+
+        if not rpc_success:
+            return False, rpc_message or "推薦紀錄建立失敗。"
+
+        verify_result = supabase_client.rpc(
+            "mathai_referral_status_v070",
+            {"p_email": referred_email},
+        ).execute()
+        verify_rows = verify_result.data or []
+        verify_row = (
+            verify_rows[0]
+            if isinstance(verify_rows, list) and verify_rows
+            else verify_rows
+        )
+        if (
+            isinstance(verify_row, dict)
+            and verify_row.get("found") is True
+            and str(verify_row.get("status") or "") == "pending"
+            and normalize_email(
+                verify_row.get("referrer_email", "")
+            ) == referrer_email
+        ):
+            return True, "推薦關係已登記成功。"
+
+        st.session_state["referral_save_debug"] = (
+            "RPC 回報成功，但重新查詢後沒有找到 pending 推薦紀錄。"
+        )
+        return False, "推薦資料未真正寫入雲端，請聯絡管理員。"
+
+    except Exception as exc:
+        st.session_state["referral_save_debug"] = str(exc)
+
+    return False, "推薦紀錄暫時無法儲存，請聯絡管理員。"
+
+
+
+def record_effective_usage_and_referral_rpc(
+    user_email,
+    event_type,
+):
+    """記錄有效使用，並由資料庫完成推薦雙方 +50 點。"""
+    user_email = normalize_email(user_email)
+    if (
+        not supabase_client
+        or not user_email
+        or user_email == "trial@example.com"
+        or st.session_state.get("developer_mode", False)
+    ):
+        return False
+
+    sync_wallet_balance_to_session(user_email)
+
+    try:
+        result = supabase_client.rpc(
+            "mathai_record_use_and_award_referral_v070",
+            {
+                "p_email": user_email,
+                "p_event_type": str(event_type or "ai_use"),
+            },
+        ).execute()
+        rows = result.data or []
+        row = rows[0] if isinstance(rows, list) and rows else rows
+        if not isinstance(row, dict):
+            return False
+
+        new_credits = row.get("user_credits")
+        if new_credits is not None:
+            st.session_state["user_profile"]["credits"] = int(new_credits)
+
+        if bool(row.get("referral_awarded", False)):
+            referrer_now = bool(
+                row.get("referrer_reward_applied", False)
+            )
+            if referrer_now:
+                reward_text = "🎁 推薦成功：您與介紹人已各獲得 50 點。"
+            else:
+                reward_text = (
+                    "🎁 推薦成功：您已獲得 50 點；介紹人的 50 點已保留，"
+                    "會在介紹人下次登入時自動補入。"
+                )
+            st.session_state["registration_source_result"] = (
+                "success|" + reward_text
+            )
+            st.session_state["user_profile"][
+                "source_reward_status"
+            ] = "awarded"
+            st.session_state["wallet_last_message"] = (
+                "🎁 推薦成功，雙方各增加 50 點。"
+            )
+            request_page_top()
+
+        return bool(row.get("event_recorded", False))
+    except Exception as exc:
+        st.session_state["referral_award_debug"] = str(exc)
+        st.session_state["wallet_last_message"] = (
+            "試卷已完成，但推薦點數同步失敗，請聯絡管理員。"
+        )
+        return False
+
+
+
+def process_registration_source(
+    user_email,
+    source_type,
+    source_value="",
+    source_detail="",
+):
+    user_email = normalize_email(user_email)
+    source_type = str(source_type or "").strip()
+    source_value = str(source_value or "").strip()
+    source_detail = str(source_detail or "").strip()
+
+    if not user_email or user_email == "trial@example.com":
+        return "error", "請先完成 Email 驗證。"
+    if not supabase_client:
+        return "error", "目前未連接會員資料庫，暫時無法申請來源獎勵。"
+    if has_registration_source_claim(user_email):
+        return "info", "這個帳號已登記過來源獎勵，不能重複申請。"
+
+    now_text = datetime.now().isoformat()
+
+    if source_type == "親友／老師介紹":
+        referrer_email = normalize_email(source_value)
+        valid, message = validate_referrer(
+            referrer_email,
+            user_email,
+        )
+
+        # 無效／不存在的介紹人不建立 referrals 紀錄。
+        # 使用者仍可完成註冊，只是不發放推薦點數。
+        if not valid:
+            return (
+                "warning",
+                f"{message} 本次不會發放推薦點數，但仍可正常完成註冊。",
+            )
+
+        referral_saved, referral_message = create_pending_referral_rpc(
+            referrer_email,
+            user_email,
+        )
+        if not referral_saved:
+            return (
+                "error",
+                referral_message
+                or (
+                    "介紹人資格已確認，但推薦紀錄暫時無法儲存。"
+                    "本次不會發放推薦點數，請聯絡管理員。"
+                ),
+            )
+
+        return (
+            "success",
+            "✅ 推薦關係已登記成功。完成第一次有效出題或錯題解析後，"
+            "您與介紹人將各獲得 50 點。",
+        )
+
+    if source_type == "MathAI 活動／優惠碼":
+        valid, promo, message = validate_promo_code(source_value)
+        if not valid:
+            return "warning", f"{message} 本次不會發放優惠點數，但仍可註冊。"
+
+        code = str(promo.get("code") or "").upper()
+        points = int(promo.get("points") or 50)
+        try:
+            supabase_client.table("promo_redemptions").insert({
+                "code": code,
+                "user_email": user_email,
+                "points": points,
+                "status": "awarded",
+                "created_at": now_text,
+            }).execute()
+            supabase_client.table("promo_codes").update({
+                "usage_count": int(promo.get("usage_count") or 0) + 1,
+                "updated_at": now_text,
+            }).eq("code", code).execute()
+        except Exception:
+            return "warning", "此帳號可能已使用過優惠碼，無法重複領取。"
+
+        if add_user_credits(
+            user_email,
+            points,
+            reason="promo_code_reward",
+            reference_type="promo_code",
+            reference_id=code,
+        ):
+            return "success", f"優惠碼審核成功，已贈送 {points} 點。"
+        return "error", "優惠碼已登記，但點數發放失敗，請聯絡管理員。"
+
+    if source_type == "其他通路（審核後贈送 50 點）":
+        if not source_detail:
+            return "warning", "請填寫您從哪個通路知道 MathAI。"
+        try:
+            supabase_client.table("acquisition_claims").insert({
+                "user_email": user_email,
+                "source_type": source_type,
+                "source_detail": source_detail,
+                "status": "pending",
+                "reward_points": 50,
+                "created_at": now_text,
+            }).execute()
+            return (
+                "success",
+                "其他通路資料已送出。管理員審核成功後，將贈送 50 點。",
+            )
+        except Exception:
+            return "error", "通路資料無法送出，請確認 SQL 已執行。"
+
+    return "info", "已記錄您得知 MathAI 的方式；本選項不申請額外點數。"
+
+
+def record_effective_usage(user_email, event_type):
+    return record_effective_usage_and_referral_rpc(
+        user_email,
+        event_type,
+    )
+
+
+
+def get_pending_acquisition_claims():
+    if not supabase_client:
+        return []
+    try:
+        result = (
+            supabase_client.table("acquisition_claims")
+            .select("*")
+            .eq("status", "pending")
+            .order("created_at")
+            .execute()
+        )
+        return result.data or []
+    except Exception:
+        return []
+
+
+def approve_acquisition_claim(claim):
+    if not supabase_client or not claim:
+        return False
+    claim_id = claim.get("id")
+    user_email = normalize_email(claim.get("user_email"))
+    points = int(claim.get("reward_points") or 50)
+
+    if not add_user_credits(
+        user_email,
+        points,
+        reason="acquisition_channel_reward",
+        reference_type="acquisition_claim",
+        reference_id=str(claim_id or ""),
+    ):
+        return False
+    try:
+        supabase_client.table("acquisition_claims").update({
+            "status": "awarded",
+            "reviewed_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat(),
+        }).eq("id", claim_id).execute()
+        return True
+    except Exception:
+        return False
+
+
+def create_or_update_promo_code(
+    code,
+    points=50,
+    max_uses=0,
+    expires_at=None,
+):
+    code = str(code or "").strip().upper()
+    if not supabase_client or not code:
+        return False
+    try:
+        supabase_client.table("promo_codes").upsert({
+            "code": code,
+            "points": int(points or 50),
+            "active": True,
+            "max_uses": int(max_uses or 0),
+            "expires_at": (
+                datetime.combine(
+                    expires_at,
+                    datetime.max.time().replace(microsecond=0),
+                ).isoformat()
+                if isinstance(expires_at, date)
+                and not isinstance(expires_at, datetime)
+                else (
+                    expires_at.isoformat()
+                    if hasattr(expires_at, "isoformat")
+                    else expires_at
+                )
+            ),
+            "updated_at": datetime.now().isoformat(),
+        }).execute()
+        return True
+    except Exception:
+        return False
+
 
 def get_required_credits(q_count):
     if q_count <= 5: return 15
@@ -1397,14 +2243,41 @@ def get_required_credits(q_count):
 
 def deduct_credit(q_count=5):
     req_credits = get_required_credits(q_count)
-    if "credits" not in st.session_state["user_profile"]:
-        st.session_state["user_profile"]["credits"] = 15
-        
-    if st.session_state["user_profile"]["credits"] >= req_credits:
-        st.session_state["user_profile"]["credits"] -= req_credits
-        save_user_profile_to_db(st.session_state["user_profile"])
-        return True
-    return False
+    email = normalize_email(
+        st.session_state["user_profile"].get("email", "")
+    )
+
+    if email == "trial@example.com" or st.session_state.get("developer_mode", False):
+        if st.session_state["user_profile"].get("credits", 0) >= req_credits:
+            st.session_state["user_profile"]["credits"] -= req_credits
+            return True
+        return False
+
+    sync_wallet_balance_to_session(email)
+    current_credits = int(
+        st.session_state["user_profile"].get("credits", 0) or 0
+    )
+    if current_credits < req_credits:
+        return False
+
+    success, balance, message = wallet_adjust(
+        email,
+        -req_credits,
+        reason="ai_usage_charge",
+        reference_type="exam_charge",
+        reference_id=str(uuid.uuid4()),
+    )
+    if not success:
+        st.session_state["wallet_last_message"] = (
+            message or "點數扣除失敗。"
+        )
+        return False
+
+    if balance is not None:
+        st.session_state["user_profile"]["credits"] = balance
+    return True
+
+
 
 def handle_api_error(exc: Exception) -> None:
     """顯示一般使用者可理解的 AI 錯誤；完整技術資訊僅供管理員查看。"""
@@ -1429,6 +2302,20 @@ def handle_api_error(exc: Exception) -> None:
 # ==========================================
 # 🌟 全域左側欄 (Sidebar) 核心邏輯 - 直接展開、保證不消失
 # ==========================================
+# v0.7.0：側欄只顯示 Supabase member_wallets 的鏡像點數。
+_sidebar_email_for_wallet = normalize_email(
+    st.session_state.get("user_profile", {}).get("email", "")
+)
+if (
+    st.session_state.get("is_verified", False)
+    and _sidebar_email_for_wallet
+    and _sidebar_email_for_wallet != "trial@example.com"
+):
+    sync_wallet_balance_to_session(
+        _sidebar_email_for_wallet,
+        force=True,
+    )
+
 with st.sidebar:
     st.caption("📱 儲值點數與問題回饋")
     sidebar_credits = st.session_state["user_profile"].get("credits", 15)
@@ -1494,7 +2381,7 @@ with st.sidebar:
                     admin_msg["Subject"] = "【系統通知】用戶已匯款，請求開通點數"
                     admin_msg["From"] = SMTP_USER
                     admin_msg["To"] = SMTP_USER
-                    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+                    with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=30) as server:
                         server.login(SMTP_USER, SMTP_PASSWORD)
                         server.send_message(admin_msg)
                 except Exception:
@@ -1543,8 +2430,13 @@ with st.sidebar:
                             st.warning("您已達到帳號回饋次數上限 (5次)，非常感謝您的支持！")
                         else:
                             supabase_client.table("user_feedback").insert({"user_email": current_email, "content": feedback_text}).execute()
-                            st.session_state["user_profile"]["credits"] += 20
-                            save_user_profile_to_db(st.session_state["user_profile"])
+                            add_user_credits(
+                                current_email,
+                                20,
+                                reason="feedback_reward",
+                                reference_type="feedback",
+                                reference_id=str(uuid.uuid4()),
+                            )
                             st.session_state["feedback_today_done"] = True
                             st.success("✅ 感謝回饋！您的寶貴建議已成功傳送，並為您存入 20 點！")
                             st.rerun()
@@ -1614,14 +2506,91 @@ with st.sidebar:
             
         if st.button("⚡ 手動儲值"):
             if manual_email and manual_points > 0:
-                add_user_credits(manual_email, manual_points)
+                add_user_credits(
+                    manual_email,
+                    manual_points,
+                    reason="admin_manual_credit",
+                )
                 st.success(f"成功為 {manual_email} 加入 {manual_points} 點！")
                 st.rerun()
             else:
                 st.warning("請填寫正確的 Email 與大於 0 的點數。")
-                
+
+        st.markdown("#### 🎁 其他通路獎勵審核")
+        pending_source_claims = get_pending_acquisition_claims()
+        if not pending_source_claims:
+            st.info("目前沒有待審核的其他通路獎勵。")
+        else:
+            selected_source_claims = []
+            for claim in pending_source_claims:
+                claim_id = claim.get("id")
+                claim_email = claim.get("user_email", "")
+                claim_detail = claim.get("source_detail", "")
+                claim_points = int(
+                    claim.get("reward_points") or 50
+                )
+                if st.checkbox(
+                    f"{claim_email}｜{claim_detail}｜{claim_points} 點",
+                    key=f"source_claim_{claim_id}",
+                ):
+                    selected_source_claims.append(claim)
+
+            if st.button(
+                "✅ 審核通過並發放勾選點數",
+                type="primary",
+                key="approve_source_claims",
+            ):
+                success_count = 0
+                for claim in selected_source_claims:
+                    if approve_acquisition_claim(claim):
+                        success_count += 1
+                st.success(f"已完成 {success_count} 筆通路獎勵。")
+                st.rerun()
+
+        st.markdown("#### 🎟️ 優惠碼管理")
+        promo_col1, promo_col2, promo_col3 = st.columns(3)
+        with promo_col1:
+            admin_promo_code = st.text_input(
+                "優惠碼",
+                placeholder="例如：MATHAI50",
+                key="admin_promo_code",
+            )
+        with promo_col2:
+            admin_promo_points = st.number_input(
+                "贈送點數",
+                min_value=1,
+                value=50,
+                step=10,
+                key="admin_promo_points",
+            )
+        with promo_col3:
+            admin_promo_max_uses = st.number_input(
+                "使用上限（0 為不限）",
+                min_value=0,
+                value=0,
+                step=1,
+                key="admin_promo_max_uses",
+            )
+        admin_promo_expiry = st.date_input(
+            "到期日",
+            value=date.today() + timedelta(days=30),
+            key="admin_promo_expiry",
+        )
+        if st.button("建立／更新優惠碼", key="admin_save_promo"):
+            if create_or_update_promo_code(
+                admin_promo_code,
+                admin_promo_points,
+                admin_promo_max_uses,
+                admin_promo_expiry,
+            ):
+                st.success(
+                    f"優惠碼 {admin_promo_code.strip().upper()} 已啟用。"
+                )
+            else:
+                st.error("優惠碼儲存失敗，請先執行 v0.6.12 SQL。")
+
         st.markdown("---")
-        
+
         st.markdown("#### 📚 專屬題庫管理")
         if supabase_client:
             try:
@@ -1801,25 +2770,54 @@ def render_share_buttons(content_text, key_prefix):
         
     with c_share3:
         if is_trial_user:
-            if st.button("📩 寄送至 Email", key=f"{key_prefix}_send_btn", use_container_width=True):
-                st.session_state[f"{key_prefix}_show_email_input"] = not st.session_state.get(f"{key_prefix}_show_email_input", False)
+            st.button(
+                "📩 登入後寄送到註冊 Email",
+                key=f"{key_prefix}_send_btn_trial",
+                use_container_width=True,
+                disabled=True,
+            )
         else:
-            if st.button("📩 寄送至 Email", key=f"{key_prefix}_send_btn_reg", use_container_width=True):
-                with st.spinner("正為您寄送試卷中..."):
-                    if send_exam_email(user_email, content_text):
-                        st.success(f"✅ 試卷與答案已成功寄送到：{user_email}")
+            masked_email = user_email
+            if "@" in user_email:
+                local_part, domain_part = user_email.split("@", 1)
+                masked_email = (
+                    local_part[:3]
+                    + "***@"
+                    + domain_part
+                )
+            st.caption(f"收件信箱：{masked_email}")
+            if st.button(
+                "📩 寄送到我的註冊 Email",
+                key=f"{key_prefix}_send_btn_reg",
+                use_container_width=True,
+            ):
+                now = datetime.now()
+                last_sent = st.session_state.get(
+                    "last_exam_email_sent_at"
+                )
+                if (
+                    isinstance(last_sent, datetime)
+                    and (now - last_sent).total_seconds() < 60
+                ):
+                    st.warning("請等待 60 秒後再重新寄送，避免重複郵件。")
+                else:
+                    with st.spinner("正寄送到您的註冊信箱…"):
+                        if send_exam_email(
+                            user_email,
+                            content_text,
+                        ):
+                            st.session_state[
+                                "last_exam_email_sent_at"
+                            ] = now
+                            st.success(
+                                "✅ 試卷與答案已寄送到您的註冊 Email。"
+                            )
+                        else:
+                            st.info(
+                                "管理員請確認 Streamlit Cloud Secrets "
+                                "已設定 SMTP_USER 與 SMTP_PASSWORD。"
+                            )
 
-    if is_trial_user and st.session_state.get(f"{key_prefix}_show_email_input", False):
-        st.info("💡 請輸入接收試卷的 Email：")
-        custom_target_email = st.text_input("輸入 Email：", key=f"{key_prefix}_input_email", placeholder="example@gmail.com")
-        if st.button("🚀 確認寄送", key=f"{key_prefix}_confirm_send"):
-            if custom_target_email and "@" in custom_target_email:
-                with st.spinner("正為您寄送試卷中..."):
-                    if send_exam_email(custom_target_email, content_text):
-                        st.success(f"✅ 試卷與答案已成功寄送到：{custom_target_email}")
-                        st.session_state[f"{key_prefix}_show_email_input"] = False
-            else:
-                st.warning("請先輸入正確的 Email 格式！")
 
 def parse_and_insert_9_col_json(ai_response_text):
     if not supabase_client: return
@@ -1916,9 +2914,40 @@ MAIN_NAV_BUTTON_LABELS = [
 ]
 
 
+def request_page_top():
+    """下一次 rerun 後把瀏覽器移到頁首。"""
+    st.session_state["request_scroll_to_top"] = True
+
+
+def render_requested_page_top():
+    """Streamlit rerun 會保留瀏覽器捲動位置；需要時主動回到頁首。"""
+    if not st.session_state.pop("request_scroll_to_top", False):
+        return
+    components.html(
+        """
+        <script>
+        setTimeout(function () {
+            try {
+                window.parent.scrollTo({top: 0, left: 0, behavior: "instant"});
+                var main = window.parent.document.querySelector(
+                    'section.main, [data-testid="stMain"], .main'
+                );
+                if (main) {
+                    main.scrollTo({top: 0, left: 0, behavior: "instant"});
+                }
+            } catch (e) {}
+        }, 80);
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
 def switch_main_tab(tab_label):
     """由桌面固定導覽列切換主功能。"""
     st.session_state["main_tabs_control"] = tab_label
+    request_page_top()
 
 
 def switch_main_tab_from_mobile():
@@ -1926,6 +2955,7 @@ def switch_main_tab_from_mobile():
     selected_tab = st.session_state.get("mobile_main_nav_selector")
     if selected_tab in MAIN_TAB_LABELS:
         st.session_state["main_tabs_control"] = selected_tab
+        request_page_top()
 
 
 SYSTEM_TIPS = [
@@ -1982,6 +3012,7 @@ def render_system_tipbar():
 # 第一頁：登入與試用頁面
 # ==========================================
 if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
+    render_requested_page_top()
     st.title("🧙‍♂️ AI 數學錯題迭代系統")
     welcome_msg = (
         "<div style=\"background-color: #f0f7ff; padding: 16px; border-radius: 10px; border-left: 6px solid #1c83e1; font-size: 1.05em;\">\n"
@@ -2010,7 +3041,7 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
             use_container_width=True,
         ):
             remembered = get_recent_emails()
-            dev_email = remembered[0] if remembered else "developer@local.test"
+            dev_email = "developer@local.test"
             st.session_state["user_profile"].update({
                 "email": dev_email,
                 "credits": 9999,
@@ -2129,15 +3160,32 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
                                     verified_email,
                                 )
                                 st.session_state["profile_load_notice"] = "existing"
+                                st.session_state[
+                                    "is_new_account_registration"
+                                ] = False
                             else:
                                 reset_user_profile_for_new_account(
                                     verified_email,
                                     credits=100,
                                 )
                                 st.session_state["profile_load_notice"] = "new"
+                                st.session_state[
+                                    "is_new_account_registration"
+                                ] = True
                             st.session_state["is_verified"] = True
                             st.session_state["otp_sent"] = False
                             save_recent_email(verified_email)
+
+                            # v0.6.19：第一次把舊系統目前點數搬入 Supabase wallet，
+                            # 之後跨裝置／重新登入都以雲端點數為準。
+                            sync_wallet_balance_to_session(
+                                verified_email,
+                                force=True,
+                                is_new_account=st.session_state.get(
+                                    "is_new_account_registration",
+                                    False,
+                                ),
+                            )
                             st.rerun()
                         else:
                             st.error("❌ 驗證碼錯誤，請重新確認！")
@@ -2153,6 +3201,8 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
     verified_profile_email = normalize_email(
         st.session_state["user_profile"].get("email", "")
     )
+    if verified_profile_email and verified_profile_email != "trial@example.com":
+        sync_wallet_balance_to_session(verified_profile_email)
     if (
         verified_profile_email
         and verified_profile_email != "trial@example.com"
@@ -2177,18 +3227,77 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
     elif profile_load_notice == "new":
         st.info("這是新帳號，請完成下方必填資料。")
 
+    if (
+        st.session_state.get("admin_unlocked", False)
+        and st.session_state.get("source_claim_rpc_debug")
+    ):
+        with st.expander("管理員：來源獎勵狀態 RPC 錯誤"):
+            st.code(st.session_state["source_claim_rpc_debug"])
+
+    if (
+        st.session_state.get("admin_unlocked", False)
+        and st.session_state.get("source_retry_rpc_debug")
+    ):
+        with st.expander("管理員：推薦重填狀態 RPC 錯誤"):
+            st.code(st.session_state["source_retry_rpc_debug"])
+
+    if (
+        st.session_state.get("admin_unlocked", False)
+        and st.session_state.get("referrer_rpc_debug")
+    ):
+        with st.expander("管理員：推薦資格 RPC 錯誤"):
+            st.code(st.session_state["referrer_rpc_debug"])
+
+    if (
+        st.session_state.get("admin_unlocked", False)
+        and st.session_state.get("wallet_rpc_debug")
+    ):
+        with st.expander("管理員：雲端點數錢包 RPC 錯誤"):
+            st.code(st.session_state["wallet_rpc_debug"])
+
+    if (
+        st.session_state.get("admin_unlocked", False)
+        and st.session_state.get("referral_award_debug")
+    ):
+        with st.expander("管理員：推薦點數發放 RPC 錯誤"):
+            st.code(st.session_state["referral_award_debug"])
+
+    if (
+        st.session_state.get("admin_unlocked", False)
+        and st.session_state.get("referral_save_debug")
+    ):
+        with st.expander("管理員：推薦資料寫入錯誤"):
+            st.code(st.session_state["referral_save_debug"])
+
+    profile_read_warning = st.session_state.pop(
+        "profile_cloud_read_warning",
+        "",
+    )
+    if profile_read_warning:
+        st.warning(
+            "會員資料暫時無法從 Supabase 讀取。"
+            "請確認 v0.7.0 資料架構 SQL 已執行。"
+        )
+        if st.session_state.get("admin_unlocked", False):
+            st.code(profile_read_warning)
+
     profile_save_warning = st.session_state.pop(
         "profile_cloud_save_warning",
         "",
     )
     if profile_save_warning:
         st.warning(
-            "會員資料欄位尚未完整建立於 Supabase。"
-            "請執行更新包內的「Supabase_會員完整資料欄位補強.sql」，"
-            "再重新儲存一次學生資料。"
+            "會員資料尚未成功同步到 Supabase。"
+            "請確認已執行「Supabase_v0.7.0_資料架構整理.sql」。"
         )
 
+    restore_retry_state_to_session()
     up = st.session_state["user_profile"]
+
+    # 推薦／優惠驗證失敗時，重新整理、重新登入、換裝置後仍保留修改權限。
+    if up.get("source_reward_status") == "retry_allowed":
+        st.session_state["is_new_account_registration"] = True
+
     def_ln = up.get("last_name", "")
     def_fn = up.get("first_name", "")
     def_city = up.get("city", "新北市")
@@ -2332,6 +3441,310 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
             ),
         )
 
+    retry_source_state = load_source_retry_state(
+        st.session_state["user_profile"].get("email", "")
+    ) or {}
+    retry_source_allowed = (
+        str(retry_source_state.get("status") or "").strip()
+        == "retry_allowed"
+    )
+
+    source_claim_status = get_registration_source_claim_status(
+        st.session_state["user_profile"].get("email", "")
+    )
+    source_claimed = bool(
+        source_claim_status.get("has_claim", False)
+    )
+
+    # 來源資料的優先順序：
+    # 1. 尚未完成的 retry 資料
+    # 2. 已載入會員資料
+    # 3. 自行搜尋
+    retry_source_type = str(
+        retry_source_state.get("source_type") or ""
+    ).strip()
+    retry_source_detail = str(
+        retry_source_state.get("source_detail") or ""
+    ).strip()
+
+    source_type_selection = (
+        retry_source_type
+        or str(up.get("discovery_source") or "").strip()
+        or "自行搜尋／不申請額外點數"
+    )
+    source_value_input = ""
+    source_detail_input = (
+        retry_source_detail
+        or str(up.get("source_detail") or "")
+    )
+
+    # 任何「尚未成功占用來源獎勵」的會員都不會被永久鎖死。
+    # 新會員、曾驗證失敗、或尚未成功申請者，都可再次開啟修改。
+    can_edit_source = bool(
+        not source_claimed
+        and (
+            st.session_state.get("is_new_account_registration", False)
+            or retry_source_allowed
+            or st.session_state.get("source_edit_mode", False)
+        )
+    )
+
+    if not source_claimed and not can_edit_source:
+        st.markdown("---")
+        st.markdown("#### 🎁 推薦／優惠資料")
+        st.caption(
+            "目前尚未成功領取來源獎勵。"
+            "需要補填或修改介紹人 Email／優惠碼時，可直接重新開啟。"
+        )
+        if st.button(
+            "✏️ 新增／修改推薦人 Email 或優惠碼",
+            key=f"open_source_edit_{profile_account_key}",
+            use_container_width=True,
+        ):
+            st.session_state["source_edit_mode"] = True
+            st.session_state["is_new_account_registration"] = True
+            request_page_top()
+            st.rerun()
+
+    if can_edit_source:
+        st.markdown("---")
+        if retry_source_allowed or up.get("source_reward_status") == "retry_allowed":
+            st.warning(
+                "上次推薦／優惠資料未通過驗證，這次可以重新輸入。"
+                "只有驗證失敗的帳號會保留這個修改機會。"
+            )
+        st.markdown("#### 🎁 您是如何知道 MathAI 的？")
+        st.caption(
+            "每個新帳號只能申請一次來源獎勵。推薦或優惠資料不正確時，"
+            "仍可完成註冊，但不會發放額外點數。"
+        )
+        source_options = [
+            "親友／老師介紹",
+            "MathAI 活動／優惠碼",
+            "其他通路（審核後贈送 50 點）",
+            "自行搜尋／不申請額外點數",
+        ]
+        source_default_index = (
+            source_options.index(source_type_selection)
+            if source_type_selection in source_options
+            else 3
+        )
+
+        source_widget_key = (
+            f"registration_source_type_{profile_account_key}"
+        )
+        if (
+            retry_source_allowed
+            and retry_source_type in source_options
+            and st.session_state.get(source_widget_key)
+            != retry_source_type
+        ):
+            st.session_state[source_widget_key] = retry_source_type
+
+        source_type_selection = st.selectbox(
+            "您是如何知道 MathAI 的？",
+            source_options,
+            index=source_default_index,
+            key=source_widget_key,
+        )
+
+        if source_type_selection == "親友／老師介紹":
+            ref_col1, ref_col2 = st.columns([4, 1.35])
+            referrer_widget_key = (
+                f"registration_referrer_email_{profile_account_key}"
+            )
+            if (
+                retry_source_allowed
+                and retry_source_type == "親友／老師介紹"
+                and st.session_state.get(referrer_widget_key)
+                != retry_source_detail
+            ):
+                st.session_state[referrer_widget_key] = retry_source_detail
+
+            with ref_col1:
+                source_value_input = st.text_input(
+                    "介紹人的註冊 Email",
+                    value=(
+                        source_detail_input
+                        if retry_source_allowed
+                        or up.get("source_reward_status") == "retry_allowed"
+                        else ""
+                    ),
+                    placeholder="例如：teacher@example.com",
+                    key=referrer_widget_key,
+                )
+            with ref_col2:
+                st.markdown("<div style='height:1.72rem'></div>", unsafe_allow_html=True)
+                verify_referrer_now = st.button(
+                    "🔎 驗證介紹人資格",
+                    key=f"verify_referrer_{profile_account_key}",
+                    use_container_width=True,
+                )
+
+            validation_key = f"referrer_validation_{profile_account_key}"
+            normalized_source_email = normalize_email(source_value_input)
+
+            if verify_referrer_now:
+                valid_referrer, referrer_message = validate_referrer(
+                    normalized_source_email,
+                    st.session_state["user_profile"].get("email", ""),
+                )
+                st.session_state[validation_key] = {
+                    "email": normalized_source_email,
+                    "valid": bool(valid_referrer),
+                    "message": referrer_message,
+                }
+
+            validation_result = st.session_state.get(validation_key, {})
+            if (
+                validation_result
+                and validation_result.get("email") == normalized_source_email
+            ):
+                if validation_result.get("valid"):
+                    st.success(
+                        "✅ "
+                        + str(validation_result.get("message") or "介紹人資格確認成功。")
+                    )
+                    # 只更新尚未完成的重填資料，不發點、不鎖定；
+                    # 使用者仍需按「完成註冊／儲存」才正式登記。
+                    if up.get("source_reward_status") == "retry_allowed":
+                        save_source_retry_state(
+                            st.session_state["user_profile"].get("email", ""),
+                            "親友／老師介紹",
+                            normalized_source_email,
+                            status="retry_allowed",
+                        )
+                else:
+                    st.warning(
+                        "⚠️ "
+                        + str(validation_result.get("message") or "介紹人目前不符合資格。")
+                        + " 您可以直接修改 Email 後再次驗證。"
+                    )
+
+            st.info(
+                "介紹人必須已完成會員資料，且曾儲值或至少完成 3 次有效使用。"
+                "建議先按「驗證介紹人資格」；驗證失敗可不限次數修改，"
+                "成功登記後才會鎖定。您完成第一次有效出題或錯題解析後，"
+                "雙方各得 50 點。"
+            )
+        elif source_type_selection == "MathAI 活動／優惠碼":
+            promo_widget_key = (
+                f"registration_promo_code_{profile_account_key}"
+            )
+            if (
+                retry_source_allowed
+                and retry_source_type == "MathAI 活動／優惠碼"
+                and st.session_state.get(promo_widget_key)
+                != retry_source_detail
+            ):
+                st.session_state[promo_widget_key] = retry_source_detail
+
+            source_value_input = st.text_input(
+                "優惠碼",
+                value=(
+                    source_detail_input
+                    if retry_source_allowed
+                    or up.get("source_reward_status") == "retry_allowed"
+                    else ""
+                ),
+                placeholder="請輸入活動優惠碼",
+                key=promo_widget_key,
+            )
+            st.caption("優惠碼通過驗證後，點數會直接加入此註冊帳號。")
+        elif source_type_selection == "其他通路（審核後贈送 50 點）":
+            source_detail_input = st.text_area(
+                "請填寫您從哪個通路知道 MathAI",
+                value=source_detail_input,
+                placeholder="例如：Facebook 社團、老師研習、學校活動",
+                key=f"registration_source_detail_{profile_account_key}",
+            )
+            st.caption("資料送出後由管理員審核；通過後贈送 50 點。")
+
+    elif source_claimed and source_type_selection:
+        st.caption(
+            f"得知 MathAI 的方式：{source_type_selection}（來源獎勵已登記）"
+        )
+    elif not can_edit_source and source_type_selection:
+        st.caption(f"得知 MathAI 的方式：{source_type_selection}")
+
+    def finalize_registration_source():
+        if not can_edit_source:
+            return
+
+        result_type, result_message = process_registration_source(
+            st.session_state["user_profile"].get("email", ""),
+            source_type_selection,
+            source_value_input,
+            source_detail_input,
+        )
+        retry_allowed = (
+            result_type in {"warning", "error"}
+            and source_type_selection
+            != "自行搜尋／不申請額外點數"
+        )
+
+        if retry_allowed:
+            result_message = (
+                result_message
+                + " 您可到「帳號設定」重新輸入正確的推薦／優惠資料。"
+            )
+
+        st.session_state["registration_source_result"] = (
+            f"{result_type}|{result_message}"
+        )
+
+        # 只有成功或主動不申請時才鎖定來源資料。
+        # 推薦人／優惠碼驗證失敗時保留重填權限。
+        st.session_state["is_new_account_registration"] = retry_allowed
+
+        current_source_detail = (
+            source_detail_input or source_value_input
+        )
+        current_user_email = st.session_state["user_profile"].get(
+            "email",
+            "",
+        )
+
+        if retry_allowed:
+            save_source_retry_state(
+                current_user_email,
+                source_type_selection,
+                current_source_detail,
+                status="retry_allowed",
+            )
+            st.session_state["source_edit_mode"] = True
+        else:
+            clear_source_retry_state(current_user_email)
+            st.session_state["source_edit_mode"] = False
+
+        if source_type_selection == "親友／老師介紹":
+            source_reward_status = (
+                "pending_first_use"
+                if result_type == "success"
+                else "retry_allowed"
+            )
+        elif source_type_selection == "MathAI 活動／優惠碼":
+            source_reward_status = (
+                "awarded"
+                if result_type == "success"
+                else "retry_allowed"
+            )
+        elif source_type_selection == "其他通路（審核後贈送 50 點）":
+            source_reward_status = (
+                "pending_review"
+                if result_type == "success"
+                else "retry_allowed"
+            )
+        else:
+            source_reward_status = "none"
+
+        st.session_state["user_profile"][
+            "source_reward_status"
+        ] = source_reward_status
+        save_user_profile_to_db(
+            st.session_state["user_profile"]
+        )
+
     if is_verified:
         if st.button(
             "✅ 完成註冊，儲存必填資料並進入系統",
@@ -2367,6 +3780,11 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
                     "school": school_name.strip(),
                     "grade": selected_grade,
                     "version": selected_version,
+                    "discovery_source": source_type_selection,
+                    "source_detail": (
+                        source_detail_input
+                        or source_value_input
+                    ),
                 })
                 for stale_key in [
                     "custom_exam_main_units",
@@ -2378,8 +3796,11 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
                     st.session_state.pop(stale_key, None)
                 save_recent_email(st.session_state["user_profile"]["email"])
                 save_user_profile_to_db(st.session_state["user_profile"])
+                finalize_registration_source()
                 st.session_state["setup_complete"] = True
-                st.success("✅ 必填資料已儲存，正在進入系統。")
+                st.session_state["main_tabs_control"] = MAIN_TAB_LABELS[0]
+                st.session_state["mobile_main_nav_selector"] = MAIN_TAB_LABELS[0]
+                request_page_top()
                 st.rerun()
 
     st.caption("下方學習狀況與興趣為選填，之後可以再修改。")
@@ -2555,14 +3976,22 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
                 st.session_state["user_profile"]["school"] = school_name.strip()
                 st.session_state["user_profile"]["grade"] = selected_grade
                 st.session_state["user_profile"]["version"] = selected_version
+                st.session_state["user_profile"]["discovery_source"] = source_type_selection
+                st.session_state["user_profile"]["source_detail"] = (
+                    source_detail_input or source_value_input
+                )
                 st.session_state["user_profile"]["traits"] = final_traits
                 st.session_state["user_profile"]["interests"] = final_interests
                 
                 save_recent_email(st.session_state["user_profile"]["email"])
                 save_user_profile_to_db(st.session_state["user_profile"])
+                finalize_registration_source()
                 st.session_state["setup_complete"] = True
                 st.rerun()
-        if st.button("🔄 登出切換帳號", use_container_width=True):
+        if st.button(
+            "🔄 切換登入帳號（直接回 Email 登入頁）",
+            use_container_width=True,
+        ):
             previous_email = st.session_state["user_profile"].get("email", "")
             clear_profile_widget_state(previous_email)
             reset_user_profile_for_new_account("", credits=15)
@@ -2570,14 +3999,68 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
             st.session_state["otp_sent"] = False
             st.session_state["pending_email"] = ""
             st.session_state["loaded_profile_email"] = ""
+            st.session_state["wallet_synced_email"] = ""
+            st.session_state["is_new_account_registration"] = False
+            st.session_state["registration_source_result"] = ""
             st.session_state["setup_complete"] = False
+            request_page_top()
             st.rerun()
 
 # ==========================================
 # 第二頁：主系統畫面
 # ==========================================
 elif st.session_state["setup_complete"]:
+    render_requested_page_top()
+    sync_wallet_balance_to_session()
     render_system_tipbar()
+    restore_retry_state_to_session()
+
+    wallet_notice = st.session_state.pop(
+        "wallet_last_message",
+        "",
+    )
+    if wallet_notice:
+        st.info(wallet_notice)
+
+    source_result_notice = st.session_state.pop(
+        "registration_source_result",
+        "",
+    )
+    if source_result_notice:
+        if "|" in source_result_notice:
+            notice_type, notice_message = source_result_notice.split("|", 1)
+            if notice_type == "success":
+                st.success(notice_message)
+            elif notice_type == "warning":
+                st.warning(notice_message)
+            elif notice_type == "error":
+                st.error(notice_message)
+            else:
+                st.info(notice_message)
+        else:
+            st.success(source_result_notice)
+
+    if (
+        st.session_state["user_profile"].get("source_reward_status")
+        == "retry_allowed"
+    ):
+        st.info(
+            "推薦／優惠資料尚未通過驗證。您可以使用同一個測試帳號反覆修改，"
+            "直到驗證成功為止。"
+        )
+        if st.button(
+            "🔄 重新填寫推薦／優惠資料",
+            key="retry_registration_source_from_main",
+            use_container_width=True,
+        ):
+            st.session_state["setup_complete"] = False
+            st.session_state["is_trial"] = False
+            st.session_state["is_new_account_registration"] = True
+            st.session_state["source_edit_mode"] = True
+            st.session_state["registration_source_result"] = ""
+            request_page_top()
+            st.rerun()
+
     is_trial = st.session_state.get("is_trial", False)
 
     if "main_tabs_control" not in st.session_state:
@@ -2654,17 +4137,52 @@ elif st.session_state["setup_complete"]:
         st.subheader("🏠 帳號與個人化設定")
         if st.session_state.get("developer_mode", False):
             st.info(
-                "🧪 開發者模式已自動填入測試資料。您可以返回首頁，只修改「年級」與「教材版本」後再次進入系統；其他欄位暫時不用重填。"
+                "🧪 開發者模式可回資料頁修改年級／教材版本；"
+                "切換帳號則會直接回到 Email 登入頁。"
             )
-            back_button_label = "🔙 返回首頁修改年級／版本"
         else:
-            st.info("💡 您可以返回首頁修改學生資料與興趣，系統會保留登入狀態與歷史紀錄。")
-            back_button_label = "🔙 返回首頁 / 修改學生資料"
+            st.info(
+                "需要修改學生資料時，回到資料頁即可；"
+                "需要換另一個 Email 時，請直接使用「切換登入帳號」。"
+            )
 
-        if st.button(back_button_label, type="primary"):
-            st.session_state["setup_complete"] = False
-            st.session_state["is_trial"] = False
-            st.rerun()
+        account_col1, account_col2 = st.columns(2)
+        with account_col1:
+            if st.button(
+                "✏️ 修改學生資料／推薦資料",
+                type="primary",
+                use_container_width=True,
+                key="account_edit_profile",
+            ):
+                st.session_state["setup_complete"] = False
+                st.session_state["is_trial"] = False
+                if (
+                    st.session_state["user_profile"].get("source_reward_status")
+                    == "retry_allowed"
+                ):
+                    st.session_state["is_new_account_registration"] = True
+                request_page_top()
+                st.rerun()
+
+        with account_col2:
+            if st.button(
+                "🔄 切換登入帳號（直接回 Email 登入頁）",
+                use_container_width=True,
+                key="account_direct_logout",
+            ):
+                previous_email = st.session_state["user_profile"].get("email", "")
+                clear_profile_widget_state(previous_email)
+                reset_user_profile_for_new_account("", credits=15)
+                st.session_state["is_verified"] = False
+                st.session_state["otp_sent"] = False
+                st.session_state["pending_email"] = ""
+                st.session_state["loaded_profile_email"] = ""
+                st.session_state["is_new_account_registration"] = False
+                st.session_state["registration_source_result"] = ""
+                st.session_state["setup_complete"] = False
+                st.session_state["is_trial"] = False
+                request_page_top()
+                st.rerun()
 
     with tab_learning:
         if LEARNING_MAP_AVAILABLE and render_learning_map is not None:
@@ -3150,6 +4668,10 @@ elif st.session_state["setup_complete"]:
                         if res_text:
                             st.session_state["generated_content"] = re.sub(r'```json.*?```', '', res_text, flags=re.DOTALL).strip()
                             parse_and_insert_9_col_json(res_text)
+                            record_effective_usage(
+                                st.session_state["user_profile"].get("email", ""),
+                                "mistake_analysis_exam",
+                            )
                             st.success("成功產出！")
                     except Exception as e: handle_api_error(e)
             else:
@@ -3187,6 +4709,10 @@ elif st.session_state["setup_complete"]:
                             res_text = call_gemini_api([prompt_var])
                             st.session_state["variation_content"] = re.sub(r'```json.*?```', '', res_text, flags=re.DOTALL).strip()
                             parse_and_insert_9_col_json(res_text)
+                            record_effective_usage(
+                                st.session_state["user_profile"].get("email", ""),
+                                "variation_exam",
+                            )
                         except Exception as e: handle_api_error(e)
                 else:
                     show_trial_conversion_notice()
@@ -3495,11 +5021,20 @@ elif st.session_state["setup_complete"]:
                                     "points": req_pts,
                                 }
                                 parse_and_insert_9_col_json(res_text)
+                                record_effective_usage(
+                                    st.session_state["user_profile"].get("email", ""),
+                                    "custom_exam",
+                                )
                                 st.success("試卷已產生，點數已扣除。")
                             except Exception as e:
                                 # AI 失敗時退回本次扣除的點數
-                                st.session_state["user_profile"]["credits"] += req_pts
-                                save_user_profile_to_db(st.session_state["user_profile"])
+                                add_user_credits(
+                                    st.session_state["user_profile"].get("email", ""),
+                                    req_pts,
+                                    reason="ai_usage_refund",
+                                    reference_type="custom_exam_refund",
+                                    reference_id=str(uuid.uuid4()),
+                                )
                                 handle_api_error(e)
                     else:
                         st.warning("點數不足，請先儲值或調整題數。")
@@ -3687,10 +5222,19 @@ elif st.session_state["setup_complete"]:
                                     "question_count": iterative_count,
                                     "points": iterative_points,
                                 }
+                                record_effective_usage(
+                                    st.session_state["user_profile"].get("email", ""),
+                                    "iterative_exam",
+                                )
                                 st.success("已完成錯題診斷，並產生下一份練習。")
                             except Exception as exc:
-                                st.session_state["user_profile"]["credits"] += iterative_points
-                                save_user_profile_to_db(st.session_state["user_profile"])
+                                add_user_credits(
+                                    st.session_state["user_profile"].get("email", ""),
+                                    iterative_points,
+                                    reason="ai_usage_refund",
+                                    reference_type="iterative_exam_refund",
+                                    reference_id=str(uuid.uuid4()),
+                                )
                                 handle_api_error(exc)
                     else:
                         st.warning("點數不足，請先儲值。")
