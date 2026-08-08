@@ -308,7 +308,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-APP_VERSION = "v0.7.0"
+APP_VERSION = "v0.7.5"
 APP_DIR = Path(__file__).resolve().parent
 LOCAL_EMAILS_FILE = APP_DIR / "recent_emails.json"
 LINE_PAY_QR_FILE = APP_DIR / "line_pay_qr.jpg"
@@ -862,6 +862,23 @@ def normalize_email(email):
     return str(email or "").strip().lower()
 
 
+def is_local_developer_session(email=None):
+    """只有 developer@local.test 才能視為開發者模式。
+
+    避免曾經按過本機快速登入後，developer_mode=True 殘留到一般會員，
+    導致正式會員跳過 Supabase wallet。
+    """
+    current_email = normalize_email(
+        email
+        if email is not None
+        else st.session_state.get("user_profile", {}).get("email", "")
+    )
+    return (
+        st.session_state.get("developer_mode", False)
+        and current_email == "developer@local.test"
+    )
+
+
 def normalize_profile_list(value):
     return _profile_list_value(value)
 
@@ -902,6 +919,9 @@ def normalize_version_name(value, grade_value=""):
         "B級": "B級 (數學B)",
         "數學C": "C級 (數學C)",
         "C級": "C級 (數學C)",
+        "奧數": "參加數學競賽",
+        "數學競賽": "參加數學競賽",
+        "奧林匹克數學": "參加數學競賽",
     }
     text = aliases.get(text, text)
     is_high_school = any(
@@ -1346,7 +1366,7 @@ def wallet_lookup(email):
         not supabase_client
         or not email
         or email == "trial@example.com"
-        or st.session_state.get("developer_mode", False)
+        or is_local_developer_session(email)
     ):
         return None
 
@@ -1378,7 +1398,7 @@ def wallet_bootstrap(email, is_new_account=False):
         not supabase_client
         or not email
         or email == "trial@example.com"
-        or st.session_state.get("developer_mode", False)
+        or is_local_developer_session(email)
     ):
         return None
 
@@ -1429,7 +1449,7 @@ def wallet_adjust(
         or not email
         or email == "trial@example.com"
         or delta == 0
-        or st.session_state.get("developer_mode", False)
+        or is_local_developer_session(email)
     ):
         return False, None, "無法處理點數異動。"
 
@@ -1477,7 +1497,7 @@ def sync_wallet_balance_to_session(
     if (
         not email
         or email == "trial@example.com"
-        or st.session_state.get("developer_mode", False)
+        or is_local_developer_session(email)
     ):
         return st.session_state["user_profile"].get("credits")
 
@@ -1962,7 +1982,7 @@ def create_pending_referral_rpc(
                 verify_row.get("referrer_email", "")
             ) == referrer_email
         ):
-            return True, "推薦關係已登記成功。"
+            return True, "推薦關係已登記成功。完成第一次有效出題或錯題解析後，雙方各得 50 點。"
 
         st.session_state["referral_save_debug"] = (
             "RPC 回報成功，但重新查詢後沒有找到 pending 推薦紀錄。"
@@ -1986,7 +2006,7 @@ def record_effective_usage_and_referral_rpc(
         not supabase_client
         or not user_email
         or user_email == "trial@example.com"
-        or st.session_state.get("developer_mode", False)
+        or is_local_developer_session(user_email)
     ):
         return False
 
@@ -2151,10 +2171,15 @@ def process_registration_source(
 
 
 def record_effective_usage(user_email, event_type):
-    return record_effective_usage_and_referral_rpc(
-        user_email,
-        event_type,
-    )
+    """有效使用與推薦紀錄屬於後處理；失敗時不可讓主功能崩潰。"""
+    try:
+        return record_effective_usage_and_referral_rpc(
+            user_email,
+            event_type,
+        )
+    except Exception as exc:
+        st.session_state["referral_award_debug"] = str(exc)
+        return False
 
 
 
@@ -2247,7 +2272,7 @@ def deduct_credit(q_count=5):
         st.session_state["user_profile"].get("email", "")
     )
 
-    if email == "trial@example.com" or st.session_state.get("developer_mode", False):
+    if email == "trial@example.com" or is_local_developer_session(email):
         if st.session_state["user_profile"].get("credits", 0) >= req_credits:
             st.session_state["user_profile"]["credits"] -= req_credits
             return True
@@ -2438,10 +2463,14 @@ with st.sidebar:
                                 reference_id=str(uuid.uuid4()),
                             )
                             st.session_state["feedback_today_done"] = True
-                            st.success("✅ 感謝回饋！您的寶貴建議已成功傳送，並為您存入 20 點！")
-                            st.rerun()
+                            st.session_state["wallet_last_message"] = (
+                                "✅ 感謝回饋！您的寶貴建議已成功傳送，並為您存入 20 點！"
+                            )
                     except Exception as e:
                         st.error(f"傳送失敗：{e}")
+                    else:
+                        if st.session_state.get("feedback_today_done", False):
+                            st.rerun()
                 else:
                     st.session_state["user_profile"]["credits"] += 20
                     st.session_state["feedback_today_done"] = True
@@ -2982,6 +3011,8 @@ SYSTEM_TIPS = [
     "學習不是刷更多題，而是補強真正不會的地方。",
     "建議固定使用同一帳號，讓 AI 更了解你的學習狀況。",
     "回饋建議可獲得點數，也能幫助系統持續優化。",
+    "推薦獎勵：介紹人須先符合資格；被推薦人成功登記介紹人後，完成第一次有效出題或錯題解析，雙方各得 50 點。",
+    "累積 3 次有效使用是「取得介紹人資格」的條件之一，不是被推薦人領取 50 點的必要條件。",
     "掃描到不同年級題目時，系統會先提醒再處理。",
     "學習履歷越完整，個人化出題會越準確。",
     "目標不是做最多題，而是用最少時間掌握最多重點。",
@@ -3072,6 +3103,7 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
             st.error("⚠️ 您的 IP 今日試用額度已用盡！請使用下方 Email 驗證註冊/登入。")
         else:
             if st.button("🚀 立即試用（送 15 點，直接進入系統）", type="primary", use_container_width=True):
+                st.session_state["developer_mode"] = False
                 st.session_state["is_trial"] = True
                 st.session_state["setup_complete"] = True
                 st.rerun()
@@ -3172,6 +3204,11 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
                                 st.session_state[
                                     "is_new_account_registration"
                                 ] = True
+                            # 正常 Email 登入必須退出本機開發者模式，
+                            # 避免前一次 developer_mode 狀態污染正式會員。
+                            st.session_state["developer_mode"] = False
+                            st.session_state["is_trial"] = False
+                            st.session_state["wallet_synced_email"] = ""
                             st.session_state["is_verified"] = True
                             st.session_state["otp_sent"] = False
                             save_recent_email(verified_email)
@@ -3247,6 +3284,13 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
     ):
         with st.expander("管理員：推薦資格 RPC 錯誤"):
             st.code(st.session_state["referrer_rpc_debug"])
+
+    if (
+        st.session_state.get("admin_unlocked", False)
+        and st.session_state.get("custom_exam_postprocess_debug")
+    ):
+        with st.expander("管理員：試卷後處理錯誤"):
+            st.code(st.session_state["custom_exam_postprocess_debug"])
 
     if (
         st.session_state.get("admin_unlocked", False)
@@ -3622,10 +3666,9 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
                     )
 
             st.info(
-                "介紹人必須已完成會員資料，且曾儲值或至少完成 3 次有效使用。"
-                "建議先按「驗證介紹人資格」；驗證失敗可不限次數修改，"
-                "成功登記後才會鎖定。您完成第一次有效出題或錯題解析後，"
-                "雙方各得 50 點。"
+                "🎁 **推薦獎勵規則**：介紹人必須先符合資格（完成會員資料，且已儲值或至少完成 3 次有效使用；管理員指定資格亦可）。\n\n"
+                "被推薦人成功登記這位介紹人後，**不需要自己先累積 3 次使用**；只要完成第一次有效出題或錯題解析，雙方各得 50 點。\n\n"
+                "被推薦人之後累積 3 次有效使用，是讓自己取得「可以介紹別人」的資格，和領取本次推薦 50 點是兩件不同的事。"
             )
         elif source_type_selection == "MathAI 活動／優惠碼":
             promo_widget_key = (
@@ -3664,6 +3707,15 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
         st.caption(
             f"得知 MathAI 的方式：{source_type_selection}（來源獎勵已登記）"
         )
+        if (
+            source_claim_status.get("claim_type") == "referral"
+            and source_claim_status.get("claim_status") == "pending"
+        ):
+            st.info(
+                "🎁 推薦關係已登記，50 點尚未發放。"
+                "您完成第一次有效出題或錯題解析後，您與介紹人會各得到 50 點。"
+                "累積 3 次有效使用是之後取得『介紹人資格』的條件，不是領這次 50 點的條件。"
+            )
     elif not can_edit_source and source_type_selection:
         st.caption(f"得知 MathAI 的方式：{source_type_selection}")
 
@@ -4000,6 +4052,7 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
             st.session_state["pending_email"] = ""
             st.session_state["loaded_profile_email"] = ""
             st.session_state["wallet_synced_email"] = ""
+            st.session_state["developer_mode"] = False
             st.session_state["is_new_account_registration"] = False
             st.session_state["registration_source_result"] = ""
             st.session_state["setup_complete"] = False
@@ -4177,6 +4230,8 @@ elif st.session_state["setup_complete"]:
                 st.session_state["otp_sent"] = False
                 st.session_state["pending_email"] = ""
                 st.session_state["loaded_profile_email"] = ""
+                st.session_state["wallet_synced_email"] = ""
+                st.session_state["developer_mode"] = False
                 st.session_state["is_new_account_registration"] = False
                 st.session_state["registration_source_result"] = ""
                 st.session_state["setup_complete"] = False
@@ -4999,8 +5054,23 @@ elif st.session_state["setup_complete"]:
                                 main_topics_str,
                             )
 
+                            custom_ai_succeeded = False
                             try:
+                                # 只把真正的 Gemini 呼叫放在 try/except 內。
                                 res_text = call_gemini_api([prompt_custom])
+                                custom_ai_succeeded = True
+                            except Exception as e:
+                                # 只有 Gemini 真正失敗才退款。
+                                add_user_credits(
+                                    st.session_state["user_profile"].get("email", ""),
+                                    req_pts,
+                                    reason="ai_usage_refund",
+                                    reference_type="custom_exam_refund",
+                                    reference_id=str(uuid.uuid4()),
+                                )
+                                handle_api_error(e)
+
+                            if custom_ai_succeeded:
                                 final_custom_content = re.sub(
                                     r"```json.*?```",
                                     "",
@@ -5020,22 +5090,23 @@ elif st.session_state["setup_complete"]:
                                     "question_count": display_q,
                                     "points": req_pts,
                                 }
-                                parse_and_insert_9_col_json(res_text)
+
+                                # 後處理失敗不能冒充 Gemini 失敗。
+                                try:
+                                    parse_and_insert_9_col_json(res_text)
+                                except Exception as post_exc:
+                                    st.session_state["custom_exam_postprocess_debug"] = str(post_exc)
+
                                 record_effective_usage(
                                     st.session_state["user_profile"].get("email", ""),
                                     "custom_exam",
                                 )
-                                st.success("試卷已產生，點數已扣除。")
-                            except Exception as e:
-                                # AI 失敗時退回本次扣除的點數
-                                add_user_credits(
-                                    st.session_state["user_profile"].get("email", ""),
-                                    req_pts,
-                                    reason="ai_usage_refund",
-                                    reference_type="custom_exam_refund",
-                                    reference_id=str(uuid.uuid4()),
+                                st.session_state["wallet_last_message"] = (
+                                    "✅ 試卷已產生，點數已扣除。"
                                 )
-                                handle_api_error(e)
+
+                                # Streamlit rerun 是控制流程，必須放在 AI try/except 外面。
+                                st.rerun()
                     else:
                         st.warning("點數不足，請先儲值或調整題數。")
 
@@ -5172,6 +5243,7 @@ elif st.session_state["setup_complete"]:
                         st.warning("請至少選擇一項出題策略。")
                     elif deduct_credit(iterative_count):
                         with st.spinner("正在辨識紅筆批改結果並安排下一階段練習…"):
+                            iterative_ai_succeeded = False
                             try:
                                 iterative_prompt = f"""
 你是臺灣數學教師與錯題診斷專家。請閱讀上傳的學生考卷照片。
@@ -5208,7 +5280,18 @@ elif st.session_state["setup_complete"]:
                                         code="EMPTY_ITERATIVE_RESULT",
                                         user_message="AI 沒有辨識到有效的批改內容，請重新拍攝較清楚的照片。",
                                     )
+                                iterative_ai_succeeded = True
+                            except Exception as exc:
+                                add_user_credits(
+                                    st.session_state["user_profile"].get("email", ""),
+                                    iterative_points,
+                                    reason="ai_usage_refund",
+                                    reference_type="iterative_exam_refund",
+                                    reference_id=str(uuid.uuid4()),
+                                )
+                                handle_api_error(exc)
 
+                            if iterative_ai_succeeded:
                                 st.session_state["iterative_exam_analysis"] = iterative_result.strip()
                                 st.session_state["custom_exam_content"] = iterative_result.strip()
                                 st.session_state["custom_exam_last_summary"] = {
@@ -5226,16 +5309,10 @@ elif st.session_state["setup_complete"]:
                                     st.session_state["user_profile"].get("email", ""),
                                     "iterative_exam",
                                 )
-                                st.success("已完成錯題診斷，並產生下一份練習。")
-                            except Exception as exc:
-                                add_user_credits(
-                                    st.session_state["user_profile"].get("email", ""),
-                                    iterative_points,
-                                    reason="ai_usage_refund",
-                                    reference_type="iterative_exam_refund",
-                                    reference_id=str(uuid.uuid4()),
+                                st.session_state["wallet_last_message"] = (
+                                    "✅ 已完成錯題診斷，並產生下一份練習；點數已同步。"
                                 )
-                                handle_api_error(exc)
+                                st.rerun()
                     else:
                         st.warning("點數不足，請先儲值。")
 
