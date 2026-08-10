@@ -32,6 +32,14 @@ except ImportError:
     render_learning_map = None
     LEARNING_MAP_AVAILABLE = False
 
+# Phase 2B：初始診斷 Pilot。主程式只做薄接線，診斷 UI 與狀態集中在獨立模組。
+try:
+    from diagnostic_pilot_ui import render_diagnostic_pilot
+    DIAGNOSTIC_PILOT_AVAILABLE = True
+except ImportError:
+    render_diagnostic_pilot = None
+    DIAGNOSTIC_PILOT_AVAILABLE = False
+
 # 嘗試載入 Pandas (處理 CSV)
 try:
     import pandas as pd
@@ -308,7 +316,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-APP_VERSION = "v0.7.5"
+APP_VERSION = "v0.8.4"
 APP_DIR = Path(__file__).resolve().parent
 LOCAL_EMAILS_FILE = APP_DIR / "recent_emails.json"
 LINE_PAY_QR_FILE = APP_DIR / "line_pay_qr.jpg"
@@ -5137,6 +5145,14 @@ elif st.session_state["setup_complete"]:
             "這裡集中顯示累積錯題、常見錯因、弱點單元與下一份推薦練習。"
             "原本的「歷史錯題」已整合到本頁。"
         )
+
+        # Phase 2B 只在本機開發者模式顯示，避免 Pilot 功能誤露出到公開網站。
+        if st.session_state.get("developer_mode", False):
+            if DIAGNOSTIC_PILOT_AVAILABLE and render_diagnostic_pilot is not None:
+                render_diagnostic_pilot()
+            else:
+                st.warning("初始診斷 Pilot 模組尚未載入。")
+            st.markdown("---")
 
         if not is_trial:
             diag_profile = st.session_state["user_profile"]

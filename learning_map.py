@@ -6,6 +6,7 @@ import streamlit as st
 
 
 DATA_FILE = Path(__file__).with_name("curriculum_map.json")
+G7_DATA_FILE = Path(__file__).with_name("learning_map_g7.json")
 
 
 def _load_data() -> Dict[str, Any]:
@@ -14,6 +15,65 @@ def _load_data() -> Dict[str, Any]:
             return json.load(f)
     except Exception:
         return {}
+
+
+def _load_g7_data() -> Dict[str, Any]:
+    try:
+        with G7_DATA_FILE.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _normalize_publisher(version_text: str) -> str:
+    version = str(version_text or "").strip()
+    aliases = {
+        "康軒版": "康軒",
+        "康軒": "康軒",
+        "翰林版": "翰林",
+        "翰林": "翰林",
+        "南一版": "南一",
+        "南一": "南一",
+    }
+    return aliases.get(version, version.replace("版", "").strip())
+
+
+def _g7_profile_data(user_profile: Dict[str, Any]) -> Dict[str, Any]:
+    if _grade_number(user_profile) != "7":
+        return {}
+    data = _load_g7_data()
+    publisher = _normalize_publisher(user_profile.get("version", ""))
+    if not data or publisher not in data.get("publishers", {}):
+        return {}
+    return {
+        "data": data,
+        "publisher": publisher,
+        "semesters": data["publishers"][publisher],
+    }
+
+
+def _g7_all_units(profile_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    result: List[Dict[str, Any]] = []
+    for semester_name, semester_data in profile_data.get("semesters", {}).items():
+        for unit in semester_data.get("units", []):
+            item = dict(unit)
+            item["semester"] = semester_name
+            result.append(item)
+    return result
+
+
+def _g7_find_subunit(
+    profile_data: Dict[str, Any],
+    unit_name: str,
+    subunit_name: str,
+) -> Dict[str, Any]:
+    for unit in _g7_all_units(profile_data):
+        if str(unit.get("name", "")).strip() != unit_name:
+            continue
+        for subunit in unit.get("subunits", []):
+            if str(subunit.get("name", "")).strip() == subunit_name:
+                return subunit
+    return {}
 
 
 def _normalize_grade(grade_text: str) -> str:
@@ -618,6 +678,16 @@ def _all_demo_units(demo: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 def get_unit_names_for_profile(user_profile: Dict[str, Any]) -> List[str]:
     """依年級與版本取得主單元，避免沿用前一個年級的選項。"""
+    g7_profile = _g7_profile_data(user_profile)
+    if g7_profile:
+        result: List[str] = []
+        for unit in _g7_all_units(g7_profile):
+            unit_name = str(unit.get("name", "")).strip()
+            if unit_name and unit_name not in result:
+                result.append(unit_name)
+        if result:
+            return result
+
     demo = _matching_demo(user_profile)
     if demo:
         result: List[str] = []
@@ -658,6 +728,22 @@ def get_subunit_names_for_units(
     selected_unit_names: List[str],
 ) -> List[str]:
     """依主單元回傳真正的次單元；沒有校對資料時回傳空清單。"""
+    g7_profile = _g7_profile_data(user_profile)
+    if g7_profile and selected_unit_names:
+        results: List[str] = []
+        selected_set = set(selected_unit_names)
+        for unit in _g7_all_units(g7_profile):
+            unit_name = str(unit.get("name", "")).strip()
+            if unit_name not in selected_set:
+                continue
+            for subunit in unit.get("subunits", []):
+                subunit_name = str(subunit.get("name", "")).strip()
+                if subunit_name:
+                    label = f"{unit_name} ＞ {subunit_name}"
+                    if label not in results:
+                        results.append(label)
+        return results
+
     demo = _matching_demo(user_profile)
     if demo and selected_unit_names:
         results: List[str] = []
@@ -689,8 +775,26 @@ def get_topic_names_for_subunits(
     selected_subunit_labels: List[str],
 ) -> List[str]:
     """依次單元回傳學習重點；不使用通用假選項。"""
-    demo = _matching_demo(user_profile)
+    g7_profile = _g7_profile_data(user_profile)
     results: List[str] = []
+
+    if g7_profile:
+        core_map = g7_profile["data"].get("core", {})
+        for selected_label in selected_subunit_labels:
+            parts = [part.strip() for part in selected_label.split("＞")]
+            if len(parts) != 2:
+                continue
+            unit_name, subunit_name = parts
+            subunit = _g7_find_subunit(g7_profile, unit_name, subunit_name)
+            for core_id in subunit.get("core_ids", []):
+                core = core_map.get(core_id, {})
+                for concept in core.get("concepts", []):
+                    label = f"{unit_name} ＞ {subunit_name} ＞ {concept}"
+                    if label not in results:
+                        results.append(label)
+        return results
+
+    demo = _matching_demo(user_profile)
 
     if demo:
         selected_set = set(selected_subunit_labels)
@@ -728,8 +832,26 @@ def get_classic_question_type_names_for_units(
     selected_subunit_labels: List[str],
 ) -> List[str]:
     """依次單元回傳細部題型；沒有可靠資料時回傳空清單。"""
-    catalog = _catalog_for_profile(user_profile)
+    g7_profile = _g7_profile_data(user_profile)
     results: List[str] = []
+
+    if g7_profile:
+        core_map = g7_profile["data"].get("core", {})
+        for selected_label in selected_subunit_labels:
+            parts = [part.strip() for part in selected_label.split("＞")]
+            if len(parts) != 2:
+                continue
+            unit_name, subunit_name = parts
+            subunit = _g7_find_subunit(g7_profile, unit_name, subunit_name)
+            for core_id in subunit.get("core_ids", []):
+                core = core_map.get(core_id, {})
+                for type_name in core.get("question_types", []):
+                    label = f"{unit_name} ＞ {subunit_name} ＞ {type_name}"
+                    if label not in results:
+                        results.append(label)
+        return results
+
+    catalog = _catalog_for_profile(user_profile)
     for selected_label in selected_subunit_labels:
         parts = [part.strip() for part in selected_label.split("＞")]
         if len(parts) != 2:
@@ -810,8 +932,192 @@ def _render_classic_type(item: Dict[str, Any], key: str) -> None:
                 st.markdown(f"- **解析：** {solution}")
 
 
+def _render_g7_learning_map(user_profile: Dict[str, Any]) -> bool:
+    profile_data = _g7_profile_data(user_profile)
+    if not profile_data:
+        return False
+
+    data = profile_data["data"]
+    publisher = profile_data["publisher"]
+    semesters = profile_data["semesters"]
+    core_map = data.get("core", {})
+
+    st.subheader("🌳 國一數學學習地圖")
+    st.info(
+        "目前已接入國一三版本正式母表：主單元 → 次單元 → 核心概念 → 常見考法題型。"
+        "本版已加入 164 個題型，並顯示 106～115 會考的保守實證次數、出現年度與歷屆證據。"
+    )
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.metric("目前年級", user_profile.get("grade", "7年級"))
+    with c2:
+        st.metric("教材版本", f"{publisher}版")
+    with c3:
+        st.metric("核心知識點", len(core_map))
+
+    semester_options = [s for s in ("七上", "七下") if s in semesters]
+    if not semester_options:
+        st.warning("這個版本尚未建立國一學期資料。")
+        return True
+
+    semester = st.radio(
+        "選擇學期",
+        semester_options,
+        horizontal=True,
+        key="g7_learning_map_semester",
+    )
+    units = semesters.get(semester, {}).get("units", [])
+    if not units:
+        st.warning("這個學期的主單元資料正在整理中。")
+        return True
+
+    unit_names = [u.get("name", "未命名主單元") for u in units]
+    selected_unit_name = st.selectbox(
+        "選擇主單元",
+        unit_names,
+        key="g7_learning_map_unit",
+    )
+    unit = next(
+        (u for u in units if u.get("name") == selected_unit_name),
+        units[0],
+    )
+
+    st.markdown(f"## {selected_unit_name}")
+    st.caption(
+        f"{data.get('stage', '國一學習地圖第一階段')}｜"
+        "學習紀錄未來會以核心 ID 儲存，不受出版社名稱變動影響。"
+    )
+
+    subunits = unit.get("subunits", [])
+    for index, subunit in enumerate(subunits):
+        section = str(subunit.get("section", "")).strip()
+        sub_name = str(subunit.get("name", "次單元")).strip()
+        title = f"📘 {section} {sub_name}".strip()
+
+        with st.expander(title, expanded=(index == 0)):
+            for core_id in subunit.get("core_ids", []):
+                core = core_map.get(core_id, {})
+                st.markdown(f"**核心 ID：** `{core_id}`")
+                if core.get("core_subunit"):
+                    st.markdown(f"**核心概念：** {core['core_subunit']}")
+                if core.get("curriculum_codes"):
+                    st.markdown(
+                        "**108 課綱碼：** "
+                        + "、".join(core.get("curriculum_codes", []))
+                    )
+                concepts = core.get("concepts", [])
+                if concepts:
+                    st.markdown("**本次單元涵蓋：**")
+                    for concept in concepts:
+                        st.markdown(f"- {concept}")
+
+                question_catalog = core.get("question_type_catalog", [])
+                if question_catalog:
+                    st.markdown("**常見考法題型：**")
+                    for q in question_catalog:
+                        q_name = str(q.get("name", "")).strip()
+                        q_type_id = str(q.get("type_id", "")).strip()
+                        q_category = str(q.get("category", "")).strip()
+                        q_difficulty = str(q.get("difficulty", "")).strip()
+                        q_feature = str(q.get("feature", "")).strip()
+                        q_error = str(q.get("common_error", "")).strip()
+
+                        heading = f"- **{q_name}**"
+                        meta = "｜".join(
+                            x for x in [q_category, q_difficulty] if x
+                        )
+                        if meta:
+                            heading += f"　`{meta}`"
+                        st.markdown(heading)
+
+                        q_diagnostic = str(q.get("diagnostic_clue", "")).strip()
+                        q_skill = str(q.get("skill", "")).strip()
+                        q_principle = str(q.get("principle", "")).strip()
+                        q_frequency = q.get("frequency", {}) or {}
+                        q_evidence = q.get("exam_evidence", []) or []
+
+                        if q_feature:
+                            st.caption(f"出題特徵：{q_feature}")
+                        if q_error:
+                            st.caption(f"常見錯誤：{q_error}")
+                        if q_diagnostic:
+                            st.markdown(f"**🔎 錯誤診斷：** {q_diagnostic}")
+                        if q_skill:
+                            st.markdown(f"**🧭 解題技巧：** {q_skill}")
+                        if q_principle:
+                            st.markdown(f"**🧠 原理原則：** {q_principle}")
+
+                        evidence_count = int(q_frequency.get("evidence_count", 0) or 0)
+                        year_count = int(q_frequency.get("year_count", 0) or 0)
+                        signal = str(q_frequency.get("signal", "")).strip()
+                        years = q_frequency.get("years", []) or []
+
+                        if evidence_count > 0:
+                            year_text = "、".join(str(y) for y in years)
+                            st.markdown(
+                                f"**📊 106～115 會考實證：** "
+                                f"至少 {evidence_count} 題／{year_count} 個年度"
+                                + (f"｜**{signal}**" if signal else "")
+                            )
+                            if year_text:
+                                st.caption(f"明確掛標年度：{year_text}")
+
+                            if q_evidence:
+                                with st.expander("查看歷屆試題證據", expanded=False):
+                                    for ev in q_evidence:
+                                        ev_year = ev.get("year", "")
+                                        ev_q = ev.get("question", "")
+                                        ev_summary = ev.get("summary", "")
+                                        ev_conf = ev.get("confidence", "")
+                                        st.markdown(
+                                            f"- **{ev_year} {ev_q}**"
+                                            + (f"　`掛標信心：{ev_conf}`" if ev_conf else "")
+                                        )
+                                        if ev_summary:
+                                            st.caption(ev_summary)
+                        else:
+                            st.caption(
+                                "📊 十年實證：目前尚無明確掛標；"
+                                "不代表未考過，可能屬跨單元或尚未完成精確掛標。"
+                            )
+
+                        if q_type_id:
+                            st.caption(f"題型 ID：{q_type_id}")
+                elif core.get("question_types"):
+                    st.markdown(
+                        "**常見考法題型：** "
+                        + "、".join(core.get("question_types", []))
+                    )
+                else:
+                    st.caption("常見考法題型：資料整理中")
+
+                # 題型資料已逐題顯示解題技巧與原理原則時，
+                # 不再把整個次單元的所有技巧／原理於底部重複串成一大段。
+                # 舊資料沒有題型明細時，才保留核心層摘要。
+                if not question_catalog:
+                    if core.get("skills"):
+                        st.markdown(
+                            "**解題技巧：** "
+                            + "、".join(core.get("skills", []))
+                        )
+                    if core.get("principles"):
+                        st.markdown(
+                            "**原理原則：** "
+                            + "、".join(core.get("principles", []))
+                        )
+
+    st.success(
+        "✅ 目前這張國一地圖已直接使用 Excel 母表轉出的 learning_map_g7.json。"
+    )
+    return True
+
+
 def render_learning_map(user_profile: Dict[str, Any], is_trial: bool = False) -> None:
-    """顯示輕量版學習地圖、重點提示、例題與五題題組入口。"""
+    """依學生年級與版本顯示學習地圖。"""
+    if _render_g7_learning_map(user_profile):
+        return
+
     st.subheader("🌳 學習地圖")
     st.info(
         "依照學生的年級與版本顯示主單元、次單元、重點提示、例題與經典題型。"
