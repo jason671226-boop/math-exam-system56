@@ -5154,7 +5154,7 @@ elif st.session_state["setup_complete"]:
                 st.warning("初始診斷 Pilot 模組尚未載入。")
             st.markdown("---")
 
-        if not is_trial:
+        if not is_trial and not st.session_state.get("developer_mode", False):
             diag_profile = st.session_state["user_profile"]
             diag_email = diag_profile.get("email", "")
             diag_credits = diag_profile.get("credits", 0)
