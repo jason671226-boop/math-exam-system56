@@ -5,8 +5,8 @@ def get_user_points(supabase, user_id):
     try:
         res = supabase.table("profiles").select("points").eq("id", user_id).single().execute()
         return res.data.get("points", 0) if res.data else 0
-    except Exception as e:
-        st.error(f"查詢點數失敗: {e}")
+    except Exception:
+        st.error("查詢點數失敗，請稍後再試。")
         return 0
 
 def deduct_user_points(supabase, user_id, points_to_deduct, reason="試卷產出"):
@@ -26,5 +26,5 @@ def deduct_user_points(supabase, user_id, points_to_deduct, reason="試卷產出
             "description": reason
         }).execute()
         return True, new_points
-    except Exception as e:
-        return False, f"扣點失敗: {e}"
+    except Exception:
+        return False, "扣點失敗，請稍後再試。"

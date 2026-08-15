@@ -350,7 +350,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-APP_VERSION = "v0.8.7.1"
+APP_VERSION = "v0.8.7.2"
 APP_DIR = Path(__file__).resolve().parent
 LOCAL_EMAILS_FILE = APP_DIR / "recent_emails.json"
 LINE_PAY_QR_FILE = APP_DIR / "line_pay_qr.jpg"
@@ -974,8 +974,8 @@ def render_private_beta_auth_login():
                 st.session_state["private_beta_auth_email"] = normalized
                 st.session_state["private_beta_otp_sent"] = True
                 st.success("驗證信已寄出；請輸入信中的一次性驗證碼。")
-            except AuthFlowError as exc:
-                st.error(str(exc))
+            except AuthFlowError:
+                st.error("驗證信目前無法寄出；請確認 Email 格式與 Private Beta 資格後再試。")
 
         if st.session_state.get("private_beta_otp_sent"):
             with st.form("private_beta_verify_otp_form"):
@@ -1011,8 +1011,8 @@ def render_private_beta_auth_login():
                         ),
                     )
                     st.rerun()
-                except (AuthFlowError, LearningIdentityError) as exc:
-                    st.error(str(exc))
+                except (AuthFlowError, LearningIdentityError):
+                    st.error("登入驗證失敗；請確認驗證碼與 Private Beta 學生授權後再試。")
 
 # ==========================================
 # v0.7.0 資料架構規則
@@ -1442,8 +1442,8 @@ def send_exam_email(target_email, exam_content):
                 server.login(SMTP_USER, SMTP_PASSWORD)
                 server.send_message(msg)
             return True
-        except Exception as e:
-            st.error(f"❌ 郵件寄送失敗：{e}")
+        except Exception:
+            st.error("❌ 郵件寄送失敗，請稍後再試。")
             return False
     else:
         st.warning("⚠️ 系統後台尚未設定 SMTP 郵件發送金鑰！")
@@ -2624,8 +2624,8 @@ with st.sidebar:
                             st.session_state["wallet_last_message"] = (
                                 "✅ 感謝回饋！您的寶貴建議已成功傳送，並為您存入 20 點！"
                             )
-                    except Exception as e:
-                        st.error(f"傳送失敗：{e}")
+                    except Exception:
+                        st.error("傳送失敗，請稍後再試。")
                     else:
                         if st.session_state.get("feedback_today_done", False):
                             st.rerun()
@@ -2834,8 +2834,8 @@ with st.sidebar:
                                         status_text.text(f"🔄 處理進度：{min(i + batch_size, total_valid)} / {total_valid} 筆完成")
                                         
                                     st.success(f"✅ 恭喜！成功將 {success_count} 筆題目匯入 `item_bank`！")
-                            except Exception as e:
-                                st.error(f"錯誤：{e}")
+                            except Exception:
+                                st.error("匯入失敗，請確認檔案格式後再試。")
 
 def render_math_content(content_text):
     """Render mixed Markdown + HTML while letting Streamlit display math cleanly."""
