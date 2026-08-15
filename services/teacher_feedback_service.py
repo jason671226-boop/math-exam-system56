@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping, Protocol
 from uuid import UUID
 
@@ -29,7 +29,12 @@ class TeacherFeedback:
 
 class TeacherFeedbackRepository(Protocol):
     def create(self, feedback: TeacherFeedback) -> TeacherFeedback: ...
-    def list_for_student(self, student_id: str, limit: int = 20) -> tuple[TeacherFeedback, ...]: ...
+    def list_for_student(
+        self,
+        student_id: str,
+        limit: int = 20,
+        profile_id: str | None = None,
+    ) -> tuple[TeacherFeedback, ...]: ...
 
 
 def _uuid(value: Any, field: str) -> str:
@@ -110,6 +115,57 @@ def create_teacher_feedback(
         raise TeacherFeedbackError("teacher feedback could not be saved") from exc
 
 
+def create_teacher_feedback_once(
+    repository: TeacherFeedbackRepository,
+    *,
+    duplicate_window_seconds: int = 30,
+    **values: Any,
+) -> tuple[TeacherFeedback, bool]:
+    """Avoid a repeated UI submit without changing or bypassing persistence rules."""
+    candidate = TeacherFeedback(
+        id="",
+        student_id=str(values.get("student_id") or ""),
+        recorded_by=str(values.get("recorded_by") or ""),
+        profile_id=str(values.get("profile_id") or "").strip(),
+        scope_type=str(values.get("scope_type") or ""),
+        feedback_text=str(values.get("feedback_text") or "").strip(),
+        recommendation=str(values.get("recommendation") or "").strip(),
+        knowledge_point_id=values.get("knowledge_point_id"),
+        thinking_skill_id=values.get("thinking_skill_id"),
+        created_at=datetime.now(timezone.utc).isoformat(),
+    )
+    validate_feedback(
+        candidate,
+        knowledge_ids=values.get("knowledge_ids"),
+        thinking_ids=values.get("thinking_ids"),
+    )
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=max(0, duplicate_window_seconds))
+    try:
+        recent = repository.list_for_student(
+            candidate.student_id,
+            limit=10,
+            profile_id=candidate.profile_id,
+        )
+    except Exception as exc:
+        raise TeacherFeedbackError("teacher feedback could not be checked") from exc
+    for row in recent:
+        try:
+            created_at = datetime.fromisoformat(row.created_at.replace("Z", "+00:00"))
+        except (TypeError, ValueError):
+            continue
+        comparable = (
+            row.recorded_by == candidate.recorded_by
+            and row.scope_type == candidate.scope_type
+            and row.feedback_text.strip() == candidate.feedback_text
+            and row.recommendation.strip() == candidate.recommendation
+            and row.knowledge_point_id == candidate.knowledge_point_id
+            and row.thinking_skill_id == candidate.thinking_skill_id
+        )
+        if comparable and created_at >= cutoff:
+            return row, False
+    return create_teacher_feedback(repository, **values), True
+
+
 class SessionTeacherFeedbackRepository:
     ROOT_KEY = "teacher_feedback_v1"
 
@@ -123,8 +179,18 @@ class SessionTeacherFeedbackRepository:
         rows.append(stored)
         return stored
 
-    def list_for_student(self, student_id: str, limit: int = 20) -> tuple[TeacherFeedback, ...]:
-        rows = [row for row in self.state.setdefault(self.ROOT_KEY, []) if row.student_id == student_id]
+    def list_for_student(
+        self,
+        student_id: str,
+        limit: int = 20,
+        profile_id: str | None = None,
+    ) -> tuple[TeacherFeedback, ...]:
+        rows = [
+            row
+            for row in self.state.setdefault(self.ROOT_KEY, [])
+            if row.student_id == student_id
+            and (profile_id is None or row.profile_id == profile_id)
+        ]
         return tuple(sorted(rows, key=lambda row: row.created_at, reverse=True)[:limit])
 
 
@@ -169,14 +235,17 @@ class SupabaseTeacherFeedbackRepository:
             raise TeacherFeedbackError("teacher feedback write was not confirmed")
         return self._from_row(rows[0])
 
-    def list_for_student(self, student_id: str, limit: int = 20) -> tuple[TeacherFeedback, ...]:
+    def list_for_student(
+        self,
+        student_id: str,
+        limit: int = 20,
+        profile_id: str | None = None,
+    ) -> tuple[TeacherFeedback, ...]:
         _uuid(student_id, "student_id")
-        response = (
-            self.client.table("teacher_feedback")
-            .select("*")
-            .eq("student_id", student_id)
-            .order("created_at", desc=True)
-            .limit(limit)
-            .execute()
-        )
+        query = self.client.table("teacher_feedback").select("*").eq("student_id", student_id)
+        if profile_id is not None:
+            if not profile_id.strip():
+                raise TeacherFeedbackError("profile_id is required")
+            query = query.eq("profile_id", profile_id)
+        response = query.order("created_at", desc=True).limit(limit).execute()
         return tuple(self._from_row(row) for row in (getattr(response, "data", None) or []))

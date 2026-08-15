@@ -14,6 +14,9 @@ import base64
 import hashlib
 from pathlib import Path
 
+from math_output import MATH_OUTPUT_RULES, normalize_math_markdown
+from image_input import collect_image_inputs, image_bytes, load_rgb_image
+
 # 學習地圖模組（MVP）
 try:
     from learning_map import (
@@ -39,14 +42,6 @@ try:
 except ImportError:
     render_diagnostic_pilot = None
     DIAGNOSTIC_PILOT_AVAILABLE = False
-
-# Private Beta：教師回饋 + 家長報告。
-try:
-    from teacher_parent_beta_ui import render_private_beta_feedback_and_parent_report
-    PRIVATE_BETA_REPORT_AVAILABLE = True
-except ImportError:
-    render_private_beta_feedback_and_parent_report = None
-    PRIVATE_BETA_REPORT_AVAILABLE = False
 
 try:
     from services.auth_service import (
@@ -504,15 +499,13 @@ def get_profile_control(email):
     if not email or email == "trial@example.com":
         return control
 
-    if supabase_client:
+    account_client = _authenticated_account_client()
+    if account_client:
         try:
-            result = supabase_client.rpc(
-                "mathai_profile_get_v070",
-                {"p_email": email},
-            ).execute()
+            result = account_client.rpc("mathai_private_profile_get").execute()
             rows = result.data or []
             row = rows[0] if isinstance(rows, list) and rows else rows
-            if isinstance(row, dict) and bool(row.get("found", False)):
+            if isinstance(row, dict) and row and bool(row.get("found", True)):
                 control.update({
                     "_found": True,
                     "email": email,
@@ -622,11 +615,12 @@ def save_profile_control(control):
         ),
     }
 
-    if supabase_client:
+    account_client = _authenticated_account_client()
+    if account_client:
         try:
-            result = supabase_client.rpc(
-                "mathai_profile_save_v070",
-                payload,
+            payload.pop("p_email", None)
+            result = account_client.rpc(
+                "mathai_private_profile_save", payload
             ).execute()
             saved = bool(result.data)
             if saved:
@@ -906,6 +900,15 @@ def get_private_beta_auth_client(create_if_missing=True):
     return client
 
 
+def _authenticated_account_client():
+    """Use only the signed-in per-session client for profile and wallet RPCs."""
+    if not st.session_state.get("private_beta_auth_user_id"):
+        return None
+    if not st.session_state.get("private_beta_student_id"):
+        return None
+    return get_private_beta_auth_client(create_if_missing=False)
+
+
 def current_learning_runtime():
     """Compose persistence once from the current authenticated client and ownership."""
     client = get_private_beta_auth_client(create_if_missing=False)
@@ -920,6 +923,8 @@ def clear_private_beta_auth_session():
 def apply_private_beta_identity(email, student_id, auth_user_id):
     """Load legacy profile metadata while keeping UUID ownership authoritative."""
     verified_email = normalize_email(email)
+    st.session_state["private_beta_auth_user_id"] = auth_user_id
+    st.session_state["private_beta_student_id"] = student_id
     clear_profile_widget_state(verified_email)
     db_profile = build_complete_user_profile(verified_email)
     if db_profile:
@@ -931,7 +936,6 @@ def apply_private_beta_identity(email, student_id, auth_user_id):
         st.session_state["profile_load_notice"] = "new"
         st.session_state["is_new_account_registration"] = True
     st.session_state["user_profile"]["id"] = student_id
-    st.session_state["private_beta_auth_user_id"] = auth_user_id
     st.session_state["developer_mode"] = False
     st.session_state["is_trial"] = False
     st.session_state["wallet_synced_email"] = ""
@@ -1516,7 +1520,7 @@ def wallet_lookup(email):
     """只讀 Supabase 正式錢包，不使用 Session 猜測餘額。"""
     email = normalize_email(email)
     if (
-        not supabase_client
+        not _authenticated_account_client()
         or not email
         or email == "trial@example.com"
         or is_local_developer_session(email)
@@ -1524,9 +1528,8 @@ def wallet_lookup(email):
         return None
 
     try:
-        result = supabase_client.rpc(
-            "mathai_wallet_lookup_v070",
-            {"p_email": email},
+        result = _authenticated_account_client().rpc(
+            "mathai_private_wallet_lookup"
         ).execute()
         rows = result.data or []
         row = rows[0] if isinstance(rows, list) and rows else rows
@@ -1548,7 +1551,7 @@ def wallet_bootstrap(email, is_new_account=False):
     """由 Supabase 決定首次錢包餘額；Session 不參與初始化。"""
     email = normalize_email(email)
     if (
-        not supabase_client
+        not _authenticated_account_client()
         or not email
         or email == "trial@example.com"
         or is_local_developer_session(email)
@@ -1556,12 +1559,8 @@ def wallet_bootstrap(email, is_new_account=False):
         return None
 
     try:
-        result = supabase_client.rpc(
-            "mathai_wallet_bootstrap_v070",
-            {
-                "p_email": email,
-                "p_is_new_account": bool(is_new_account),
-            },
+        result = _authenticated_account_client().rpc(
+            "mathai_private_wallet_bootstrap"
         ).execute()
         rows = result.data or []
         row = rows[0] if isinstance(rows, list) and rows else rows
@@ -1576,11 +1575,6 @@ def wallet_bootstrap(email, is_new_account=False):
         st.session_state["user_profile"]["credits"] = credits
         st.session_state["wallet_synced_email"] = email
 
-        pending_applied = int(row.get("pending_applied") or 0)
-        if pending_applied > 0:
-            st.session_state["wallet_last_message"] = (
-                f"🎁 已自動補入待領取點數 {pending_applied} 點。"
-            )
         return credits
     except Exception as exc:
         st.session_state["wallet_rpc_debug"] = str(exc)
@@ -1598,22 +1592,20 @@ def wallet_adjust(
     email = normalize_email(email)
     delta = int(delta or 0)
     if (
-        not supabase_client
+        not _authenticated_account_client()
         or not email
         or email == "trial@example.com"
-        or delta == 0
+        or delta >= 0
         or is_local_developer_session(email)
     ):
         return False, None, "無法處理點數異動。"
 
     try:
-        result = supabase_client.rpc(
-            "mathai_wallet_adjust_v070",
+        result = _authenticated_account_client().rpc(
+            "mathai_private_wallet_debit",
             {
-                "p_email": email,
-                "p_delta": delta,
-                "p_reason": str(reason or "manual_adjustment"),
-                "p_reference_type": str(reference_type or ""),
+                "p_amount": -delta,
+                "p_reason": str(reason or "ai_usage_charge"),
                 "p_reference_id": str(reference_id or ""),
             },
         ).execute()
@@ -1622,7 +1614,7 @@ def wallet_adjust(
         if isinstance(row, dict):
             success = bool(row.get("success", False))
             balance = row.get("new_balance")
-            message = str(row.get("message") or "")
+            message = "" if success else "點數不足或請求已拒絕。"
             if balance is not None:
                 balance = int(balance)
                 if (
@@ -2832,24 +2824,6 @@ with st.sidebar:
                             except Exception as e:
                                 st.error(f"錯誤：{e}")
 
-def normalize_math_markdown(content_text):
-    """Normalize common Gemini LaTeX delimiters for Streamlit/KaTeX rendering."""
-    text = str(content_text or "")
-    text = re.sub(
-        r"\\\[(.*?)\\\]",
-        lambda m: "$$\n" + m.group(1).strip() + "\n$$",
-        text,
-        flags=re.DOTALL,
-    )
-    text = re.sub(
-        r"\\\((.*?)\\\)",
-        lambda m: "$" + m.group(1).strip() + "$",
-        text,
-        flags=re.DOTALL,
-    )
-    return text
-
-
 def render_math_content(content_text):
     """Render mixed Markdown + HTML while letting Streamlit display math cleanly."""
     st.markdown(normalize_math_markdown(content_text), unsafe_allow_html=True)
@@ -3054,7 +3028,7 @@ COMMON_LAYOUT_PROMPT = (
 LAYOUT_WITH_ANALYSIS = (
     "【★★★ 極度重要：排版與解答格式強制規定 ★★★】\n"
     "請嚴格套用以下結構輸出，使用繁體中文，絕對不可輸出無關說明、思考過程或英文標籤：\n"
-    "所有數學式請用可讀數學符號；需要 LaTeX 時，行內一律用 $...$，獨立公式用 $$...$$，不可裸露 \\frac、\\sqrt 等指令，也不要使用 \\(...\\) 或 \\[...\\]。\n\n"
+    f"{MATH_OUTPUT_RULES}\n\n"
     "## 錯題詳細解析\n"
     "（請針對上方【錯題內容】中的每一道原始題目，精準算出並列出：「正確答案」與「詳細解題步驟與觀念解說」。）\n\n"
     "<div class=\"page-break\" style=\"page-break-after: always; break-after: page;\"></div>\n\n"
@@ -3069,7 +3043,7 @@ LAYOUT_WITH_ANALYSIS = (
 LAYOUT_NORMAL = (
     "【★★★ 極度重要：排版與解答格式強制規定 ★★★】\n"
     "請你嚴格套用以下結構進行輸出，不可隨意省略、不可把解答寫在題目旁邊：\n"
-    "所有數學式請用可讀數學符號；需要 LaTeX 時，行內一律用 $...$，獨立公式用 $$...$$，不可裸露 \\frac、\\sqrt 等指令，也不要使用 \\(...\\) 或 \\[...\\]。\n\n"
+    f"{MATH_OUTPUT_RULES}\n\n"
     "## 試卷區\n"
     "（在這裡列出所有的題目，絕對不能附上任何解答或提示！）\n"
     "（注意：除了「是非題」之外，『每一道題目』的最下方，必須強制加上 5 個換行標籤 <br><br><br><br><br> 讓學生作答寫字）\n\n"
@@ -4465,13 +4439,19 @@ elif st.session_state["setup_complete"]:
             st.caption("手機可直接開啟相機拍攝；如有第二頁，可再拍第二張（選填）。")
             camera_file_1 = st.camera_input("📷 拍攝錯題照片", key="scan_camera_1")
             camera_file_2 = st.camera_input("📷 拍攝第二張（選填）", key="scan_camera_2")
-            uploaded_files = [f for f in (camera_file_1, camera_file_2) if f is not None]
+            uploaded_files = collect_image_inputs(
+                (camera_file_1, camera_file_2),
+                limit=2,
+            )
         else:
-            uploaded_files = st.file_uploader(
-                "📂 上傳錯題照片 (最多支援 2 張)",
-                type=["jpg", "png", "jpeg"],
-                accept_multiple_files=True,
-                key="scan_file_upload",
+            uploaded_files = collect_image_inputs(
+                st.file_uploader(
+                    "📂 上傳錯題照片 (最多支援 2 張)",
+                    type=["jpg", "png", "jpeg"],
+                    accept_multiple_files=True,
+                    key="scan_file_upload",
+                ),
+                limit=2,
             )
 
         valid_files = uploaded_files
@@ -4527,9 +4507,9 @@ elif st.session_state["setup_complete"]:
             # 圖片採上下排列，手機與電腦皆較容易操作。
             for idx, img_f in enumerate(valid_files):
                 st.caption(f"錯題照片 {idx + 1}")
-                image_bytes = img_f.getvalue()
-                image_id = hashlib.sha256(image_bytes).hexdigest()[:16]
-                raw_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+                source_bytes = image_bytes(img_f)
+                image_id = hashlib.sha256(source_bytes).hexdigest()[:16]
+                raw_img = load_rgb_image(img_f)
 
                 if enable_image_fix and PIL_AVAILABLE:
                     enhancer = ImageEnhance.Contrast(raw_img)
@@ -4724,7 +4704,7 @@ elif st.session_state["setup_complete"]:
                     prompt = (
                         "你是一個資深的數學老師與考卷辨識專家。\n"
                         "請精準辨識圖片中的數學題目，保留完整公式與符號。\n"
-                        "一般運算請直接使用可讀符號（×、÷、±、√、≤、≥、≠、°）。若公式必須使用 LaTeX，行內請用 $...$ 包住，獨立公式用 $$...$$；不得裸露 \\frac、\\sqrt 等程式碼。\n"
+                        f"{MATH_OUTPUT_RULES}\n"
                         "若圖片上有使用者後加的紅色圈選、方框、畫線或打叉，請將被標記的題目視為最高優先。\n"
                         "優先擷取有紅筆加註、留白、打叉或訂正痕跡的題目。\n"
                         "打勾（✓）通常代表答對，請不要列入。\n"
@@ -4735,7 +4715,7 @@ elif st.session_state["setup_complete"]:
                     prompt = (
                         "你是一個資深的數學老師與考卷辨識專家。\n"
                         "請精準辨識圖片中的數學題目，保留完整公式與符號。\n"
-                        "一般運算請直接使用可讀符號（×、÷、±、√、≤、≥、≠、°）。若公式必須使用 LaTeX，行內請用 $...$ 包住，獨立公式用 $$...$$；不得裸露 \\frac、\\sqrt 等程式碼。\n"
+                        f"{MATH_OUTPUT_RULES}\n"
                         "若圖片上有使用者後加的紅色圈選、方框、畫線或打叉，請將被標記的題目視為最高優先。\n"
                         "只擷取有紅筆加註、留白或打叉（X）的題目。\n"
                         "打勾（✓）代表答對，請絕對不要列入。\n"
@@ -4747,7 +4727,11 @@ elif st.session_state["setup_complete"]:
                     prompt += "這是試用請求，最多擷取 5 道符合條件的題目。\n"
 
                 contents = [prompt]
-                images_to_send = annotated_images if annotated_images else [Image.open(f).convert("RGB") for f in files]
+                images_to_send = (
+                    annotated_images
+                    if annotated_images
+                    else [load_rgb_image(f) for f in files]
+                )
                 for image in images_to_send:
                     contents.append(image.convert("RGB"))
 
@@ -5374,15 +5358,7 @@ elif st.session_state["setup_complete"]:
                     render_diagnostic_pilot()
             else:
                 st.warning("初始診斷 Pilot 模組尚未載入。")
-            st.markdown("---")
-            if PRIVATE_BETA_REPORT_AVAILABLE and render_private_beta_feedback_and_parent_report is not None:
-                render_private_beta_feedback_and_parent_report(
-                    user_profile=st.session_state["user_profile"],
-                    learning_runtime=learning_runtime,
-                    auth_client=get_private_beta_auth_client(create_if_missing=False),
-                )
-            else:
-                st.warning("Private Beta 教師回饋／家長報告模組尚未載入。")
+            st.info("完成診斷後，請前往「個人學習地圖」查看學習地圖、老師回饋與家長報告。")
             st.markdown("---")
             st.stop()
 
@@ -5395,15 +5371,7 @@ elif st.session_state["setup_complete"]:
                 )
             else:
                 st.warning("診斷模組目前無法載入，請稍後再試。")
-            st.markdown("---")
-            if PRIVATE_BETA_REPORT_AVAILABLE and render_private_beta_feedback_and_parent_report is not None:
-                render_private_beta_feedback_and_parent_report(
-                    user_profile=st.session_state["user_profile"],
-                    learning_runtime=learning_runtime,
-                    auth_client=get_private_beta_auth_client(create_if_missing=False),
-                )
-            else:
-                st.warning("Private Beta 教師回饋／家長報告模組尚未載入。")
+            st.info("完成診斷後，請前往「個人學習地圖」查看學習地圖、老師回饋與家長報告。")
             st.markdown("---")
 
         if (

@@ -65,11 +65,7 @@ def _diagnostic_summary(attempts: Sequence[DiagnosticAttempt]) -> dict[str, Any]
 
 
 def _knowledge_reason(snapshot: MasterySnapshot) -> str:
-    return (
-        f"目前狀態為 {snapshot.mastery_status.value}，mastery {snapshot.mastery_score:.1f}，"
-        f"confidence {snapshot.confidence:.2f}，累積 {snapshot.evidence_count} 筆證據。"
-    )
-
+    return f"目前累積 {snapshot.evidence_count} 次學習證據，答題穩定度仍在建立。"
 
 def _knowledge_priorities(
     snapshots: Mapping[str, MasterySnapshot],
@@ -127,8 +123,7 @@ def _strengths(
             "target_id": item.knowledge_id,
             "name": names.get(item.knowledge_id, item.knowledge_id),
             "reason": (
-                f"已有 {item.evidence_count} 筆累積證據，mastery {item.mastery_score:.1f}，"
-                f"confidence {item.confidence:.2f}。"
+                f"已有 {item.evidence_count} 次累積證據，近期表現較穩定。"
             ),
         }
         for item in ranked
@@ -158,8 +153,7 @@ def _thinking_priorities(
             "confidence": state.confidence,
             "evidence_count": state.evidence_count,
             "reason": (
-                f"目前累積 {state.evidence_count} 筆策略證據，score {state.score_numeric:.1f}，"
-                f"confidence {state.confidence:.2f}；適合繼續建立穩定策略。"
+                f"目前累積 {state.evidence_count} 次解題策略證據，適合繼續建立穩定策略。"
             ),
         }
         for key, state in ranked
@@ -181,6 +175,10 @@ def build_parent_report(
         raise ValueError("diagnostic evidence belongs to another student")
     if any(item.student_id != student_id for item in teacher_feedback):
         raise ValueError("teacher feedback belongs to another student")
+    if any(item.profile != profile for item in diagnostic_attempts):
+        raise ValueError("diagnostic evidence belongs to another profile")
+    if any(item.profile_id != profile for item in teacher_feedback):
+        raise ValueError("teacher feedback belongs to another profile")
 
     knowledge_names = knowledge_names or {}
     thinking_names = thinking_names or {}
@@ -202,8 +200,7 @@ def build_parent_report(
                 priority=len(recommendations) + 1,
                 reason=item["reason"],
                 evidence_summary=(
-                    f"status={item['status']}；evidence={item['evidence_count']}；"
-                    f"weighted_credit={item['weighted_credit']:.2f}"
+                    f"依據 {item['evidence_count']} 次學習紀錄與近期作答結果排序。"
                 ),
                 next_action="先完成一組基礎題，再用一組變形題確認能否獨立轉換策略。",
             )
@@ -216,7 +213,7 @@ def build_parent_report(
                 target=item["target_id"],
                 priority=len(recommendations) + 1,
                 reason=item["reason"],
-                evidence_summary=f"strategy evidence={item['evidence_count']}；confidence={item['confidence']:.2f}",
+                evidence_summary=f"依據 {item['evidence_count']} 次解題策略紀錄排序。",
                 next_action="解題時先口述條件與步驟，完成後再檢查策略是否可套用到變形題。",
             )
         )
@@ -253,4 +250,3 @@ def build_parent_report(
         parent_actions=tuple(actions),
         messages=tuple(messages),
     )
-

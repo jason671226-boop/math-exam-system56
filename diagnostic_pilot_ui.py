@@ -3,11 +3,17 @@ from __future__ import annotations
 from dataclasses import asdict
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
-import io
 import json
 import re
 from uuid import uuid4
 from typing import Any, Mapping, MutableMapping
+
+try:
+    from math_output import MATH_OUTPUT_RULES, normalize_math_markdown
+    from image_input import collect_image_inputs, load_rgb_image
+except ModuleNotFoundError:
+    from app.math_output import MATH_OUTPUT_RULES, normalize_math_markdown
+    from app.image_input import collect_image_inputs, load_rgb_image
 
 try:
     from catalog.diagnostic_loader import (
@@ -575,20 +581,7 @@ def render_question_visualization(st: Any, visualization: str | None) -> bool:
 
 
 def _normalize_math_markdown(value: Any) -> str:
-    text = str(value or "")
-    text = re.sub(
-        r"\\\[(.*?)\\\]",
-        lambda m: "$$\n" + m.group(1).strip() + "\n$$",
-        text,
-        flags=re.DOTALL,
-    )
-    text = re.sub(
-        r"\\\((.*?)\\\)",
-        lambda m: "$" + m.group(1).strip() + "$",
-        text,
-        flags=re.DOTALL,
-    )
-    return text
+    return normalize_math_markdown(value)
 
 
 def _diagnostic_photo_prompt(questions: tuple[DiagnosticQuestion, ...]) -> str:
@@ -613,6 +606,7 @@ def _diagnostic_photo_prompt(questions: tuple[DiagnosticQuestion, ...]) -> str:
         "絕對不要自行計算、推理、猜答案或補上空白題。看不清楚或沒有作答就填空字串。\n"
         "請依下方 question_id 與 sequence 對照題目；只回傳 JSON 物件，不要 Markdown、不要說明。\n"
         "JSON 格式：{\"question_id\": {\"answer\": \"學生答案\"}}；multipart 題依 fields 回傳各欄位。\n"
+        f"{MATH_OUTPUT_RULES}\n"
         "保留學生原本的數學符號；比例可用 4:5，排序可用 <。\n\n"
         "題目清單：\n"
         + json.dumps(question_rows, ensure_ascii=False)
@@ -639,12 +633,9 @@ def _transcribe_diagnostic_answer_images(
     image_files: list[Any],
     questions: tuple[DiagnosticQuestion, ...],
 ) -> dict[str, Any]:
-    from PIL import Image
-
     contents: list[Any] = [_diagnostic_photo_prompt(questions)]
-    for uploaded in image_files[:3]:
-        image = Image.open(io.BytesIO(uploaded.getvalue())).convert("RGB")
-        contents.append(image)
+    for uploaded in collect_image_inputs(image_files, limit=3):
+        contents.append(load_rgb_image(uploaded))
     response = call_gemini_api(contents)
     return _parse_ai_json_object(response)
 
@@ -692,7 +683,7 @@ def _render_photo_answer_controls(st: Any, questions: tuple[DiagnosticQuestion, 
             key="diag_pilot_camera_answer",
         )
         if captured is not None:
-            image_files.append(captured)
+            image_files = collect_image_inputs([captured], limit=1)
     else:
         uploaded = st.file_uploader(
             "上傳作答照片（最多 3 張）",
@@ -700,7 +691,7 @@ def _render_photo_answer_controls(st: Any, questions: tuple[DiagnosticQuestion, 
             accept_multiple_files=True,
             key="diag_pilot_answer_upload",
         )
-        image_files.extend((uploaded or [])[:3])
+        image_files = collect_image_inputs(uploaded, limit=3)
         if uploaded and len(uploaded) > 3:
             st.warning("最多先辨識 3 張，已自動取前 3 張。")
 
