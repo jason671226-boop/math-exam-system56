@@ -1,0 +1,247 @@
+{
+  "schema_version": "1.0",
+  "display_name": "MathAI Grade 5 Prerequisite Diagnostic Baseline v1",
+  "target_profile": "G5_PREREQUISITE_BASELINE",
+  "questions": [
+    {
+      "question_id": "DIAG-G5-001", "schema_version": "1.0", "active": true,
+      "target_profiles": ["G5_PREREQUISITE_BASELINE"], "section": "A_INTEGER_NUMBER_SENSE", "sequence": 1,
+      "prompt": "計算 480－36×7。",
+      "answer_spec": {"type": "numeric", "accepted_answers": ["228"]},
+      "knowledge_points": ["G5-K001"],
+      "primary_thinking_skills": ["TS-DEFINE"], "supporting_thinking_skills": [],
+      "difficulty": {"level": 2, "mastery_band": "basic"}, "expected_time_seconds": 60,
+      "hint_policy": {"allowed": true, "max_hints": 1},
+      "solution": {"summary": "依先乘除後加減的順序計算。", "steps": ["先算 36×7＝252", "再算 480－252＝228"]},
+      "error_type_ids": ["ERR-ORDER-002", "ERR-CALC-001"],
+      "error_rules": [{"type": "answer_equals", "answer": "3108", "error_type_id": "ERR-ORDER-002", "confidence": 0.98}]
+    },
+    {
+      "question_id": "DIAG-G5-002", "schema_version": "1.0", "active": true,
+      "target_profiles": ["G5_PREREQUISITE_BASELINE"], "section": "A_INTEGER_NUMBER_SENSE", "sequence": 2,
+      "prompt": "把 508090、58009、508900、509080 由小到大排列。",
+      "answer_spec": {"type": "ordered_list", "accepted_answers": [["58009", "508090", "508900", "509080"]]},
+      "knowledge_points": ["G5-K002"],
+      "primary_thinking_skills": ["TS-LOGIC"], "supporting_thinking_skills": [],
+      "difficulty": {"level": 2, "mastery_band": "basic"}, "expected_time_seconds": 75,
+      "hint_policy": {"allowed": true, "max_hints": 1},
+      "solution": {"summary": "先比較位數，再由最高位逐位比較。", "steps": ["58009 是唯一五位數，所以最小", "三個六位數由左向右比較得 508090＜508900＜509080"]},
+      "error_type_ids": ["ERR-NUMSENSE-001"], "error_rules": []
+    },
+    {
+      "question_id": "DIAG-G5-003", "schema_version": "1.0", "active": true,
+      "target_profiles": ["G5_PREREQUISITE_BASELINE"], "section": "A_INTEGER_NUMBER_SENSE", "sequence": 3,
+      "prompt": "不做精確計算，估算 398×21 大約是多少？",
+      "answer_spec": {"type": "numeric", "accepted_answers": ["8000"]},
+      "knowledge_points": ["G5-K006"],
+      "primary_thinking_skills": ["TS-ESTIMATE"], "supporting_thinking_skills": [],
+      "difficulty": {"level": 2, "mastery_band": "standard"}, "expected_time_seconds": 60,
+      "hint_policy": {"allowed": true, "max_hints": 1},
+      "solution": {"summary": "用接近且容易計算的數估算。", "steps": ["398 約為 400，21 約為 20", "400×20＝8000"]},
+      "error_type_ids": ["ERR-NUMSENSE-001"], "error_rules": []
+    },
+    {
+      "question_id": "DIAG-G5-004", "schema_version": "1.0", "active": true,
+      "target_profiles": ["G5_PREREQUISITE_BASELINE"], "section": "B_DECIMAL_FRACTION", "sequence": 4,
+      "prompt": "比較 4.08 與 4.8，並回答兩小題。",
+      "answer_spec": {"type": "multipart", "parts": [
+        {"part_id": "larger", "label": "較大的數", "input_label": "較大的數", "answer_type": "numeric", "accepted_answers": ["4.8"], "knowledge_points": ["G5-K003"], "primary_thinking_skills": ["TS-EQUIV"], "supporting_thinking_skills": []},
+        {"part_id": "difference", "label": "兩數之差", "input_label": "兩數之差", "answer_type": "numeric", "accepted_answers": ["0.72"], "knowledge_points": ["G5-K004"], "primary_thinking_skills": ["TS-EQUIV"], "supporting_thinking_skills": []}
+      ]},
+      "knowledge_points": ["G5-K003", "G5-K004"],
+      "primary_thinking_skills": ["TS-EQUIV"], "supporting_thinking_skills": [],
+      "difficulty": {"level": 2, "mastery_band": "basic"}, "expected_time_seconds": 90,
+      "hint_policy": {"allowed": true, "max_hints": 1},
+      "solution": {"summary": "以相同位值比較並相減。", "steps": ["4.8 可寫成 4.80，所以 4.80＞4.08", "4.80－4.08＝0.72"]},
+      "error_type_ids": ["ERR-NUMSENSE-001", "ERR-CALC-001"], "error_rules": []
+    },
+    {
+      "question_id": "DIAG-G5-005", "schema_version": "1.0", "active": true,
+      "target_profiles": ["G5_PREREQUISITE_BASELINE"], "section": "B_DECIMAL_FRACTION", "sequence": 5,
+      "prompt": "計算 2.4×0.5。",
+      "answer_spec": {"type": "numeric", "accepted_answers": ["1.2"]},
+      "knowledge_points": ["G5-K005"],
+      "primary_thinking_skills": ["TS-EQUIV"], "supporting_thinking_skills": [],
+      "difficulty": {"level": 2, "mastery_band": "basic"}, "expected_time_seconds": 60,
+      "hint_policy": {"allowed": true, "max_hints": 1},
+      "solution": {"summary": "乘以 0.5 等於取一半。", "steps": ["0.5＝1/2", "2.4 的一半是 1.2"]},
+      "error_type_ids": ["ERR-NUMSENSE-001", "ERR-CALC-001"], "error_rules": []
+    },
+    {
+      "question_id": "DIAG-G5-006", "schema_version": "1.0", "active": true,
+      "target_profiles": ["G5_PREREQUISITE_BASELINE"], "section": "B_DECIMAL_FRACTION", "sequence": 6,
+      "prompt": "先把 3/4 擴分成分母為 20 的等值分數，再把該分數寫成小數。",
+      "answer_spec": {"type": "multipart", "parts": [
+        {"part_id": "numerator", "label": "擴分後的分子", "input_label": "分母為 20 時的分子", "answer_type": "numeric", "accepted_answers": ["15"], "knowledge_points": ["G5-K202"], "primary_thinking_skills": ["TS-EQUIV"], "supporting_thinking_skills": []},
+        {"part_id": "decimal", "label": "小數", "input_label": "換成小數", "answer_type": "numeric", "accepted_answers": ["0.75"], "knowledge_points": ["G5-K204"], "primary_thinking_skills": ["TS-EQUIV"], "supporting_thinking_skills": []}
+      ]},
+      "knowledge_points": ["G5-K202", "G5-K204"],
+      "primary_thinking_skills": ["TS-EQUIV"], "supporting_thinking_skills": [],
+      "difficulty": {"level": 3, "mastery_band": "standard"}, "expected_time_seconds": 90,
+      "hint_policy": {"allowed": true, "max_hints": 1},
+      "solution": {"summary": "以等值分數連結分數與小數。", "steps": ["3/4＝15/20", "15/20＝75/100＝0.75"]},
+      "error_type_ids": ["ERR-FRAC-003", "ERR-REP-002"], "error_rules": []
+    },
+    {
+      "question_id": "DIAG-G5-007", "schema_version": "1.0", "active": true,
+      "target_profiles": ["G5_PREREQUISITE_BASELINE"], "section": "B_DECIMAL_FRACTION", "sequence": 7,
+      "prompt": "計算 2/3＋1/4，答案請化成最簡分數。",
+      "answer_spec": {"type": "numeric", "accepted_answers": ["11/12"]},
+      "knowledge_points": ["G5-K203"],
+      "primary_thinking_skills": ["TS-EQUIV"], "supporting_thinking_skills": [],
+      "difficulty": {"level": 3, "mastery_band": "standard"}, "expected_time_seconds": 90,
+      "hint_policy": {"allowed": true, "max_hints": 1},
+      "solution": {"summary": "先通分成相同分數單位再相加。", "steps": ["2/3＝8/12，1/4＝3/12", "8/12＋3/12＝11/12"]},
+      "error_type_ids": ["ERR-FRAC-003"],
+      "error_rules": [{"type": "answer_equals", "answer": "3/7", "error_type_id": "ERR-FRAC-003", "confidence": 0.98}]
+    },
+    {
+      "question_id": "DIAG-G5-008", "schema_version": "1.0", "active": true,
+      "target_profiles": ["G5_PREREQUISITE_BASELINE"], "section": "C_FACTORS_MULTIPLES", "sequence": 8,
+      "prompt": "把 24 的所有正因數由小到大排列。",
+      "answer_spec": {"type": "ordered_list", "accepted_answers": [["1", "2", "3", "4", "6", "8", "12", "24"]]},
+      "knowledge_points": ["G5-K101"],
+      "primary_thinking_skills": ["TS-ENUM"], "supporting_thinking_skills": [],
+      "difficulty": {"level": 2, "mastery_band": "basic"}, "expected_time_seconds": 90,
+      "hint_policy": {"allowed": true, "max_hints": 1},
+      "solution": {"summary": "以乘積為 24 的因數配對完整列出。", "steps": ["因數配對為 1×24、2×12、3×8、4×6", "依序為 1、2、3、4、6、8、12、24"]},
+      "error_type_ids": [], "error_rules": []
+    },
+    {
+      "question_id": "DIAG-G5-009", "schema_version": "1.0", "active": true,
+      "target_profiles": ["G5_PREREQUISITE_BASELINE"], "section": "C_FACTORS_MULTIPLES", "sequence": 9,
+      "prompt": "有兩條彩帶分別長 36 公分和 48 公分，要剪成一樣長且沒有剩餘的小段。每小段最長是多少公分？",
+      "answer_spec": {"type": "numeric", "accepted_answers": ["12"]},
+      "knowledge_points": ["G5-K102"],
+      "primary_thinking_skills": ["TS-DEFINE"], "supporting_thinking_skills": [],
+      "difficulty": {"level": 3, "mastery_band": "standard"}, "expected_time_seconds": 90,
+      "hint_policy": {"allowed": true, "max_hints": 1},
+      "solution": {"summary": "等長分割且要求最長，要找最大公因數。", "steps": ["36 與 48 的公因數中最大的是 12", "每段最長 12 公分"]},
+      "error_type_ids": ["ERR-GCDLCM-001"],
+      "error_rules": [{"type": "answer_equals", "answer": "144", "error_type_id": "ERR-GCDLCM-001", "confidence": 0.98}]
+    },
+    {
+      "question_id": "DIAG-G5-010", "schema_version": "1.0", "active": true,
+      "target_profiles": ["G5_PREREQUISITE_BASELINE"], "section": "C_FACTORS_MULTIPLES", "sequence": 10,
+      "prompt": "甲燈每 6 秒亮一次，乙燈每 8 秒亮一次。兩燈現在同時亮，至少再過幾秒會再次同時亮？",
+      "answer_spec": {"type": "numeric", "accepted_answers": ["24"]},
+      "knowledge_points": ["G5-K103"],
+      "primary_thinking_skills": ["TS-DEFINE"], "supporting_thinking_skills": [],
+      "difficulty": {"level": 3, "mastery_band": "standard"}, "expected_time_seconds": 90,
+      "hint_policy": {"allowed": true, "max_hints": 1},
+      "solution": {"summary": "再次同時發生要找最小公倍數。", "steps": ["6 的倍數是 6、12、18、24", "8 的倍數是 8、16、24，所以答案是 24"]},
+      "error_type_ids": ["ERR-GCDLCM-001"],
+      "error_rules": [{"type": "answer_equals", "answer": "2", "error_type_id": "ERR-GCDLCM-001", "confidence": 0.98}]
+    },
+    {
+      "question_id": "DIAG-G5-011", "schema_version": "1.0", "active": true,
+      "target_profiles": ["G5_PREREQUISITE_BASELINE"], "section": "D_QUANTITY_APPLICATION", "sequence": 11,
+      "prompt": "5 本相同的筆記本共 140 元。買 8 本要付多少元？",
+      "answer_spec": {"type": "numeric", "accepted_answers": ["224"]},
+      "knowledge_points": ["G5-K301"],
+      "primary_thinking_skills": ["TS-UNIT"], "supporting_thinking_skills": [],
+      "difficulty": {"level": 2, "mastery_band": "basic"}, "expected_time_seconds": 75,
+      "hint_policy": {"allowed": true, "max_hints": 1},
+      "solution": {"summary": "先求一本的單價，再乘以本數。", "steps": ["一本 140÷5＝28 元", "8 本 28×8＝224 元"]},
+      "error_type_ids": ["ERR-RATIO-002", "ERR-CALC-001"],
+      "error_rules": [{"type": "answer_equals", "answer": "1120", "error_type_id": "ERR-RATIO-002", "confidence": 0.98}]
+    },
+    {
+      "question_id": "DIAG-G5-012", "schema_version": "1.0", "active": true,
+      "target_profiles": ["G5_PREREQUISITE_BASELINE"], "section": "D_QUANTITY_APPLICATION", "sequence": 12,
+      "prompt": "甲、乙兩數的和是 84，甲比乙大 12。回答乙數與甲乙兩數的平均。",
+      "answer_spec": {"type": "multipart", "parts": [
+        {"part_id": "smaller", "label": "乙數", "input_label": "乙數", "answer_type": "numeric", "accepted_answers": ["36"], "knowledge_points": ["G5-K302"], "primary_thinking_skills": ["TS-DIFF"], "supporting_thinking_skills": []},
+        {"part_id": "average", "label": "平均", "input_label": "甲乙平均", "answer_type": "numeric", "accepted_answers": ["42"], "knowledge_points": ["G5-K303"], "primary_thinking_skills": [], "supporting_thinking_skills": []}
+      ]},
+      "knowledge_points": ["G5-K302", "G5-K303"],
+      "primary_thinking_skills": ["TS-DIFF"], "supporting_thinking_skills": [],
+      "difficulty": {"level": 4, "mastery_band": "advanced"}, "expected_time_seconds": 150,
+      "hint_policy": {"allowed": true, "max_hints": 2},
+      "solution": {"summary": "和差關係與平均分別處理。", "steps": ["乙數＝(84－12)÷2＝36", "兩數平均＝84÷2＝42"]},
+      "error_type_ids": ["ERR-RELATION-001", "ERR-CALC-001"], "error_rules": []
+    },
+    {
+      "question_id": "DIAG-G5-013", "schema_version": "1.0", "active": true,
+      "target_profiles": ["G5_PREREQUISITE_BASELINE"], "section": "D_QUANTITY_APPLICATION", "sequence": 13,
+      "prompt": "2.35 公尺等於多少公分？",
+      "answer_spec": {"type": "numeric", "accepted_answers": ["235"]},
+      "knowledge_points": ["G5-K305"],
+      "primary_thinking_skills": ["TS-EQUIV"], "supporting_thinking_skills": [],
+      "difficulty": {"level": 2, "mastery_band": "basic"}, "expected_time_seconds": 60,
+      "hint_policy": {"allowed": true, "max_hints": 1},
+      "solution": {"summary": "公尺換成公分要乘以 100。", "steps": ["1 公尺＝100 公分", "2.35×100＝235 公分"]},
+      "error_type_ids": ["ERR-UNIT-001"],
+      "error_rules": [{"type": "answer_equals", "answer": "0.0235", "error_type_id": "ERR-UNIT-001", "confidence": 0.99}]
+    },
+    {
+      "question_id": "DIAG-G5-014", "schema_version": "1.0", "active": true,
+      "target_profiles": ["G5_PREREQUISITE_BASELINE"], "section": "E_GEOMETRY", "sequence": 14,
+      "prompt": "一個長方形長 12 公分、寬 7 公分。求它的周長與面積。",
+      "answer_spec": {"type": "multipart", "parts": [
+        {"part_id": "perimeter", "label": "周長", "input_label": "周長（公分）", "answer_type": "numeric", "accepted_answers": ["38"], "knowledge_points": ["G5-K401"], "primary_thinking_skills": ["TS-DEFINE"], "supporting_thinking_skills": []},
+        {"part_id": "area", "label": "面積", "input_label": "面積（平方公分）", "answer_type": "numeric", "accepted_answers": ["84"], "knowledge_points": ["G5-K401"], "primary_thinking_skills": ["TS-DEFINE"], "supporting_thinking_skills": []}
+      ]},
+      "knowledge_points": ["G5-K401"],
+      "primary_thinking_skills": ["TS-DEFINE"], "supporting_thinking_skills": [],
+      "difficulty": {"level": 2, "mastery_band": "basic"}, "expected_time_seconds": 105,
+      "hint_policy": {"allowed": true, "max_hints": 1},
+      "solution": {"summary": "周長是邊界總長，面積是內部大小。", "steps": ["周長＝(12＋7)×2＝38 公分", "面積＝12×7＝84 平方公分"]},
+      "error_type_ids": ["ERR-GEO-001", "ERR-GEO-003", "ERR-CALC-001"],
+      "error_rules": [{"type": "answer_equals", "answer": {"perimeter": "84", "area": "38"}, "error_type_id": "ERR-GEO-001", "confidence": 0.99}],
+      "visualization": "rectangle_dimensions"
+    },
+    {
+      "question_id": "DIAG-G5-015", "schema_version": "1.0", "active": true,
+      "target_profiles": ["G5_PREREQUISITE_BASELINE"], "section": "E_GEOMETRY", "sequence": 15,
+      "prompt": "一個平行四邊形與一個三角形的底都是 12 公分，高都是 8 公分。三角形的面積是多少平方公分？",
+      "answer_spec": {"type": "numeric", "accepted_answers": ["48"]},
+      "knowledge_points": ["G5-K402"],
+      "primary_thinking_skills": ["TS-EQUIV"], "supporting_thinking_skills": [],
+      "difficulty": {"level": 3, "mastery_band": "standard"}, "expected_time_seconds": 90,
+      "hint_policy": {"allowed": true, "max_hints": 1},
+      "solution": {"summary": "同底同高的三角形面積是平行四邊形的一半。", "steps": ["底×高＝12×8＝96", "三角形面積＝96÷2＝48"]},
+      "error_type_ids": ["ERR-GEO-005", "ERR-GEO-003"],
+      "error_rules": [{"type": "answer_equals", "answer": "96", "error_type_id": "ERR-GEO-005", "confidence": 0.99}]
+    },
+    {
+      "question_id": "DIAG-G5-016", "schema_version": "1.0", "active": true,
+      "target_profiles": ["G5_PREREQUISITE_BASELINE"], "section": "E_GEOMETRY", "sequence": 16,
+      "prompt": "一個梯形上底 8 公分、下底 14 公分、高 6 公分。從梯形中切去一個底 4 公分、高 6 公分的三角形，剩下圖形的面積是多少平方公分？",
+      "answer_spec": {"type": "numeric", "accepted_answers": ["54"]},
+      "knowledge_points": ["G5-K403", "G5-K402", "G5-K405"],
+      "primary_thinking_skills": ["TS-DRAW"], "supporting_thinking_skills": [],
+      "difficulty": {"level": 4, "mastery_band": "advanced"}, "expected_time_seconds": 150,
+      "hint_policy": {"allowed": true, "max_hints": 2},
+      "solution": {"summary": "先求梯形面積，再扣除三角形面積。", "steps": ["梯形面積＝(8＋14)×6÷2＝66", "三角形面積＝4×6÷2＝12", "剩下面積＝66－12＝54"]},
+      "error_type_ids": ["ERR-GEO-005", "ERR-GEO-003", "ERR-CALC-001"],
+      "error_rules": [{"type": "answer_equals", "answer": "42", "error_type_id": "ERR-GEO-005", "confidence": 0.90}],
+      "visualization": "trapezoid_composite"
+    },
+    {
+      "question_id": "DIAG-G5-017", "schema_version": "1.0", "active": true,
+      "target_profiles": ["G5_PREREQUISITE_BASELINE"], "section": "F_PATTERN_LOGIC", "sequence": 17,
+      "prompt": "數列 3、7、13、21、31，下一個數是多少？",
+      "answer_spec": {"type": "numeric", "accepted_answers": ["43"]},
+      "knowledge_points": ["G5-K501"],
+      "primary_thinking_skills": ["TS-PATTERN"], "supporting_thinking_skills": [],
+      "difficulty": {"level": 4, "mastery_band": "advanced"}, "expected_time_seconds": 120,
+      "hint_policy": {"allowed": true, "max_hints": 1},
+      "solution": {"summary": "相鄰兩項的差依序增加 2。", "steps": ["相鄰差為 4、6、8、10", "下一個差是 12，所以 31＋12＝43"]},
+      "error_type_ids": ["ERR-PATTERN-001"],
+      "error_rules": [{"type": "answer_equals", "answer": "41", "error_type_id": "ERR-PATTERN-001", "confidence": 0.92}]
+    },
+    {
+      "question_id": "DIAG-G5-018", "schema_version": "1.0", "active": true,
+      "target_profiles": ["G5_PREREQUISITE_BASELINE"], "section": "F_PATTERN_LOGIC", "sequence": 18,
+      "prompt": "甲數是奇數，乙數是偶數。下列哪個結果一定是奇數？輸入選項代號：1. 甲＋乙　2. 甲＋甲　3. 乙＋乙",
+      "answer_spec": {"type": "numeric", "accepted_answers": ["1"]},
+      "knowledge_points": ["G5-K104"],
+      "primary_thinking_skills": ["TS-LOGIC"], "supporting_thinking_skills": [],
+      "difficulty": {"level": 2, "mastery_band": "standard"}, "expected_time_seconds": 75,
+      "hint_policy": {"allowed": true, "max_hints": 1},
+      "solution": {"summary": "依奇偶數相加的結構逐項判斷。", "steps": ["奇數＋偶數＝奇數", "奇數＋奇數與偶數＋偶數都是偶數，所以選 1"]},
+      "error_type_ids": [], "error_rules": []
+    }
+  ]
+}

@@ -1,0 +1,657 @@
+{
+  "schema_version": "1.0",
+  "display_name": "MathAI G6 Private-School Diagnostic Baseline v1",
+  "target_profile": "G6_PRIVATE_SCHOOL_PILOT",
+  "notes": [
+    "The Baseline contains eighteen diagnostic items; DIAG-G6-001 through 005 preserve the validated Pilot behavior.",
+    "A wrong answer is evidence, not a permanent student label.",
+    "Primary and supporting Thinking Skills are stored separately."
+  ],
+  "questions": [
+    {
+      "question_id": "DIAG-G6-001",
+      "schema_version": "1.0",
+      "active": true,
+      "target_profiles": [
+        "G6_PRIVATE_SCHOOL_PILOT"
+      ],
+      "section": "A_BASIC",
+      "sequence": 1,
+      "prompt": "計算：84 ÷ [7 - (9 - 6)] + 18 × 3",
+      "answer_spec": {
+        "type": "numeric",
+        "accepted_answers": [
+          "75"
+        ]
+      },
+      "knowledge_points": [
+        "G6-K001"
+      ],
+      "primary_thinking_skills": [
+        "TS-DEFINE"
+      ],
+      "supporting_thinking_skills": [
+        "TS-CHECK"
+      ],
+      "difficulty": {
+        "level": 1,
+        "mastery_band": "basic"
+      },
+      "expected_time_seconds": 90,
+      "hint_policy": {
+        "allowed": true,
+        "max_hints": 2
+      },
+      "solution": {
+        "summary": "先處理括號，再做乘除，最後做加減。",
+        "steps": [
+          "9 - 6 = 3",
+          "7 - 3 = 4",
+          "84 ÷ 4 = 21",
+          "18 × 3 = 54",
+          "21 + 54 = 75"
+        ]
+      },
+      "error_type_ids": [
+        "ERR-ORDER-001",
+        "ERR-ORDER-002",
+        "ERR-CALC-001"
+      ]
+    },
+    {
+      "question_id": "DIAG-G6-002",
+      "schema_version": "1.0",
+      "active": true,
+      "target_profiles": [
+        "G6_PRIVATE_SCHOOL_PILOT"
+      ],
+      "section": "A_BASIC",
+      "sequence": 2,
+      "prompt": "計算：3 1/2 - 5/6 ÷ 1 2/3",
+      "answer_spec": {
+        "type": "numeric",
+        "accepted_answers": [
+          "3"
+        ]
+      },
+      "knowledge_points": [
+        "G6-K003"
+      ],
+      "primary_thinking_skills": [
+        "TS-DEFINE"
+      ],
+      "supporting_thinking_skills": [
+        "TS-EQUIV"
+      ],
+      "difficulty": {
+        "level": 2,
+        "mastery_band": "standard"
+      },
+      "expected_time_seconds": 120,
+      "hint_policy": {
+        "allowed": true,
+        "max_hints": 2
+      },
+      "solution": {
+        "summary": "先把帶分數化成假分數，分數除法改成乘以倒數，再完成減法。",
+        "steps": [
+          "1 2/3 = 5/3",
+          "5/6 ÷ 5/3 = 5/6 × 3/5 = 1/2",
+          "3 1/2 - 1/2 = 3"
+        ]
+      },
+      "error_type_ids": [
+        "ERR-FRAC-001",
+        "ERR-FRAC-002",
+        "ERR-FRAC-003",
+        "ERR-CALC-001"
+      ]
+    },
+    {
+      "question_id": "DIAG-G6-003",
+      "schema_version": "1.0",
+      "active": true,
+      "target_profiles": [
+        "G6_PRIVATE_SCHOOL_PILOT"
+      ],
+      "section": "A_BASIC",
+      "sequence": 3,
+      "prompt": "請將 0.38、3/8、37%、0.365 由小到大排列。",
+      "answer_spec": {
+        "type": "ordered_list",
+        "accepted_answers": [
+          [
+            "0.365",
+            "37%",
+            "3/8",
+            "0.38"
+          ]
+        ]
+      },
+      "knowledge_points": [
+        "G6-K002"
+      ],
+      "primary_thinking_skills": [
+        "TS-EQUIV"
+      ],
+      "supporting_thinking_skills": [
+        "TS-ESTIMATE"
+      ],
+      "difficulty": {
+        "level": 2,
+        "mastery_band": "standard"
+      },
+      "expected_time_seconds": 120,
+      "hint_policy": {
+        "allowed": true,
+        "max_hints": 2
+      },
+      "solution": {
+        "summary": "把不同表示轉成共同基準後比較。",
+        "steps": [
+          "37% = 0.37",
+          "3/8 = 0.375",
+          "0.365 < 0.37 < 0.375 < 0.38"
+        ]
+      },
+      "error_type_ids": [
+        "ERR-REP-001",
+        "ERR-REP-002",
+        "ERR-NUMSENSE-001"
+      ]
+    },
+    {
+      "question_id": "DIAG-G6-004",
+      "schema_version": "1.0",
+      "active": true,
+      "target_profiles": [
+        "G6_PRIVATE_SCHOOL_PILOT"
+      ],
+      "section": "A_BASIC",
+      "sequence": 4,
+      "prompt": "盒子裡紅球與藍球的數量比是 3:5，一共有 64 顆球。如果再放入 8 顆紅球，新的紅球與藍球數量比是多少？",
+      "answer_spec": {
+        "type": "ratio",
+        "accepted_answers": [
+          "4:5"
+        ]
+      },
+      "knowledge_points": [
+        "G6-K101"
+      ],
+      "primary_thinking_skills": [
+        "TS-UNIT"
+      ],
+      "supporting_thinking_skills": [
+        "TS-EQUIV",
+        "TS-READ"
+      ],
+      "difficulty": {
+        "level": 2,
+        "mastery_band": "standard"
+      },
+      "expected_time_seconds": 120,
+      "hint_policy": {
+        "allowed": true,
+        "max_hints": 2
+      },
+      "solution": {
+        "summary": "先由總份數求每一份，再更新紅球數量並化簡新比例。",
+        "steps": [
+          "3 + 5 = 8 份",
+          "64 ÷ 8 = 8",
+          "紅球 24、藍球 40",
+          "紅球增加後為 32",
+          "32:40 = 4:5"
+        ]
+      },
+      "error_type_ids": [
+        "ERR-RATIO-001",
+        "ERR-RATIO-002",
+        "ERR-RATIO-003"
+      ],
+      "error_rules": [
+        {
+          "type": "answer_equals",
+          "answer": "3:5",
+          "error_type_id": "ERR-RATIO-003",
+          "confidence": 0.95
+        }
+      ]
+    },
+    {
+      "question_id": "DIAG-G6-005",
+      "schema_version": "1.0",
+      "active": true,
+      "target_profiles": [
+        "G6_PRIVATE_SCHOOL_PILOT"
+      ],
+      "section": "A_BASIC",
+      "sequence": 5,
+      "prompt": "一個長方形長 12 公分、寬 8 公分。從右上角剪掉一個邊長 3 公分的正方形。請問剩下圖形的面積與周長各是多少？",
+      "answer_spec": {
+        "type": "multipart",
+        "parts": [
+          {
+            "part_id": "area",
+            "label": "面積",
+            "input_label": "面積（平方公分）",
+            "answer_type": "numeric",
+            "accepted_answers": [
+              "87"
+            ],
+            "knowledge_points": [
+              "G6-K201"
+            ],
+            "primary_thinking_skills": [
+              "TS-DEFINE"
+            ],
+            "supporting_thinking_skills": [
+              "TS-DRAW",
+              "TS-CHECK"
+            ]
+          },
+          {
+            "part_id": "perimeter",
+            "label": "周長",
+            "input_label": "周長（公分）",
+            "answer_type": "numeric",
+            "accepted_answers": [
+              "40"
+            ],
+            "knowledge_points": [
+              "G6-K201"
+            ],
+            "primary_thinking_skills": [
+              "TS-DEFINE"
+            ],
+            "supporting_thinking_skills": [
+              "TS-DRAW",
+              "TS-CHECK"
+            ]
+          }
+        ]
+      },
+      "knowledge_points": [
+        "G6-K201"
+      ],
+      "primary_thinking_skills": [
+        "TS-DEFINE"
+      ],
+      "supporting_thinking_skills": [
+        "TS-DRAW",
+        "TS-CHECK"
+      ],
+      "difficulty": {
+        "level": 2,
+        "mastery_band": "standard"
+      },
+      "expected_time_seconds": 150,
+      "hint_policy": {
+        "allowed": true,
+        "max_hints": 2
+      },
+      "solution": {
+        "summary": "面積用原長方形減掉小正方形；周長要沿新的邊界重新判斷。",
+        "steps": [
+          "12 × 8 - 3 × 3 = 87",
+          "原周長 = (12 + 8) × 2 = 40",
+          "少掉兩段 3 公分，同時新增兩段 3 公分，所以周長仍為 40"
+        ]
+      },
+      "error_type_ids": [
+        "ERR-GEO-001",
+        "ERR-GEO-002",
+        "ERR-GEO-003"
+      ],
+      "error_rules": [
+        {
+          "type": "answer_equals",
+          "answer": {
+            "area": "87",
+            "perimeter": "28"
+          },
+          "error_type_id": "ERR-GEO-002",
+          "confidence": 0.95
+        }
+      ],
+      "visualization": "cut_corner_rectangle"
+    },
+    {
+      "question_id": "DIAG-G6-006",
+      "schema_version": "1.0",
+      "active": true,
+      "target_profiles": ["G6_PRIVATE_SCHOOL_PILOT"],
+      "section": "B_NUMBER_SENSE",
+      "sequence": 6,
+      "prompt": "198 × 49 大約是多少？請用合理的估算方式判斷。",
+      "answer_spec": {"type": "numeric", "accepted_answers": ["10000"]},
+      "knowledge_points": ["G6-K004"],
+      "primary_thinking_skills": ["TS-ESTIMATE"],
+      "supporting_thinking_skills": [],
+      "difficulty": {"level": 1, "mastery_band": "basic"},
+      "expected_time_seconds": 60,
+      "hint_policy": {"allowed": true, "max_hints": 1},
+      "solution": {
+        "summary": "先取接近且容易計算的整數，再判斷量級。",
+        "steps": ["198 約為 200", "49 約為 50", "200 × 50 = 10000"]
+      },
+      "error_type_ids": ["ERR-NUMSENSE-001", "ERR-CALC-001"],
+      "error_rules": [
+        {"type": "answer_equals", "answer": "1000", "error_type_id": "ERR-NUMSENSE-001", "confidence": 0.9}
+      ]
+    },
+    {
+      "question_id": "DIAG-G6-007",
+      "schema_version": "1.0",
+      "active": true,
+      "target_profiles": ["G6_PRIVATE_SCHOOL_PILOT"],
+      "section": "B_NUMBER_SENSE",
+      "sequence": 7,
+      "prompt": "利用配對或其他巧算方法，求 1 + 2 + 3 + … + 99 的總和。",
+      "answer_spec": {"type": "numeric", "accepted_answers": ["4950"]},
+      "knowledge_points": ["G6-K005"],
+      "primary_thinking_skills": ["TS-SIMPLIFY"],
+      "supporting_thinking_skills": ["TS-PATTERN", "TS-CHECK"],
+      "difficulty": {"level": 2, "mastery_band": "standard"},
+      "expected_time_seconds": 120,
+      "hint_policy": {"allowed": true, "max_hints": 2},
+      "solution": {
+        "summary": "首尾配對後，每組和相同。",
+        "steps": ["1 + 99 = 100，2 + 98 = 100", "共有 49 組 100，另有中間數 50", "49 × 100 + 50 = 4950"]
+      },
+      "error_type_ids": ["ERR-CALC-001", "ERR-NUMSENSE-001"],
+      "error_rules": [
+        {"type": "answer_equals", "answer": "4900", "error_type_id": "ERR-CALC-001", "confidence": 0.85}
+      ]
+    },
+    {
+      "question_id": "DIAG-G6-008",
+      "schema_version": "1.0",
+      "active": true,
+      "target_profiles": ["G6_PRIVATE_SCHOOL_PILOT"],
+      "section": "C_QUANTITATIVE_RELATIONS",
+      "sequence": 8,
+      "prompt": "6 本相同的筆記本共 270 元。照相同單價購買 14 本，共需多少元？",
+      "answer_spec": {"type": "numeric", "accepted_answers": ["630"]},
+      "knowledge_points": ["G6-K102"],
+      "primary_thinking_skills": ["TS-UNIT"],
+      "supporting_thinking_skills": ["TS-READ", "TS-CHECK"],
+      "difficulty": {"level": 1, "mastery_band": "basic"},
+      "expected_time_seconds": 90,
+      "hint_policy": {"allowed": true, "max_hints": 2},
+      "solution": {
+        "summary": "先求一本的單價，再乘以本數。",
+        "steps": ["270 ÷ 6 = 45", "45 × 14 = 630"]
+      },
+      "error_type_ids": ["ERR-RATIO-002", "ERR-CALC-001"],
+      "error_rules": [
+        {"type": "answer_equals", "answer": "3780", "error_type_id": "ERR-RATIO-002", "confidence": 0.9}
+      ]
+    },
+    {
+      "question_id": "DIAG-G6-009",
+      "schema_version": "1.0",
+      "active": true,
+      "target_profiles": ["G6_PRIVATE_SCHOOL_PILOT"],
+      "section": "C_QUANTITATIVE_RELATIONS",
+      "sequence": 9,
+      "prompt": "兄弟兩人的年齡和是 52 歲，哥哥比弟弟大 8 歲。哥哥今年幾歲？",
+      "answer_spec": {"type": "numeric", "accepted_answers": ["30"]},
+      "knowledge_points": ["G6-K103", "G6-K204"],
+      "primary_thinking_skills": ["TS-DIFF"],
+      "supporting_thinking_skills": ["TS-DRAW", "TS-CHECK"],
+      "difficulty": {"level": 2, "mastery_band": "standard"},
+      "expected_time_seconds": 120,
+      "hint_policy": {"allowed": true, "max_hints": 2},
+      "solution": {
+        "summary": "用和差關係先扣除多出的 8 歲，再平均分配。",
+        "steps": ["52 - 8 = 44", "44 ÷ 2 = 22（弟弟）", "22 + 8 = 30（哥哥）"]
+      },
+      "error_type_ids": ["ERR-RELATION-001", "ERR-CALC-001"],
+      "error_rules": [
+        {"type": "answer_equals", "answer": "22", "error_type_id": "ERR-RELATION-001", "confidence": 0.9}
+      ]
+    },
+    {
+      "question_id": "DIAG-G6-010",
+      "schema_version": "1.0",
+      "active": true,
+      "target_profiles": ["G6_PRIVATE_SCHOOL_PILOT"],
+      "section": "C_QUANTITATIVE_RELATIONS",
+      "sequence": 10,
+      "prompt": "雞和兔共有 20 隻，共有 56 隻腳。兔有幾隻？",
+      "answer_spec": {"type": "numeric", "accepted_answers": ["8"]},
+      "knowledge_points": ["G6-K104"],
+      "primary_thinking_skills": ["TS-ASSUME", "TS-DIFF"],
+      "supporting_thinking_skills": ["TS-TABLE", "TS-CHECK"],
+      "difficulty": {"level": 2, "mastery_band": "standard"},
+      "expected_time_seconds": 150,
+      "hint_policy": {"allowed": true, "max_hints": 2},
+      "solution": {
+        "summary": "先假設全部是雞，再用腳數差推回兔數。",
+        "steps": ["假設 20 隻都是雞，共有 40 隻腳", "實際多 56 - 40 = 16 隻腳", "每把一隻雞換成兔多 2 隻腳", "16 ÷ 2 = 8"]
+      },
+      "error_type_ids": ["ERR-ASSUME-001", "ERR-CALC-001"],
+      "error_rules": [
+        {"type": "answer_equals", "answer": "16", "error_type_id": "ERR-ASSUME-001", "confidence": 0.95}
+      ]
+    },
+    {
+      "question_id": "DIAG-G6-011",
+      "schema_version": "1.0",
+      "active": true,
+      "target_profiles": ["G6_PRIVATE_SCHOOL_PILOT"],
+      "section": "C_QUANTITATIVE_RELATIONS",
+      "sequence": 11,
+      "prompt": "小安原有一些貼紙，送出其中的 1/3 後，又買了 18 張，最後有 50 張。小安原有多少張貼紙？",
+      "answer_spec": {"type": "numeric", "accepted_answers": ["48"]},
+      "knowledge_points": ["G6-K105", "G6-K003"],
+      "primary_thinking_skills": ["TS-BACKWARD"],
+      "supporting_thinking_skills": ["TS-READ", "TS-EQUIV", "TS-CHECK"],
+      "difficulty": {"level": 3, "mastery_band": "advanced"},
+      "expected_time_seconds": 180,
+      "hint_policy": {"allowed": true, "max_hints": 2},
+      "solution": {
+        "summary": "從最後結果逆推，先扣掉後來買的，再還原原數的 2/3。",
+        "steps": ["50 - 18 = 32", "送出 1/3 後剩下原數的 2/3", "32 ÷ 2 × 3 = 48"]
+      },
+      "error_type_ids": ["ERR-BACKWARD-001", "ERR-FRAC-003", "ERR-CALC-001"],
+      "error_rules": [
+        {"type": "answer_equals", "answer": "32", "error_type_id": "ERR-BACKWARD-001", "confidence": 0.9}
+      ]
+    },
+    {
+      "question_id": "DIAG-G6-012",
+      "schema_version": "1.0",
+      "active": true,
+      "target_profiles": ["G6_PRIVATE_SCHOOL_PILOT"],
+      "section": "D_GEOMETRY",
+      "sequence": 12,
+      "prompt": "一個梯形的上底是 10 公分、下底是 16 公分、高是 6 公分。它的面積是多少平方公分？",
+      "answer_spec": {"type": "numeric", "accepted_answers": ["78"]},
+      "knowledge_points": ["G6-K202", "G6-K201"],
+      "primary_thinking_skills": ["TS-DRAW"],
+      "supporting_thinking_skills": ["TS-DEFINE", "TS-CHECK"],
+      "difficulty": {"level": 2, "mastery_band": "standard"},
+      "expected_time_seconds": 120,
+      "hint_policy": {"allowed": true, "max_hints": 2},
+      "solution": {
+        "summary": "可把兩個相同梯形拼成平行四邊形，或直接使用梯形面積公式。",
+        "steps": ["10 + 16 = 26", "26 × 6 ÷ 2 = 78"]
+      },
+      "error_type_ids": ["ERR-GEO-001", "ERR-GEO-003", "ERR-CALC-001"],
+      "error_rules": [
+        {"type": "answer_equals", "answer": "156", "error_type_id": "ERR-GEO-001", "confidence": 0.9}
+      ]
+    },
+    {
+      "question_id": "DIAG-G6-013",
+      "schema_version": "1.0",
+      "active": true,
+      "target_profiles": ["G6_PRIVATE_SCHOOL_PILOT"],
+      "section": "D_GEOMETRY",
+      "sequence": 13,
+      "prompt": "一個三角形的兩個內角分別是 48° 和 67°，第三個內角是多少度？",
+      "answer_spec": {"type": "numeric", "accepted_answers": ["65"]},
+      "knowledge_points": ["G6-K203"],
+      "primary_thinking_skills": ["TS-LOGIC"],
+      "supporting_thinking_skills": ["TS-CHECK"],
+      "difficulty": {"level": 1, "mastery_band": "basic"},
+      "expected_time_seconds": 90,
+      "hint_policy": {"allowed": true, "max_hints": 1},
+      "solution": {
+        "summary": "三角形三內角和是 180°。",
+        "steps": ["48 + 67 = 115", "180 - 115 = 65"]
+      },
+      "error_type_ids": ["ERR-GEO-004", "ERR-CALC-001"],
+      "error_rules": [
+        {"type": "answer_equals", "answer": "115", "error_type_id": "ERR-GEO-004", "confidence": 0.9}
+      ]
+    },
+    {
+      "question_id": "DIAG-G6-014",
+      "schema_version": "1.0",
+      "active": true,
+      "target_profiles": ["G6_PRIVATE_SCHOOL_PILOT"],
+      "section": "C_QUANTITATIVE_RELATIONS",
+      "sequence": 14,
+      "prompt": "甲、乙、丙三條繩子共長 66 公尺。乙的長度是甲的 2 倍，丙比乙長 6 公尺。甲長多少公尺？",
+      "answer_spec": {"type": "numeric", "accepted_answers": ["12"]},
+      "knowledge_points": ["G6-K204", "G6-K103"],
+      "primary_thinking_skills": ["TS-DRAW", "TS-UNIT"],
+      "supporting_thinking_skills": ["TS-READ", "TS-CHECK"],
+      "difficulty": {"level": 3, "mastery_band": "advanced"},
+      "expected_time_seconds": 180,
+      "hint_policy": {"allowed": true, "max_hints": 2},
+      "solution": {
+        "summary": "用線段圖把甲看成 1 份，乙、丙各以甲的份數表示。",
+        "steps": ["甲為 1 份，乙為 2 份，丙為 2 份再加 6", "66 - 6 = 60", "60 ÷ 5 = 12"]
+      },
+      "error_type_ids": ["ERR-RATIO-001", "ERR-RATIO-002", "ERR-CALC-001"],
+      "error_rules": [
+        {"type": "answer_equals", "answer": "15", "error_type_id": "ERR-RATIO-001", "confidence": 0.85}
+      ]
+    },
+    {
+      "question_id": "DIAG-G6-015",
+      "schema_version": "1.0",
+      "active": true,
+      "target_profiles": ["G6_PRIVATE_SCHOOL_PILOT"],
+      "section": "B_NUMBER_SENSE",
+      "sequence": 15,
+      "prompt": "不使用直式計算，利用運算性質計算：25 × 16 × 4。",
+      "answer_spec": {"type": "numeric", "accepted_answers": ["1600"]},
+      "knowledge_points": ["G6-K005", "G6-K001"],
+      "primary_thinking_skills": ["TS-SIMPLIFY"],
+      "supporting_thinking_skills": ["TS-EQUIV", "TS-CHECK"],
+      "difficulty": {"level": 1, "mastery_band": "basic"},
+      "expected_time_seconds": 60,
+      "hint_policy": {"allowed": true, "max_hints": 1},
+      "solution": {
+        "summary": "先交換與結合成容易計算的 25 × 4。",
+        "steps": ["25 × 4 = 100", "100 × 16 = 1600"]
+      },
+      "error_type_ids": ["ERR-CALC-001", "ERR-ORDER-002"],
+      "error_rules": [
+        {"type": "answer_equals", "answer": "400", "error_type_id": "ERR-CALC-001", "confidence": 0.8}
+      ]
+    },
+    {
+      "question_id": "DIAG-G6-016",
+      "schema_version": "1.0",
+      "active": true,
+      "target_profiles": ["G6_PRIVATE_SCHOOL_PILOT"],
+      "section": "E_PATTERN_LOGIC",
+      "sequence": 16,
+      "prompt": "觀察數列 2、6、12、20、30，下一個數是多少？",
+      "answer_spec": {"type": "numeric", "accepted_answers": ["42"]},
+      "knowledge_points": ["G6-K105"],
+      "primary_thinking_skills": ["TS-PATTERN"],
+      "supporting_thinking_skills": ["TS-TABLE", "TS-CHECK"],
+      "difficulty": {"level": 2, "mastery_band": "standard"},
+      "expected_time_seconds": 120,
+      "hint_policy": {"allowed": true, "max_hints": 2},
+      "solution": {
+        "summary": "相鄰兩數的差依序增加 2。",
+        "steps": ["相鄰差為 4、6、8、10", "下一個差為 12", "30 + 12 = 42"]
+      },
+      "error_type_ids": ["ERR-PATTERN-001", "ERR-NUMSENSE-001", "ERR-CALC-001"],
+      "error_rules": [
+        {"type": "answer_equals", "answer": "40", "error_type_id": "ERR-PATTERN-001", "confidence": 0.85}
+      ]
+    },
+    {
+      "question_id": "DIAG-G6-017",
+      "schema_version": "1.0",
+      "active": true,
+      "target_profiles": ["G6_PRIVATE_SCHOOL_PILOT"],
+      "section": "E_PATTERN_LOGIC",
+      "sequence": 17,
+      "prompt": "一個兩位數的十位數字與個位數字和是 11；把兩個數字交換後，新數比原數大 27。原來的兩位數是多少？",
+      "answer_spec": {"type": "numeric", "accepted_answers": ["47"]},
+      "knowledge_points": ["G6-K105", "G6-K204"],
+      "primary_thinking_skills": ["TS-ENUM", "TS-LOGIC"],
+      "supporting_thinking_skills": ["TS-CASE", "TS-TABLE", "TS-CHECK"],
+      "difficulty": {"level": 3, "mastery_band": "advanced"},
+      "expected_time_seconds": 180,
+      "hint_policy": {"allowed": true, "max_hints": 2},
+      "solution": {
+        "summary": "可依數字和列舉，再用交換後相差 27 的條件篩選。",
+        "steps": ["數字和為 11 的兩位數依序檢查", "交換前後相差 27，表示個位比十位大 3", "兩數字為 4 與 7", "原數是 47"]
+      },
+      "error_type_ids": ["ERR-LOGIC-001", "ERR-CALC-001"],
+      "error_rules": [
+        {"type": "answer_equals", "answer": "74", "error_type_id": "ERR-LOGIC-001", "confidence": 0.95}
+      ]
+    },
+    {
+      "question_id": "DIAG-G6-018",
+      "schema_version": "1.0",
+      "active": true,
+      "target_profiles": ["G6_PRIVATE_SCHOOL_PILOT"],
+      "section": "D_GEOMETRY",
+      "sequence": 18,
+      "prompt": "一個等腰三角形的兩個底角都是 55°，底為 12 公分，對應的高為 8 公分。請求出頂角與面積。",
+      "answer_spec": {
+        "type": "multipart",
+        "parts": [
+          {
+            "part_id": "angle",
+            "label": "頂角",
+            "input_label": "頂角（度）",
+            "answer_type": "numeric",
+            "accepted_answers": ["70"],
+            "knowledge_points": ["G6-K203"],
+            "primary_thinking_skills": ["TS-LOGIC"],
+            "supporting_thinking_skills": ["TS-DEFINE", "TS-CHECK"]
+          },
+          {
+            "part_id": "area",
+            "label": "面積",
+            "input_label": "面積（平方公分）",
+            "answer_type": "numeric",
+            "accepted_answers": ["48"],
+            "knowledge_points": ["G6-K202", "G6-K201"],
+            "primary_thinking_skills": ["TS-DRAW"],
+            "supporting_thinking_skills": ["TS-EQUIV", "TS-CHECK"]
+          }
+        ]
+      },
+      "knowledge_points": ["G6-K203", "G6-K202", "G6-K201"],
+      "primary_thinking_skills": ["TS-LOGIC", "TS-DRAW"],
+      "supporting_thinking_skills": ["TS-DEFINE", "TS-EQUIV", "TS-CHECK"],
+      "difficulty": {"level": 3, "mastery_band": "advanced"},
+      "expected_time_seconds": 180,
+      "hint_policy": {"allowed": true, "max_hints": 2},
+      "solution": {
+        "summary": "角度與面積分開判斷，分別使用三角形內角和與面積公式。",
+        "steps": ["頂角 = 180 - 55 - 55 = 70", "面積 = 12 × 8 ÷ 2 = 48"]
+      },
+      "error_type_ids": ["ERR-GEO-005", "ERR-GEO-004", "ERR-GEO-003", "ERR-CALC-001"],
+      "error_rules": [
+        {"type": "answer_equals", "answer": {"angle": "70", "area": "96"}, "error_type_id": "ERR-GEO-005", "confidence": 0.95}
+      ]
+    }
+  ]
+}

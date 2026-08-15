@@ -1,0 +1,172 @@
+{
+  "schema_version": "1.0",
+  "display_name": "MathAI Thinking Skill Map v1.1",
+  "notes": [
+    "Thinking Skills are independent from curriculum Knowledge Points.",
+    "A question may use multiple skills; a skill may appear across multiple grades and units.",
+    "Question-level mappings should distinguish primary skills (what the item mainly assesses) from supporting skills (tools used during the solution).",
+    "Grade applicability is stored structurally with min_grade and max_grade rather than as a display string."
+  ],
+  "skills": [
+    {
+      "id": "TS-READ",
+      "name": "語意拆解",
+      "category": "理解與讀題",
+      "description": "把題目拆成已知、未知、限制、單位與關係，確認真正要回答的問題。",
+      "min_grade": 5,
+      "max_grade": 9,
+      "active": true,
+      "sort_order": 10
+    },
+    {
+      "id": "TS-DEFINE",
+      "name": "定義定位",
+      "category": "理解與讀題",
+      "description": "先找出題目涉及的定義、基本原則或條件，再判斷可使用的工具。",
+      "min_grade": 5,
+      "max_grade": 9,
+      "active": true,
+      "sort_order": 20
+    },
+    {
+      "id": "TS-DRAW",
+      "name": "圖像轉換",
+      "category": "表徵轉換",
+      "description": "把文字條件轉成線段圖、數線、表格或示意圖，以呈現量與關係。",
+      "min_grade": 5,
+      "max_grade": 9,
+      "active": true,
+      "sort_order": 30
+    },
+    {
+      "id": "TS-TABLE",
+      "name": "表格整理",
+      "category": "表徵轉換",
+      "description": "將多組條件或可能情況整理成表格，降低遺漏與重複。",
+      "min_grade": 5,
+      "max_grade": 9,
+      "active": true,
+      "sort_order": 40
+    },
+    {
+      "id": "TS-DIFF",
+      "name": "差量比較",
+      "category": "關係與結構",
+      "description": "比較兩個方案、兩種情況或假設與實際之間的差，利用每單位差量反推數量。",
+      "min_grade": 5,
+      "max_grade": 9,
+      "active": true,
+      "sort_order": 50
+    },
+    {
+      "id": "TS-UNIT",
+      "name": "單位量思考",
+      "category": "關係與結構",
+      "description": "先確定一份、一個或一單位代表多少，再由份數與總量建立關係。",
+      "min_grade": 5,
+      "max_grade": 9,
+      "active": true,
+      "sort_order": 60
+    },
+    {
+      "id": "TS-PATTERN",
+      "name": "規律歸納",
+      "category": "關係與結構",
+      "description": "從多個例子找出重複、遞增、週期或結構關係，再用規律處理新情況。",
+      "min_grade": 5,
+      "max_grade": 9,
+      "active": true,
+      "sort_order": 70
+    },
+    {
+      "id": "TS-ASSUME",
+      "name": "假設法",
+      "category": "解題策略",
+      "description": "先把多種類別假設成同一情況，再利用與真實結果的差量推回未知數量。",
+      "min_grade": 5,
+      "max_grade": 9,
+      "active": true,
+      "sort_order": 80
+    },
+    {
+      "id": "TS-BACKWARD",
+      "name": "逆推",
+      "category": "解題策略",
+      "description": "從結果或目標往回還原前一步，逐層找回原始未知量。",
+      "min_grade": 5,
+      "max_grade": 9,
+      "active": true,
+      "sort_order": 90
+    },
+    {
+      "id": "TS-ENUM",
+      "name": "系統列舉",
+      "category": "解題策略",
+      "description": "依固定順序列出所有合理可能，並用條件逐一排除，避免漏解或重複。",
+      "min_grade": 5,
+      "max_grade": 9,
+      "active": true,
+      "sort_order": 100
+    },
+    {
+      "id": "TS-CASE",
+      "name": "分類討論",
+      "category": "解題策略",
+      "description": "當條件會形成數種情況時，先分情況處理，再檢查是否涵蓋全部可能。",
+      "min_grade": 5,
+      "max_grade": 9,
+      "active": true,
+      "sort_order": 110
+    },
+    {
+      "id": "TS-LOGIC",
+      "name": "條件推理",
+      "category": "解題策略",
+      "description": "根據已知條件逐步推出新的必然關係，辨別哪些結論可以成立、哪些不能成立。",
+      "min_grade": 5,
+      "max_grade": 9,
+      "active": true,
+      "sort_order": 120
+    },
+    {
+      "id": "TS-SIMPLIFY",
+      "name": "化繁為簡",
+      "category": "計算與簡化",
+      "description": "藉由拆數、配對、等量替換或選擇較簡單的等價情況降低計算與推理負荷。",
+      "min_grade": 5,
+      "max_grade": 9,
+      "active": true,
+      "sort_order": 130
+    },
+    {
+      "id": "TS-EQUIV",
+      "name": "等價轉換",
+      "category": "計算與簡化",
+      "description": "在保持數量關係或問題本質不變的前提下，把原問題改寫成較容易處理的形式。",
+      "min_grade": 5,
+      "max_grade": 9,
+      "active": true,
+      "sort_order": 140
+    },
+    {
+      "id": "TS-ESTIMATE",
+      "name": "估算與界線",
+      "category": "驗證與反思",
+      "description": "先估計答案的合理範圍、上下界或量級，再用精算與條件驗證。",
+      "min_grade": 5,
+      "max_grade": 9,
+      "active": true,
+      "sort_order": 150
+    },
+    {
+      "id": "TS-CHECK",
+      "name": "合理性檢核",
+      "category": "驗證與反思",
+      "description": "完成解題後以原條件、單位、逆算或替代方法檢查答案是否符合題意與數量關係。",
+      "min_grade": 5,
+      "max_grade": 9,
+      "active": true,
+      "sort_order": 160
+    }
+  ]
+}

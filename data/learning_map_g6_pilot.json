@@ -1,0 +1,350 @@
+{
+  "schema_version": "1.0",
+  "grade": 6,
+  "display_name": "MathAI G6 Private-School Pilot Knowledge Map",
+  "pilot_status": "draft_for_architecture_validation",
+  "notes": [
+    "This file is a Pilot skeleton, not a verified official curriculum mapping or school-exam weighting table.",
+    "Official curriculum codes and private-school weights remain pending verification.",
+    "Knowledge Point IDs are neutral and reusable across regular curriculum, private-school, gifted, and competition profiles.",
+    "The grade field means the source/placement grade of the Knowledge Point, not the current grade of the student being assessed.",
+    "Domain is reserved for mathematical content. Cross-cutting abilities such as number sense or spatial sense belong in ability_tags and/or Thinking Skills."
+  ],
+  "knowledge_points": [
+    {
+      "id": "G6-K001",
+      "grade": 6,
+      "domain": "數與運算",
+      "ability_tags": [
+        "計算穩定度"
+      ],
+      "main_unit": "數與運算",
+      "sub_unit": "四則運算與運算順序",
+      "learning_focus": "能依括號與先乘除後加減等原則正確安排運算順序，並檢查結果合理性。",
+      "question_types": [
+        "多步驟四則運算",
+        "含括號混合運算",
+        "由算式判斷運算順序"
+      ],
+      "curriculum_codes": [],
+      "description": "Pilot 基礎節點；正式課綱代碼待母表核對。",
+      "sort_order": 10,
+      "official_mapping_status": "pending_verification",
+      "private_school_weight_status": "not_assigned"
+    },
+    {
+      "id": "G6-K002",
+      "grade": 6,
+      "domain": "數與運算",
+      "ability_tags": [
+        "數感"
+      ],
+      "main_unit": "數與運算",
+      "sub_unit": "分數、小數的比較與互換",
+      "learning_focus": "能在分數、小數與整數表示間轉換，並用共同基準比較大小。",
+      "question_types": [
+        "分數小數互換",
+        "多數大小排序",
+        "情境量比較"
+      ],
+      "curriculum_codes": [],
+      "description": "強調表示轉換與數感，而非只記憶機械步驟。",
+      "sort_order": 20,
+      "official_mapping_status": "pending_verification",
+      "private_school_weight_status": "not_assigned"
+    },
+    {
+      "id": "G6-K003",
+      "grade": 6,
+      "domain": "數與運算",
+      "ability_tags": [
+        "計算穩定度"
+      ],
+      "main_unit": "數與運算",
+      "sub_unit": "分數四則與等值關係",
+      "learning_focus": "能利用等值分數、約分與通分完成分數運算，並理解步驟背後的量關係。",
+      "question_types": [
+        "分數加減",
+        "分數乘除",
+        "約分通分整合"
+      ],
+      "curriculum_codes": [],
+      "description": "可作為後續比、比例與應用問題的先備節點。",
+      "sort_order": 30,
+      "official_mapping_status": "pending_verification",
+      "private_school_weight_status": "not_assigned"
+    },
+    {
+      "id": "G6-K004",
+      "grade": 6,
+      "domain": "數與運算",
+      "ability_tags": [
+        "數感"
+      ],
+      "main_unit": "數感與計算策略",
+      "sub_unit": "估算與合理性檢查",
+      "learning_focus": "能先估計答案範圍，再以精算驗證，避免因計算失誤得到明顯不合理答案。",
+      "question_types": [
+        "估算範圍",
+        "近似值判斷",
+        "答案合理性檢查"
+      ],
+      "curriculum_codes": [],
+      "description": "作為計算穩定度與數感的獨立觀察點。",
+      "sort_order": 40,
+      "official_mapping_status": "pending_verification",
+      "private_school_weight_status": "not_assigned"
+    },
+    {
+      "id": "G6-K005",
+      "grade": 6,
+      "domain": "數與運算",
+      "ability_tags": [
+        "數感",
+        "計算效率"
+      ],
+      "main_unit": "數感與計算策略",
+      "sub_unit": "巧算與運算規律",
+      "learning_focus": "能辨認可交換、結合、拆補或配對的數量結構，選擇較有效率的計算方式。",
+      "question_types": [
+        "湊整數巧算",
+        "拆補法",
+        "運算規律應用"
+      ],
+      "curriculum_codes": [],
+      "description": "Pilot 用來區分單純計算正確與具有計算策略的學生。",
+      "sort_order": 50,
+      "official_mapping_status": "pending_verification",
+      "private_school_weight_status": "not_assigned"
+    },
+    {
+      "id": "G6-K006",
+      "grade": 6,
+      "domain": "數量關係與代數",
+      "ability_tags": [],
+      "main_unit": "等量關係",
+      "sub_unit": "未知數與簡易方程",
+      "learning_focus": "理解未知數可表示未定數量、等號兩側具有等量關係，以及簡易方程表示的數學意義。",
+      "question_types": [
+        "等式性質",
+        "未知數求解",
+        "條件列式"
+      ],
+      "curriculum_codes": [],
+      "description": "以符號表示未知數，並利用等式性質維持等量關係、求出未知數。",
+      "sort_order": 60,
+      "official_mapping_status": "pending_verification",
+      "learning_scope": "enrichment",
+      "private_school_weight_status": "not_assigned",
+      "prerequisite_ids": [
+        "G6-K001"
+      ],
+      "active": true
+    },
+    {
+      "id": "G6-K101",
+      "grade": 6,
+      "domain": "數量關係與應用問題",
+      "ability_tags": [],
+      "main_unit": "比與比例",
+      "sub_unit": "比、比值與等比關係",
+      "learning_focus": "能從兩量關係建立比與比值，辨認等比並用於未知量推理。",
+      "question_types": [
+        "比值計算",
+        "等比判斷",
+        "未知項求解"
+      ],
+      "curriculum_codes": [],
+      "description": "正式出版社路徑與課綱對應待母表確認。",
+      "sort_order": 110,
+      "official_mapping_status": "pending_verification",
+      "private_school_weight_status": "not_assigned"
+    },
+    {
+      "id": "G6-K102",
+      "grade": 6,
+      "domain": "數量關係與應用問題",
+      "ability_tags": [],
+      "main_unit": "數量關係",
+      "sub_unit": "單位量、總量與倍數關係",
+      "learning_focus": "能找出每一份的量、份數與總量，並在文字敘述中建立三者關係。",
+      "question_types": [
+        "單位量未知",
+        "總量未知",
+        "倍數關係應用"
+      ],
+      "curriculum_codes": [],
+      "description": "支援單位量思考與跨題型轉移。",
+      "sort_order": 120,
+      "official_mapping_status": "pending_verification",
+      "private_school_weight_status": "not_assigned"
+    },
+    {
+      "id": "G6-K103",
+      "grade": 6,
+      "domain": "數量關係與應用問題",
+      "ability_tags": [],
+      "main_unit": "數量關係",
+      "sub_unit": "差量與倍數的複合關係",
+      "learning_focus": "能分辨差多少、是幾倍與總量之間的條件，建立可逐步推理的數量模型。",
+      "question_types": [
+        "和差問題",
+        "差倍問題",
+        "多條件數量關係"
+      ],
+      "curriculum_codes": [],
+      "description": "用於觀察學生能否把語言條件轉成可操作的量關係。",
+      "sort_order": 130,
+      "official_mapping_status": "pending_verification",
+      "private_school_weight_status": "not_assigned"
+    },
+    {
+      "id": "G6-K104",
+      "grade": 6,
+      "domain": "數量關係與應用問題",
+      "ability_tags": [],
+      "main_unit": "邏輯應用",
+      "sub_unit": "假設後比較差量",
+      "learning_focus": "能先假設所有物件採同一情況，再利用實際總量與假設總量的差異推回不同類別的數量。",
+      "question_types": [
+        "雞兔同籠類",
+        "單價差量類",
+        "腳數／輪數／座位等變式"
+      ],
+      "curriculum_codes": [],
+      "description": "本節點描述知識／題型範圍；假設法本身另屬 Thinking Skill。",
+      "sort_order": 140,
+      "official_mapping_status": "pending_verification",
+      "private_school_weight_status": "not_assigned"
+    },
+    {
+      "id": "G6-K105",
+      "grade": 6,
+      "domain": "數量關係與應用問題",
+      "ability_tags": [],
+      "main_unit": "文字應用題",
+      "sub_unit": "多步驟條件整合",
+      "learning_focus": "能辨認題目中的已知、未知、限制與關係，安排合理的解題順序。",
+      "question_types": [
+        "多步驟應用題",
+        "條件篩選",
+        "跨概念整合題"
+      ],
+      "curriculum_codes": [],
+      "description": "作為讀題、表徵與策略選擇的綜合觀察點。",
+      "sort_order": 150,
+      "official_mapping_status": "pending_verification",
+      "private_school_weight_status": "not_assigned"
+    },
+    {
+      "id": "G6-K106",
+      "grade": 6,
+      "domain": "數量關係與應用問題",
+      "ability_tags": [
+        "關係建模"
+      ],
+      "main_unit": "速率與行程",
+      "sub_unit": "速率、時間與距離關係",
+      "learning_focus": "理解速率是單位時間內移動的距離，並理解距離、時間、速率三量及基本公式所表示的數量關係。",
+      "question_types": [
+        "求速率",
+        "相遇追趕",
+        "分段行程"
+      ],
+      "curriculum_codes": [],
+      "description": "在單位量概念之上，專門描述距離等於速率乘時間及其逆向關係。",
+      "sort_order": 160,
+      "official_mapping_status": "pending_verification",
+      "learning_scope": "enrichment",
+      "private_school_weight_status": "not_assigned",
+      "prerequisite_ids": [
+        "G6-K102"
+      ],
+      "active": true
+    },
+    {
+      "id": "G6-K201",
+      "grade": 6,
+      "domain": "幾何與圖像推理",
+      "ability_tags": [
+        "空間感"
+      ],
+      "main_unit": "平面圖形",
+      "sub_unit": "周長與面積關係",
+      "learning_focus": "能辨認周長與面積代表的不同量，並在組合圖形中選擇適當公式與拆解方式。",
+      "question_types": [
+        "周長計算",
+        "面積計算",
+        "周長面積條件反推"
+      ],
+      "curriculum_codes": [],
+      "description": "正式年級與課綱映射待母表核對。",
+      "sort_order": 210,
+      "official_mapping_status": "pending_verification",
+      "private_school_weight_status": "not_assigned"
+    },
+    {
+      "id": "G6-K202",
+      "grade": 6,
+      "domain": "幾何與圖像推理",
+      "ability_tags": [
+        "空間感"
+      ],
+      "main_unit": "平面圖形",
+      "sub_unit": "圖形分割、拼補與等積轉換",
+      "learning_focus": "能把不規則或組合圖形分割、平移或拼補成較熟悉的圖形，再比較或計算。",
+      "question_types": [
+        "組合圖形分割",
+        "拼補等積",
+        "陰影面積"
+      ],
+      "curriculum_codes": [],
+      "description": "用來驗證學生是否具備圖形表徵與轉換能力。",
+      "sort_order": 220,
+      "official_mapping_status": "pending_verification",
+      "private_school_weight_status": "not_assigned"
+    },
+    {
+      "id": "G6-K203",
+      "grade": 6,
+      "domain": "幾何與圖像推理",
+      "ability_tags": [
+        "空間感"
+      ],
+      "main_unit": "幾何關係",
+      "sub_unit": "角度與圖形性質",
+      "learning_focus": "能利用已知角、平行／垂直或圖形基本性質推導未知角與關係。",
+      "question_types": [
+        "角度推理",
+        "圖形性質判斷",
+        "多步驟角度關係"
+      ],
+      "curriculum_codes": [],
+      "description": "Pilot 僅作架構驗證，不宣稱為特定私中考試權重。",
+      "sort_order": 230,
+      "official_mapping_status": "pending_verification",
+      "private_school_weight_status": "not_assigned"
+    },
+    {
+      "id": "G6-K204",
+      "grade": 6,
+      "domain": "幾何與圖像推理",
+      "ability_tags": [
+        "空間感"
+      ],
+      "main_unit": "圖像表徵",
+      "sub_unit": "文字條件轉成線段圖或示意圖",
+      "learning_focus": "能把文字中的量、先後、包含、倍數或差量關係轉為簡潔圖像，以降低推理負荷。",
+      "question_types": [
+        "線段圖表徵",
+        "示意圖補充條件",
+        "由圖反推數量"
+      ],
+      "curriculum_codes": [],
+      "description": "此知識節點與 TS-DRAW 圖像轉換技巧可互相對照，但兩者不合併。",
+      "sort_order": 240,
+      "official_mapping_status": "pending_verification",
+      "private_school_weight_status": "not_assigned"
+    }
+  ]
+}

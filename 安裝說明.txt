@@ -1,0 +1,21 @@
+MathAI AI 圖片辨識錯誤降級完整修改版
+
+使用方法：
+1. 先執行 C:\MathAI\備份專案.bat。
+2. 停止 Streamlit（CMD 視窗按 Ctrl+C）。
+3. 將本資料夾內 app.py、ai_service.py 複製到 C:\MathAI\app，選擇覆蓋。
+4. 不要複製「原始備份」兩個檔案到正式 app 目錄。
+5. 執行 C:\MathAI\啟動系統.bat。
+6. 上傳圖片並測試。Gemini 若仍回 401，系統會改顯示人工輸入框，不會中斷或消耗試用次數。
+
+本次變更：
+- AI 呼叫集中由 ai_service.py 管理。
+- 移除 app.py 內舊 Gemini SDK 與模型輪詢函式。
+- 移除 app.py 內硬編碼的 Gemini、Supabase、SMTP 備援憑證。
+- 401/403/429/404/逾時錯誤轉為易懂訊息。
+- 圖片辨識失敗時切換人工輸入。
+- 完整技術錯誤只在管理員解鎖時顯示。
+
+注意：
+- 這不會修復 AQ 開頭 Gemini 憑證本身；只確保服務不中斷。
+- 文字解析與變形題目前仍使用 Gemini，401 時仍會顯示友善錯誤。下一階段可接 DeepSeek。

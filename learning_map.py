@@ -4,9 +4,223 @@ from typing import Any, Dict, List
 
 import streamlit as st
 
+try:
+    from catalog.diagnostic_loader import get_catalog_profile, load_diagnostic_questions, load_profile_knowledge_catalog
+    from catalog.knowledge_loader import load_knowledge_catalog
+    from catalog.thinking_loader import load_thinking_catalog
+    from diagnostic_pilot_ui import resolve_diagnostic_route
+    from services.mastery_service import mastery_for, recommend_learning_priorities
+    from services.mastery_repository import SessionStateMasteryRepository
+    from services.learning_runtime import LearningRuntime, ensure_local_student_id
+    from services.learning_report_service import build_learning_report, build_report_view
+    from services.practice_recommendation_service import build_practice_requests
+    from services.practice_loop_service import apply_practice_results, select_demo_practice_items
+    from teacher_parent_beta_ui import render_private_beta_feedback_and_parent_report
+except ModuleNotFoundError:
+    from app.catalog.diagnostic_loader import get_catalog_profile, load_diagnostic_questions, load_profile_knowledge_catalog
+    from app.catalog.knowledge_loader import load_knowledge_catalog
+    from app.catalog.thinking_loader import load_thinking_catalog
+    from app.diagnostic_pilot_ui import resolve_diagnostic_route
+    from app.services.mastery_service import mastery_for, recommend_learning_priorities
+    from app.services.mastery_repository import SessionStateMasteryRepository
+    from app.services.learning_runtime import LearningRuntime, ensure_local_student_id
+    from app.services.learning_report_service import build_learning_report, build_report_view
+    from app.services.practice_recommendation_service import build_practice_requests
+    from app.services.practice_loop_service import apply_practice_results, select_demo_practice_items
+    from app.teacher_parent_beta_ui import render_private_beta_feedback_and_parent_report
+
 
 DATA_FILE = Path(__file__).with_name("curriculum_map.json")
 G7_DATA_FILE = Path(__file__).with_name("learning_map_g7.json")
+
+MASTERY_LABELS = {
+    "unassessed": "未評估",
+    "needs_work": "需補強",
+    "learning": "學習中",
+    "basic": "基本掌握",
+    "proficient": "熟練",
+}
+
+
+def build_dynamic_learning_map_model(
+    grade: int,
+    profile: str,
+    snapshots: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Build a catalog-driven view model without Streamlit or hard-coded IDs."""
+
+    _, config = get_catalog_profile(profile=profile, grade=grade)
+    current_catalog = load_knowledge_catalog(config.knowledge_path)
+    merged_catalog = load_profile_knowledge_catalog(profile=profile)
+    rows = []
+    for point in current_catalog.knowledge_points:
+        snapshot = mastery_for(point.id, snapshots)
+        rows.append(
+            {
+                "knowledge_id": point.id,
+                "main_unit": point.main_unit,
+                "sub_unit": point.sub_unit,
+                "learning_focus": point.learning_focus,
+                "mastery_status": snapshot.mastery_status.value,
+                "mastery_score": snapshot.mastery_score,
+                "confidence": snapshot.confidence,
+                "evidence_count": snapshot.evidence_count,
+            }
+        )
+    target_weights: Dict[str, float] = {}
+    try:
+        diagnostic = load_diagnostic_questions(profile=profile)
+        for question in diagnostic.questions:
+            weight = float(question.difficulty.level)
+            for knowledge_id in question.knowledge_points:
+                target_weights[knowledge_id] = target_weights.get(knowledge_id, 0.0) + weight
+    except (OSError, ValueError):
+        target_weights = {}
+    priorities = recommend_learning_priorities(
+        merged_catalog.knowledge_points,
+        snapshots,
+        limit=3,
+        target_weights=target_weights,
+    )
+    return {"grade": grade, "profile": profile, "rows": rows, "priorities": priorities}
+
+
+def _render_dynamic_mastery_map(
+    user_profile: Dict[str, Any],
+    learning_runtime: LearningRuntime | None = None,
+) -> bool:
+    grade_text = str(user_profile.get("grade", ""))
+    match = __import__("re").search(r"(\d+)", grade_text)
+    grade = int(match.group(1)) if match else 0
+    if grade not in range(5, 10):
+        return False
+    profile = resolve_diagnostic_route(grade_text, user_profile.get("version"))
+    if profile in {"competition_unavailable", "profile_unavailable"}:
+        return False
+    student_id = (
+        learning_runtime.student_id
+        if learning_runtime is not None
+        else ensure_local_student_id(st.session_state)
+    )
+    repository = (
+        learning_runtime.repository
+        if learning_runtime is not None
+        else SessionStateMasteryRepository(st.session_state)
+    )
+    snapshots = repository.load_latest_knowledge_mastery(student_id, profile)
+    if (
+        st.session_state.get("developer_mode", False)
+        and isinstance(repository, SessionStateMasteryRepository)
+    ):
+        if st.button("🧹 清除目前學生的 Session Mastery", key=f"clear_mastery_{student_id}_{profile}"):
+            repository.clear_student(student_id)
+            st.session_state.pop(f"demo_practice_{student_id}_{profile}", None)
+            st.rerun()
+    model = build_dynamic_learning_map_model(grade, profile, snapshots)
+
+    st.subheader(f"🌳 Grade {grade} 個人學習地圖")
+    if learning_runtime is not None and learning_runtime.persistence_enabled:
+        st.caption("依 Knowledge catalog 與持久化 Mastery 動態產生；本次 session 最新證據會優先顯示。")
+    else:
+        st.caption("依 Knowledge catalog 與本次 session 證據動態產生；目前未啟用跨 session 持久化。")
+    persistence_warning = st.session_state.get("learning_persistence_warning")
+    if persistence_warning:
+        st.warning(persistence_warning)
+    status_counts = {key: 0 for key in MASTERY_LABELS}
+    for row in model["rows"]:
+        status_counts[row["mastery_status"]] += 1
+    columns = st.columns(5)
+    for column, (status, label) in zip(columns, MASTERY_LABELS.items()):
+        with column:
+            st.metric(label, status_counts[status])
+
+    units: Dict[str, List[Dict[str, Any]]] = {}
+    for row in model["rows"]:
+        units.setdefault(row["main_unit"], []).append(row)
+    for unit, rows in units.items():
+        with st.expander(f"📘 {unit}", expanded=False):
+            for row in rows:
+                label = MASTERY_LABELS[row["mastery_status"]]
+                st.markdown(f"**{row['sub_unit']}**　`{label}`")
+                metadata = (
+                    f"分數 {row['mastery_score']:.1f}｜信心 {row['confidence']:.2f}｜"
+                    f"證據 {row['evidence_count']}"
+                )
+                if st.session_state.get("developer_mode", False):
+                    metadata = f"{row['knowledge_id']}｜{metadata}"
+                st.caption(metadata)
+                st.write(row["learning_focus"])
+
+    st.markdown("### 下一步優先補強")
+    if not model["priorities"]:
+        st.info("目前沒有足夠的需補強／學習中證據；完成診斷後會顯示前三項建議。")
+    else:
+        points = load_profile_knowledge_catalog(profile=profile).by_id()
+        for index, priority in enumerate(model["priorities"], start=1):
+            point = points[priority.knowledge_id]
+            identifier = (
+                f"（{priority.knowledge_id}）"
+                if st.session_state.get("developer_mode", False)
+                else ""
+            )
+            st.markdown(
+                f"{index}. **{point.sub_unit}**{identifier}— "
+                f"{priority.reason}"
+            )
+    merged = load_profile_knowledge_catalog(profile=profile)
+    thinking = repository.load_latest_thinking_skill_summary(student_id, profile)
+    thinking_names = {key: item.name for key, item in load_thinking_catalog().by_id().items()}
+    report = build_learning_report(profile, merged.knowledge_points, snapshots, thinking, thinking_names)
+    requests = build_practice_requests(merged.knowledge_points, snapshots)
+    with st.expander("📋 學習診斷摘要", expanded=False):
+        student_view = build_report_view(report, audience="student")
+        parent_view = build_report_view(report, audience="parent")
+        student_tab, parent_tab = st.tabs(("學生版", "家長版"))
+        for tab, view in ((student_tab, student_view), (parent_tab, parent_view)):
+            with tab:
+                st.markdown(f"#### {view.title}")
+                st.write(view.introduction)
+                st.write(f"已評估知識點：{report.assessed_count}")
+                st.write(f"未評估知識點：{report.status_counts['unassessed']}")
+                st.caption("需補強 {needs_work}｜學習中 {learning}｜基本掌握 {basic}｜熟練 {proficient}".format(**report.status_counts))
+                st.write(f"目前強項：{view.strength_message}")
+                st.write(f"優先補強：{view.weakness_message}")
+                st.info(view.next_step_message)
+        if report.thinking_summary:
+            if st.session_state.get("developer_mode", False):
+                st.write("Thinking Skill evidence：" + "、".join(item["thinking_id"] for item in report.thinking_summary))
+            else:
+                st.write("思考能力證據：" + "、".join(item["name"] for item in report.thinking_summary))
+    if requests:
+        st.caption("建議練習請求：" + "、".join(f"{points[item.target_knowledge_id].sub_unit}（{item.desired_difficulty}）" for item in requests))
+        if st.session_state.get("developer_mode", False):
+            practice_key = f"demo_practice_{student_id}_{profile}"
+            if st.button("開始補強練習（Developer Demo）", key=f"start_{practice_key}"):
+                st.session_state[practice_key] = select_demo_practice_items(requests[0])
+                st.rerun()
+            items = st.session_state.get(practice_key, ())
+            if items:
+                st.warning("此為 developer demo fixture，不是正式 production item bank。")
+                answers = {item.item_id: st.text_input(item.prompt, key=item.item_id) for item in items}
+                if st.button("提交補強練習", key=f"submit_{practice_key}"):
+                    updated = apply_practice_results(profile, snapshots, items, answers)
+                    repository.save_knowledge_mastery(student_id, profile, updated)
+                    st.session_state.setdefault("knowledge_mastery_by_profile", {})[profile] = updated
+                    st.session_state.pop(practice_key, None)
+                    st.rerun()
+    st.markdown("---")
+    auth_client = getattr(
+        getattr(getattr(learning_runtime, "repository", None), "primary", None),
+        "client",
+        None,
+    )
+    render_private_beta_feedback_and_parent_report(
+        user_profile=user_profile,
+        learning_runtime=learning_runtime,
+        auth_client=auth_client,
+        profile=profile,
+    )
+    return True
 
 
 def _load_data() -> Dict[str, Any]:
@@ -1113,8 +1327,20 @@ def _render_g7_learning_map(user_profile: Dict[str, Any]) -> bool:
     return True
 
 
-def render_learning_map(user_profile: Dict[str, Any], is_trial: bool = False) -> None:
+def render_learning_map(
+    user_profile: Dict[str, Any],
+    is_trial: bool = False,
+    learning_runtime: LearningRuntime | None = None,
+) -> None:
     """依學生年級與版本顯示學習地圖。"""
+    try:
+        if _render_dynamic_mastery_map(user_profile, learning_runtime):
+            return
+    except (OSError, ValueError, KeyError) as exc:
+        st.error("學習地圖目前無法載入，請稍後再試。")
+        if st.session_state.get("developer_mode", False):
+            st.code(f"{type(exc).__name__}: {exc}")
+        return
     if _render_g7_learning_map(user_profile):
         return
 

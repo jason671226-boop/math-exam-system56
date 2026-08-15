@@ -1,0 +1,355 @@
+{
+  "schema_version": "1.0",
+  "display_name": "MathAI Common Error Map v1",
+  "error_types": [
+    {
+      "id": "ERR-ORDER-001",
+      "name": "括號運算順序錯誤",
+      "category": "knowledge",
+      "description": "未依內層括號到外層括號的順序處理混合運算。",
+      "related_knowledge_points": [
+        "G6-K001",
+        "G5-K001"
+      ],
+      "related_thinking_skills": [
+        "TS-DEFINE"
+      ],
+      "severity": "medium",
+      "remediation_type": "concept_reteach",
+      "active": true
+    },
+    {
+      "id": "ERR-ORDER-002",
+      "name": "乘除與加減優先順序錯誤",
+      "category": "knowledge",
+      "description": "未依先乘除後加減的原則處理混合運算。",
+      "related_knowledge_points": [
+        "G6-K001",
+        "G5-K001"
+      ],
+      "related_thinking_skills": [
+        "TS-DEFINE"
+      ],
+      "severity": "medium",
+      "remediation_type": "concept_reteach",
+      "active": true
+    },
+    {
+      "id": "ERR-CALC-001",
+      "name": "純計算失誤",
+      "category": "execution",
+      "description": "解題原則可能正確，但在基本運算執行時出現數值或符號錯誤。",
+      "related_knowledge_points": [
+        "G6-K001",
+        "G6-K003",
+        "G5-K001",
+        "G5-K004",
+        "G5-K005",
+        "G5-K203"
+      ],
+      "related_thinking_skills": [],
+      "severity": "low",
+      "remediation_type": "practice_accuracy",
+      "active": true
+    },
+    {
+      "id": "ERR-FRAC-001",
+      "name": "帶分數與假分數轉換錯誤",
+      "category": "knowledge",
+      "description": "帶分數與假分數互換時，整數部分、分母或分子處理錯誤。",
+      "related_knowledge_points": [
+        "G6-K003",
+        "G5-K201"
+      ],
+      "related_thinking_skills": [
+        "TS-EQUIV"
+      ],
+      "severity": "medium",
+      "remediation_type": "concept_reteach",
+      "active": true
+    },
+    {
+      "id": "ERR-FRAC-002",
+      "name": "分數除法未轉乘倒數",
+      "category": "knowledge",
+      "description": "遇到除以分數時，未使用乘以倒數的等價轉換。",
+      "related_knowledge_points": [
+        "G6-K003"
+      ],
+      "related_thinking_skills": [
+        "TS-DEFINE",
+        "TS-EQUIV"
+      ],
+      "severity": "medium",
+      "remediation_type": "concept_reteach",
+      "active": true
+    },
+    {
+      "id": "ERR-FRAC-003",
+      "name": "約分或通分處理錯誤",
+      "category": "execution",
+      "description": "分數運算過程中的約分或通分步驟處理錯誤。",
+      "related_knowledge_points": [
+        "G6-K003",
+        "G5-K202",
+        "G5-K203"
+      ],
+      "related_thinking_skills": [
+        "TS-EQUIV"
+      ],
+      "severity": "low",
+      "remediation_type": "guided_practice",
+      "active": true
+    },
+    {
+      "id": "ERR-REP-001",
+      "name": "百分率與小數轉換錯誤",
+      "category": "representation",
+      "description": "百分率與小數互換時，小數點位置或百分號意義判斷錯誤。",
+      "related_knowledge_points": [
+        "G6-K002"
+      ],
+      "related_thinking_skills": [
+        "TS-EQUIV"
+      ],
+      "severity": "medium",
+      "remediation_type": "representation_practice",
+      "active": true
+    },
+    {
+      "id": "ERR-REP-002",
+      "name": "分數與小數轉換錯誤",
+      "category": "representation",
+      "description": "無法正確把分數轉成可比較的小數或其他共同表示。",
+      "related_knowledge_points": [
+        "G6-K002",
+        "G5-K204"
+      ],
+      "related_thinking_skills": [
+        "TS-EQUIV"
+      ],
+      "severity": "medium",
+      "remediation_type": "representation_practice",
+      "active": true
+    },
+    {
+      "id": "ERR-NUMSENSE-001",
+      "name": "數值大小感不足",
+      "category": "verification",
+      "description": "缺乏共同基準、估算或界線感，導致數值大小排序不合理。",
+      "related_knowledge_points": [
+        "G6-K002",
+        "G6-K004",
+        "G5-K002",
+        "G5-K003",
+        "G5-K006"
+      ],
+      "related_thinking_skills": [
+        "TS-ESTIMATE",
+        "TS-CHECK"
+      ],
+      "severity": "medium",
+      "remediation_type": "number_sense_practice",
+      "active": true
+    },
+    {
+      "id": "ERR-RATIO-001",
+      "name": "不了解比的總份數",
+      "category": "knowledge",
+      "description": "未把比的兩項視為份數並合計總份數。",
+      "related_knowledge_points": [
+        "G6-K101"
+      ],
+      "related_thinking_skills": [
+        "TS-UNIT"
+      ],
+      "severity": "medium",
+      "remediation_type": "concept_reteach",
+      "active": true
+    },
+    {
+      "id": "ERR-RATIO-002",
+      "name": "單位量判定錯誤",
+      "category": "strategy",
+      "description": "無法由總量與總份數求出每一份所代表的實際數量。",
+      "related_knowledge_points": [
+        "G6-K101",
+        "G6-K102",
+        "G5-K301"
+      ],
+      "related_thinking_skills": [
+        "TS-UNIT"
+      ],
+      "severity": "medium",
+      "remediation_type": "unit_quantity_practice",
+      "active": true
+    },
+    {
+      "id": "ERR-RATIO-003",
+      "name": "新增數量後仍沿用原比例",
+      "category": "reading",
+      "description": "題目中的數量發生改變後，仍直接沿用原來的 3:5 比例，沒有重新計算。",
+      "related_knowledge_points": [
+        "G6-K101"
+      ],
+      "related_thinking_skills": [
+        "TS-READ",
+        "TS-UNIT"
+      ],
+      "severity": "medium",
+      "remediation_type": "condition_update_practice",
+      "active": true
+    },
+    {
+      "id": "ERR-GEO-001",
+      "name": "面積與周長概念混淆",
+      "category": "knowledge",
+      "description": "沒有區分圖形內部面積與邊界長度的不同意義。",
+      "related_knowledge_points": [
+        "G6-K201",
+        "G5-K401"
+      ],
+      "related_thinking_skills": [
+        "TS-DEFINE"
+      ],
+      "severity": "medium",
+      "remediation_type": "concept_reteach",
+      "active": true
+    },
+    {
+      "id": "ERR-GEO-002",
+      "name": "剪切後邊界判定錯誤",
+      "category": "representation",
+      "description": "圖形剪切後未正確辨認消失與新增的邊界，導致周長判斷錯誤。",
+      "related_knowledge_points": [
+        "G6-K201",
+        "G6-K202"
+      ],
+      "related_thinking_skills": [
+        "TS-DRAW",
+        "TS-CHECK"
+      ],
+      "severity": "medium",
+      "remediation_type": "boundary_visualization",
+      "active": true
+    },
+    {
+      "id": "ERR-GEO-003",
+      "name": "長度與面積單位混淆",
+      "category": "verification",
+      "description": "未區分公分與平方公分等不同量的單位。",
+      "related_knowledge_points": [
+        "G6-K201",
+        "G5-K401",
+        "G5-K402",
+        "G5-K403",
+        "G5-K405"
+      ],
+      "related_thinking_skills": [
+        "TS-CHECK"
+      ],
+      "severity": "low",
+      "remediation_type": "unit_check",
+      "active": true
+    },
+    {
+      "id": "ERR-RELATION-001",
+      "name": "和差問題答錯對象",
+      "category": "reading",
+      "description": "已求出較小量，卻沒有依題意加回差量以回答較大量。",
+      "related_knowledge_points": ["G6-K103", "G6-K204", "G5-K302"],
+      "related_thinking_skills": ["TS-READ", "TS-DIFF", "TS-CHECK"],
+      "severity": "medium",
+      "remediation_type": "answer_target_check",
+      "active": true
+    },
+    {
+      "id": "ERR-ASSUME-001",
+      "name": "假設後差量換算錯誤",
+      "category": "strategy",
+      "description": "使用假設法時，未以每替換一個物件造成的差量推回類別數量。",
+      "related_knowledge_points": ["G6-K104"],
+      "related_thinking_skills": ["TS-ASSUME", "TS-DIFF"],
+      "severity": "medium",
+      "remediation_type": "assumption_difference_practice",
+      "active": true
+    },
+    {
+      "id": "ERR-BACKWARD-001",
+      "name": "逆推只完成部分步驟",
+      "category": "strategy",
+      "description": "已還原最後一步，但未繼續逆推至題目要求的原始數量。",
+      "related_knowledge_points": ["G6-K105"],
+      "related_thinking_skills": ["TS-BACKWARD", "TS-CHECK"],
+      "severity": "medium",
+      "remediation_type": "backward_chain_practice",
+      "active": true
+    },
+    {
+      "id": "ERR-PATTERN-001",
+      "name": "規律延伸錯誤",
+      "category": "strategy",
+      "description": "只觀察到局部變化，未完整延伸相鄰差或結構規律。",
+      "related_knowledge_points": ["G6-K105", "G5-K501"],
+      "related_thinking_skills": ["TS-PATTERN", "TS-TABLE", "TS-CHECK"],
+      "severity": "medium",
+      "remediation_type": "pattern_difference_table",
+      "active": true
+    },
+    {
+      "id": "ERR-LOGIC-001",
+      "name": "條件方向判讀相反",
+      "category": "reading",
+      "description": "交換或比較前後兩種情況時，把較大、較小或差量方向判讀相反。",
+      "related_knowledge_points": ["G6-K105", "G6-K204"],
+      "related_thinking_skills": ["TS-LOGIC", "TS-CASE", "TS-CHECK"],
+      "severity": "medium",
+      "remediation_type": "condition_direction_check",
+      "active": true
+    },
+    {
+      "id": "ERR-GEO-004",
+      "name": "三角形內角和使用錯誤",
+      "category": "knowledge",
+      "description": "只相加已知角，或未用 180 度扣除已知角和來求未知角。",
+      "related_knowledge_points": ["G6-K203", "G5-K404"],
+      "related_thinking_skills": ["TS-DEFINE", "TS-LOGIC", "TS-CHECK"],
+      "severity": "medium",
+      "remediation_type": "triangle_angle_sum_practice",
+      "active": true
+    },
+    {
+      "id": "ERR-GEO-005",
+      "name": "三角形面積漏除以二",
+      "category": "knowledge",
+      "description": "以底乘高計算三角形面積後，漏除以 2。",
+      "related_knowledge_points": ["G6-K201", "G6-K202", "G5-K402"],
+      "related_thinking_skills": ["TS-DEFINE", "TS-DRAW", "TS-CHECK"],
+      "severity": "medium",
+      "remediation_type": "triangle_area_practice",
+      "active": true
+    },
+    {
+      "id": "ERR-GCDLCM-001",
+      "name": "最大公因數與最小公倍數情境混淆",
+      "category": "knowledge",
+      "description": "未依等量分組或共同發生的情境，正確選擇最大公因數或最小公倍數。",
+      "related_knowledge_points": ["G5-K102", "G5-K103"],
+      "related_thinking_skills": ["TS-DEFINE", "TS-CHECK"],
+      "severity": "medium",
+      "remediation_type": "gcd_lcm_context_practice",
+      "active": true
+    },
+    {
+      "id": "ERR-UNIT-001",
+      "name": "單位換算倍率方向錯誤",
+      "category": "knowledge",
+      "description": "在大小單位互換時，把乘除倍率的方向顛倒。",
+      "related_knowledge_points": ["G5-K305"],
+      "related_thinking_skills": ["TS-EQUIV", "TS-CHECK"],
+      "severity": "medium",
+      "remediation_type": "unit_conversion_direction_practice",
+      "active": true
+    }
+  ]
+}

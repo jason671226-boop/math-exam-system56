@@ -1,0 +1,105 @@
+{
+  "schema_version": "1.0",
+  "status": "draft",
+  "validation_status": "pending_validation",
+  "weight_basis": "repository_asset_alignment_not_official_statistics",
+  "notes": [
+    "These relative weights are a planning draft based on repository competition categories, not official exam statistics.",
+    "Competition names identify tracks and source emphasis; all referenced Knowledge IDs remain mathematically neutral.",
+    "A Grade 6 track may reuse source Knowledge from Grade 5, but a Grade 5 track may not reference a higher-grade point."
+  ],
+  "tracks": [
+    {
+      "track_id": "OLYMPIAD",
+      "display_name": "奧林匹克數學",
+      "status": "draft",
+      "grade_weights": [
+        {
+          "grade": 5,
+          "weights": {
+            "high": ["G5-K001", "G5-K104", "G5-K105", "G5-K106", "G5-K405", "G5-K406", "G5-K407", "G5-K501", "G5-K502"],
+            "medium": ["G5-K102", "G5-K103", "G5-K302", "G5-K404", "G5-K503"],
+            "low": ["G5-K003", "G5-K201", "G5-K301"]
+          }
+        },
+        {
+          "grade": 6,
+          "weights": {
+            "high": ["G5-K105", "G5-K106", "G5-K405", "G5-K406", "G5-K407", "G5-K501", "G5-K502", "G6-K005", "G6-K203"],
+            "medium": ["G5-K503", "G6-K001", "G6-K006", "G6-K104", "G6-K106", "G6-K202"],
+            "low": ["G6-K002", "G6-K102", "G6-K201"]
+          }
+        }
+      ]
+    },
+    {
+      "track_id": "AMC",
+      "display_name": "AMC",
+      "status": "draft",
+      "grade_weights": [
+        {
+          "grade": 5,
+          "weights": {
+            "high": ["G5-K001", "G5-K003", "G5-K201", "G5-K301", "G5-K401", "G5-K501", "G5-K502", "G5-K503"],
+            "medium": ["G5-K105", "G5-K106", "G5-K302", "G5-K404", "G5-K405"],
+            "low": ["G5-K004", "G5-K305", "G5-K406", "G5-K407"]
+          }
+        },
+        {
+          "grade": 6,
+          "weights": {
+            "high": ["G5-K502", "G5-K503", "G6-K001", "G6-K002", "G6-K006", "G6-K101", "G6-K106", "G6-K203"],
+            "medium": ["G5-K105", "G5-K106", "G5-K501", "G6-K005", "G6-K102", "G6-K201"],
+            "low": ["G6-K003", "G6-K104", "G6-K202"]
+          }
+        }
+      ]
+    },
+    {
+      "track_id": "ELNC",
+      "display_name": "ELNC",
+      "status": "draft",
+      "grade_weights": [
+        {
+          "grade": 5,
+          "weights": {
+            "high": ["G5-K001", "G5-K002", "G5-K003", "G5-K404", "G5-K406", "G5-K407", "G5-K501", "G5-K502", "G5-K503"],
+            "medium": ["G5-K104", "G5-K301", "G5-K303", "G5-K305", "G5-K405"],
+            "low": ["G5-K004", "G5-K201", "G5-K401"]
+          }
+        },
+        {
+          "grade": 6,
+          "weights": {
+            "high": ["G5-K406", "G5-K407", "G5-K501", "G5-K502", "G5-K503", "G6-K001", "G6-K006", "G6-K203"],
+            "medium": ["G5-K104", "G5-K106", "G6-K002", "G6-K102", "G6-K201"],
+            "low": ["G6-K005", "G6-K106", "G6-K202"]
+          }
+        }
+      ]
+    },
+    {
+      "track_id": "CROSS_COMPETITION",
+      "display_name": "跨競賽綜合",
+      "status": "draft",
+      "grade_weights": [
+        {
+          "grade": 5,
+          "weights": {
+            "high": ["G5-K001", "G5-K105", "G5-K106", "G5-K405", "G5-K501", "G5-K502"],
+            "medium": ["G5-K003", "G5-K201", "G5-K301", "G5-K404", "G5-K406", "G5-K407", "G5-K503"],
+            "low": ["G5-K004", "G5-K303", "G5-K305", "G5-K401"]
+          }
+        },
+        {
+          "grade": 6,
+          "weights": {
+            "high": ["G5-K105", "G5-K106", "G5-K501", "G5-K502", "G6-K001", "G6-K005", "G6-K006", "G6-K203"],
+            "medium": ["G5-K406", "G5-K407", "G5-K503", "G6-K002", "G6-K101", "G6-K106", "G6-K201"],
+            "low": ["G6-K003", "G6-K102", "G6-K104", "G6-K202"]
+          }
+        }
+      ]
+    }
+  ]
+}

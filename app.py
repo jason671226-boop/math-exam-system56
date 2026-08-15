@@ -40,6 +40,39 @@ except ImportError:
     render_diagnostic_pilot = None
     DIAGNOSTIC_PILOT_AVAILABLE = False
 
+# Private Beta：教師回饋 + 家長報告。
+try:
+    from teacher_parent_beta_ui import render_private_beta_feedback_and_parent_report
+    PRIVATE_BETA_REPORT_AVAILABLE = True
+except ImportError:
+    render_private_beta_feedback_and_parent_report = None
+    PRIVATE_BETA_REPORT_AVAILABLE = False
+
+try:
+    from services.auth_service import (
+        AuthFlowError,
+        clear_authenticated_session,
+        request_email_otp,
+        verify_email_otp,
+    )
+    from services.learning_runtime import (
+        LearningIdentityError,
+        build_learning_runtime,
+        resolve_authenticated_student,
+    )
+except ModuleNotFoundError:
+    from app.services.auth_service import (
+        AuthFlowError,
+        clear_authenticated_session,
+        request_email_otp,
+        verify_email_otp,
+    )
+    from app.services.learning_runtime import (
+        LearningIdentityError,
+        build_learning_runtime,
+        resolve_authenticated_student,
+    )
+
 # 嘗試載入 Pandas (處理 CSV)
 try:
     import pandas as pd
@@ -316,7 +349,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-APP_VERSION = "v0.8.4"
+APP_VERSION = "v0.8.7"
 APP_DIR = Path(__file__).resolve().parent
 LOCAL_EMAILS_FILE = APP_DIR / "recent_emails.json"
 LINE_PAY_QR_FILE = APP_DIR / "line_pay_qr.jpg"
@@ -345,7 +378,7 @@ if "user_profile" not in st.session_state:
         "last_name": "", "first_name": "", 
         "email": "trial@example.com", "city": "新北市", "district": "土城區", "school": "",
         "grade": "8年級(國二)", "version": "康軒版", 
-        "traits": [], "interests": [], "credits": 15, "last_login_date": today_str
+        "traits": [], "interests": [], "credits": 30, "last_login_date": today_str
     }
 
 if "is_verified" not in st.session_state:
@@ -857,6 +890,118 @@ def init_supabase(url, key):
 
 supabase_client = init_supabase(SUPABASE_URL, SUPABASE_KEY)
 
+
+def get_private_beta_auth_client(create_if_missing=True):
+    """Return a per-Streamlit-session Auth client; never use the cached anon client."""
+    client = st.session_state.get("private_beta_auth_client")
+    if client is not None or not create_if_missing:
+        return client
+    if not SUPABASE_AVAILABLE or not SUPABASE_URL or not SUPABASE_KEY:
+        return None
+    try:
+        client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    except Exception:
+        return None
+    st.session_state["private_beta_auth_client"] = client
+    return client
+
+
+def current_learning_runtime():
+    """Compose persistence once from the current authenticated client and ownership."""
+    client = get_private_beta_auth_client(create_if_missing=False)
+    return build_learning_runtime(st.session_state, client)
+
+
+def clear_private_beta_auth_session():
+    client = st.session_state.get("private_beta_auth_client")
+    clear_authenticated_session(st.session_state, client)
+
+
+def apply_private_beta_identity(email, student_id, auth_user_id):
+    """Load legacy profile metadata while keeping UUID ownership authoritative."""
+    verified_email = normalize_email(email)
+    clear_profile_widget_state(verified_email)
+    db_profile = build_complete_user_profile(verified_email)
+    if db_profile:
+        apply_user_profile_to_session(db_profile, verified_email)
+        st.session_state["profile_load_notice"] = "existing"
+        st.session_state["is_new_account_registration"] = False
+    else:
+        reset_user_profile_for_new_account(verified_email, credits=200)
+        st.session_state["profile_load_notice"] = "new"
+        st.session_state["is_new_account_registration"] = True
+    st.session_state["user_profile"]["id"] = student_id
+    st.session_state["private_beta_auth_user_id"] = auth_user_id
+    st.session_state["developer_mode"] = False
+    st.session_state["is_trial"] = False
+    st.session_state["wallet_synced_email"] = ""
+    st.session_state["is_verified"] = True
+    st.session_state["private_beta_otp_sent"] = False
+    save_recent_email(verified_email)
+
+
+def render_private_beta_auth_login():
+    """Render the Private Beta Supabase Auth OTP flow without exposing tokens."""
+    with st.expander("Private Beta 安全登入（Supabase Auth OTP）", expanded=True):
+        st.caption(
+            "此登入會建立 Supabase Auth session，並透過 student_access 取得正式 student_id。"
+        )
+        email = st.text_input(
+            "Private Beta Email",
+            value=st.session_state.get("private_beta_auth_email", ""),
+            key="private_beta_email_input",
+        ).strip()
+        if st.button(
+            "寄送 Supabase 登入驗證信",
+            key="private_beta_send_otp",
+            use_container_width=True,
+        ):
+            client = get_private_beta_auth_client()
+            try:
+                normalized = request_email_otp(client, email)
+                st.session_state["private_beta_auth_email"] = normalized
+                st.session_state["private_beta_otp_sent"] = True
+                st.success("驗證信已寄出；請輸入信中的一次性驗證碼。")
+            except AuthFlowError as exc:
+                st.error(str(exc))
+
+        if st.session_state.get("private_beta_otp_sent"):
+            with st.form("private_beta_verify_otp_form"):
+                otp = st.text_input(
+                    "Supabase 一次性驗證碼",
+                    type="password",
+                    autocomplete="one-time-code",
+                )
+                verify = st.form_submit_button(
+                    "驗證並登入 Private Beta",
+                    type="primary",
+                    use_container_width=True,
+                )
+            if verify:
+                client = get_private_beta_auth_client()
+                try:
+                    response = verify_email_otp(
+                        client,
+                        st.session_state.get("private_beta_auth_email", email),
+                        otp,
+                    )
+                    identity = resolve_authenticated_student(client)
+                    apply_private_beta_identity(
+                        st.session_state.get("private_beta_auth_email", email),
+                        identity.student_id,
+                        identity.auth_user_id,
+                    )
+                    sync_wallet_balance_to_session(
+                        st.session_state["user_profile"].get("email", ""),
+                        force=True,
+                        is_new_account=st.session_state.get(
+                            "is_new_account_registration", False
+                        ),
+                    )
+                    st.rerun()
+                except (AuthFlowError, LearningIdentityError) as exc:
+                    st.error(str(exc))
+
 # ==========================================
 # v0.7.0 資料架構規則
 # 1. student_profile_controls = 唯一會員主檔
@@ -1121,7 +1266,7 @@ def clear_profile_widget_state(email):
 
 def reset_user_profile_for_new_account(
     email="",
-    credits=100,
+    credits=200,
 ):
     st.session_state["user_profile"] = {
         "last_name": "",
@@ -2351,7 +2496,7 @@ if (
 
 with st.sidebar:
     st.caption("📱 儲值點數與問題回饋")
-    sidebar_credits = st.session_state["user_profile"].get("credits", 15)
+    sidebar_credits = st.session_state["user_profile"].get("credits", 30)
     sidebar_email = st.session_state["user_profile"].get("email", "")
     sidebar_logged_in = bool(sidebar_email and sidebar_email != "trial@example.com")
     login_label = "已登入" if sidebar_logged_in else "未登入"
@@ -2687,13 +2832,36 @@ with st.sidebar:
                             except Exception as e:
                                 st.error(f"錯誤：{e}")
 
+def normalize_math_markdown(content_text):
+    """Normalize common Gemini LaTeX delimiters for Streamlit/KaTeX rendering."""
+    text = str(content_text or "")
+    text = re.sub(
+        r"\\\[(.*?)\\\]",
+        lambda m: "$$\n" + m.group(1).strip() + "\n$$",
+        text,
+        flags=re.DOTALL,
+    )
+    text = re.sub(
+        r"\\\((.*?)\\\)",
+        lambda m: "$" + m.group(1).strip() + "$",
+        text,
+        flags=re.DOTALL,
+    )
+    return text
+
+
+def render_math_content(content_text):
+    """Render mixed Markdown + HTML while letting Streamlit display math cleanly."""
+    st.markdown(normalize_math_markdown(content_text), unsafe_allow_html=True)
+
+
 def show_trial_conversion_notice():
     notice_box = (
         "<div style='background-color: #fff3cd; color: #856404; padding: 20px; border-radius: 10px; border-left: 6px solid #ffeba2; margin: 15px 0; font-size: 1.05em; line-height: 1.7;'>"
         "<b>⚠️ 點數不足或試用額度已用完！</b><br><br>"
         "想要繼續產出更多專屬練習嗎？請至左側選單進行<b>「儲值點數」</b>或點擊頁籤至 <b>[🏠 帳號與設定]</b> 完成免費登入綁定！<br><br>"
         "<b>👉 為什麼你應該立即免費註冊綁定？</b><br>"
-        "• 🎁 <b>免費送點數</b>：新用戶註冊綁定登入後，自動獲贈 <b>100 點</b>！<br>"
+        "• 🎁 <b>免費送點數</b>：新用戶註冊綁定登入後，自動獲贈 <b>200 點</b>！<br>"
         "• 🧠 <b>自動建立專屬學習履歷</b>：系統將自動記錄每一次的錯題，精準追蹤你的知識盲點。<br>"
         "• 🎯 <b>弱點深度分析與迭代</b>：不再盲目刷題！唯有透過個人化錯題累積，才能進行高度客製化的「疊代升級練習」。<br>"
         "• ⚡ <b>倍增學習效率</b>：幫學生省下 80% 整理錯題本的時間，直擊弱點，用最短時間獲得最大幅度進步！<br><br>"
@@ -2704,6 +2872,7 @@ def show_trial_conversion_notice():
 
 # --- 🎯 獨立視窗彈出式列印 (內建 KaTeX 引擎) ---
 def render_share_buttons(content_text, key_prefix):
+    content_text = normalize_math_markdown(content_text)
     st.markdown("---")
     st.markdown("#### 📤 試卷輸出與分享選項")
     
@@ -2884,7 +3053,8 @@ COMMON_LAYOUT_PROMPT = (
 
 LAYOUT_WITH_ANALYSIS = (
     "【★★★ 極度重要：排版與解答格式強制規定 ★★★】\n"
-    "請嚴格套用以下結構輸出，使用繁體中文，絕對不可輸出無關說明、思考過程或英文標籤：\n\n"
+    "請嚴格套用以下結構輸出，使用繁體中文，絕對不可輸出無關說明、思考過程或英文標籤：\n"
+    "所有數學式請用可讀數學符號；需要 LaTeX 時，行內一律用 $...$，獨立公式用 $$...$$，不可裸露 \\frac、\\sqrt 等指令，也不要使用 \\(...\\) 或 \\[...\\]。\n\n"
     "## 錯題詳細解析\n"
     "（請針對上方【錯題內容】中的每一道原始題目，精準算出並列出：「正確答案」與「詳細解題步驟與觀念解說」。）\n\n"
     "<div class=\"page-break\" style=\"page-break-after: always; break-after: page;\"></div>\n\n"
@@ -2898,7 +3068,8 @@ LAYOUT_WITH_ANALYSIS = (
 
 LAYOUT_NORMAL = (
     "【★★★ 極度重要：排版與解答格式強制規定 ★★★】\n"
-    "請你嚴格套用以下結構進行輸出，不可隨意省略、不可把解答寫在題目旁邊：\n\n"
+    "請你嚴格套用以下結構進行輸出，不可隨意省略、不可把解答寫在題目旁邊：\n"
+    "所有數學式請用可讀數學符號；需要 LaTeX 時，行內一律用 $...$，獨立公式用 $$...$$，不可裸露 \\frac、\\sqrt 等指令，也不要使用 \\(...\\) 或 \\[...\\]。\n\n"
     "## 試卷區\n"
     "（在這裡列出所有的題目，絕對不能附上任何解答或提示！）\n"
     "（注意：除了「是非題」之外，『每一道題目』的最下方，必須強制加上 5 個換行標籤 <br><br><br><br><br> 讓學生作答寫字）\n\n"
@@ -3110,20 +3281,26 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
         if current_ip_trials >= 1:
             st.error("⚠️ 您的 IP 今日試用額度已用盡！請使用下方 Email 驗證註冊/登入。")
         else:
-            if st.button("🚀 立即試用（送 15 點，直接進入系統）", type="primary", use_container_width=True):
+            if st.button("🚀 立即試用（送 30 點，直接進入系統）", type="primary", use_container_width=True):
+                reset_user_profile_for_new_account("", credits=30)
                 st.session_state["developer_mode"] = False
                 st.session_state["is_trial"] = True
                 st.session_state["setup_complete"] = True
                 st.rerun()
     st.markdown("---")
 
-    st.subheader("📋 註冊綁定 / 登入個人資料庫 (新會員登入即送 100 點)")
+    st.subheader("📋 註冊綁定 / 登入個人資料庫 (新會員登入即送 200 點)")
     up = st.session_state["user_profile"]
 
     current_stored_email = st.session_state["user_profile"].get("email", "")
     is_verified = bool(current_stored_email and current_stored_email != "trial@example.com")
 
     if not is_verified:
+        render_private_beta_auth_login()
+        st.markdown("---")
+        st.caption(
+            "舊版 Email OTP 僅供相容使用，不會取得 Supabase ownership，也不會啟用跨 session 學習紀錄。"
+        )
         recent_emails = get_recent_emails()
         manual_email_option = "➕ 手動輸入新 Email..."
         email_options = recent_emails + [manual_email_option]
@@ -3189,6 +3366,7 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
                     
                     if submit_login:
                         if user_otp_input == st.session_state["generated_otp"]:
+                            clear_private_beta_auth_session()
                             verified_email = normalize_email(
                                 st.session_state["pending_email"]
                             )
@@ -3206,7 +3384,7 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
                             else:
                                 reset_user_profile_for_new_account(
                                     verified_email,
-                                    credits=100,
+                                    credits=200,
                                 )
                                 st.session_state["profile_load_notice"] = "new"
                                 st.session_state[
@@ -3368,6 +3546,10 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
         "會讓學習履歷混在一起，降低個人化出題的準確度。"
     )
     st.caption("紅色項目為必填欄位；姓名首次確認後鎖定，年級與版本每年可調整 2 次。")
+    st.info(
+        "🔒 隱私提醒：不一定要輸入完整真實姓名。"
+        "姓氏可使用英文縮寫（例如 C），名字可使用英文名字或暱稱（例如 Kevin）。"
+    )
 
     profile_account_source = current_stored_email or st.session_state.get("pending_email", "new_user")
     profile_account_key = hashlib.sha256(profile_account_source.encode("utf-8")).hexdigest()[:10]
@@ -3402,7 +3584,7 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
             label_visibility="collapsed",
             key=f"profile_last_name_{profile_account_key}",
             disabled=name_identity_locked and not st.session_state.get("developer_mode", False),
-            help="姓名首次確認後鎖定，以維持一人一份學習履歷。",
+            help="可用英文縮寫／英文名字／暱稱，不必輸入完整真實姓名；首次確認後會鎖定。",
         )
     with col_name2:
         show_required_label("名字")
@@ -3412,7 +3594,7 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
             label_visibility="collapsed",
             key=f"profile_first_name_{profile_account_key}",
             disabled=name_identity_locked and not st.session_state.get("developer_mode", False),
-            help="姓名首次確認後鎖定，以維持一人一份學習履歷。",
+            help="可用英文縮寫／英文名字／暱稱，不必輸入完整真實姓名；首次確認後會鎖定。",
         )
 
     col_geo1, col_geo2, col_geo3 = st.columns(3)
@@ -4053,8 +4235,9 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
             use_container_width=True,
         ):
             previous_email = st.session_state["user_profile"].get("email", "")
+            clear_private_beta_auth_session()
             clear_profile_widget_state(previous_email)
-            reset_user_profile_for_new_account("", credits=15)
+            reset_user_profile_for_new_account("", credits=30)
             st.session_state["is_verified"] = False
             st.session_state["otp_sent"] = False
             st.session_state["pending_email"] = ""
@@ -4194,6 +4377,7 @@ elif st.session_state["setup_complete"]:
         tab_diag,
         tab_custom,
     ) = tabs
+    learning_runtime = current_learning_runtime()
     with tab_back:
         st.subheader("🏠 帳號與個人化設定")
         if st.session_state.get("developer_mode", False):
@@ -4232,8 +4416,9 @@ elif st.session_state["setup_complete"]:
                 key="account_direct_logout",
             ):
                 previous_email = st.session_state["user_profile"].get("email", "")
+                clear_private_beta_auth_session()
                 clear_profile_widget_state(previous_email)
-                reset_user_profile_for_new_account("", credits=15)
+                reset_user_profile_for_new_account("", credits=30)
                 st.session_state["is_verified"] = False
                 st.session_state["otp_sent"] = False
                 st.session_state["pending_email"] = ""
@@ -4249,7 +4434,11 @@ elif st.session_state["setup_complete"]:
 
     with tab_learning:
         if LEARNING_MAP_AVAILABLE and render_learning_map is not None:
-            render_learning_map(st.session_state["user_profile"], is_trial=is_trial)
+            render_learning_map(
+                st.session_state["user_profile"],
+                is_trial=is_trial,
+                learning_runtime=learning_runtime,
+            )
         else:
             st.error("學習地圖模組尚未安裝，請確認 learning_map.py 已放在 app.py 同一個資料夾。")
 
@@ -4266,8 +4455,25 @@ elif st.session_state["setup_complete"]:
             unsafe_allow_html=True
         )
 
-        uploaded_files = st.file_uploader("📂 上傳錯題照片 (最多支援 2 張)", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
-        
+        scan_input_mode = st.radio(
+            "錯題圖片來源：",
+            ["📂 從相簿／檔案上傳", "📷 直接拍照"],
+            horizontal=True,
+            key="scan_image_input_mode",
+        )
+        if scan_input_mode == "📷 直接拍照":
+            st.caption("手機可直接開啟相機拍攝；如有第二頁，可再拍第二張（選填）。")
+            camera_file_1 = st.camera_input("📷 拍攝錯題照片", key="scan_camera_1")
+            camera_file_2 = st.camera_input("📷 拍攝第二張（選填）", key="scan_camera_2")
+            uploaded_files = [f for f in (camera_file_1, camera_file_2) if f is not None]
+        else:
+            uploaded_files = st.file_uploader(
+                "📂 上傳錯題照片 (最多支援 2 張)",
+                type=["jpg", "png", "jpeg"],
+                accept_multiple_files=True,
+                key="scan_file_upload",
+            )
+
         valid_files = uploaded_files
         if uploaded_files and len(uploaded_files) > 2:
             st.warning("⚠️ 您上傳了超過 2 張照片，系統將自動為您保留前 2 張以確保處理品質喔！")
@@ -4518,6 +4724,7 @@ elif st.session_state["setup_complete"]:
                     prompt = (
                         "你是一個資深的數學老師與考卷辨識專家。\n"
                         "請精準辨識圖片中的數學題目，保留完整公式與符號。\n"
+                        "一般運算請直接使用可讀符號（×、÷、±、√、≤、≥、≠、°）。若公式必須使用 LaTeX，行內請用 $...$ 包住，獨立公式用 $$...$$；不得裸露 \\frac、\\sqrt 等程式碼。\n"
                         "若圖片上有使用者後加的紅色圈選、方框、畫線或打叉，請將被標記的題目視為最高優先。\n"
                         "優先擷取有紅筆加註、留白、打叉或訂正痕跡的題目。\n"
                         "打勾（✓）通常代表答對，請不要列入。\n"
@@ -4528,6 +4735,7 @@ elif st.session_state["setup_complete"]:
                     prompt = (
                         "你是一個資深的數學老師與考卷辨識專家。\n"
                         "請精準辨識圖片中的數學題目，保留完整公式與符號。\n"
+                        "一般運算請直接使用可讀符號（×、÷、±、√、≤、≥、≠、°）。若公式必須使用 LaTeX，行內請用 $...$ 包住，獨立公式用 $$...$$；不得裸露 \\frac、\\sqrt 等程式碼。\n"
                         "若圖片上有使用者後加的紅色圈選、方框、畫線或打叉，請將被標記的題目視為最高優先。\n"
                         "只擷取有紅筆加註、留白或打叉（X）的題目。\n"
                         "打勾（✓）代表答對，請絕對不要列入。\n"
@@ -4683,6 +4891,11 @@ elif st.session_state["setup_complete"]:
         edited_text = st.text_area("確認題目內容 (可在框內直接微調要輸出的錯題)：", value=st.session_state["scanned_text"], height=120)
         st.session_state["scanned_text"] = edited_text
 
+        if edited_text.strip():
+            st.markdown("#### 📐 數學符號預覽")
+            st.caption("下方是學生實際會看到的數學排版；上方文字框仍可直接修改內容。")
+            render_math_content(edited_text)
+
         st.markdown("### 🎯 步驟三：自動產出解析與模擬試題")
         
         st.markdown("#### 🎯 選擇產出方案")
@@ -4741,7 +4954,7 @@ elif st.session_state["setup_complete"]:
                 show_trial_conversion_notice()
 
         if st.session_state["generated_content"]:
-            st.markdown(f'<div class="printable-exam-area">{st.session_state["generated_content"]}</div>', unsafe_allow_html=True)
+            render_math_content(st.session_state["generated_content"])
             render_share_buttons(st.session_state["generated_content"], "scan_res")
             
             st.markdown("---")
@@ -4782,7 +4995,7 @@ elif st.session_state["setup_complete"]:
                         
             if st.session_state.get("variation_content"):
                 st.markdown("### 🌟 變形試卷")
-                st.markdown(f'<div class="printable-exam-area">{st.session_state["variation_content"]}</div>', unsafe_allow_html=True)
+                render_math_content(st.session_state["variation_content"])
                 render_share_buttons(st.session_state["variation_content"], "var_res")
 
     with tab_custom:
@@ -5130,10 +5343,7 @@ elif st.session_state["setup_complete"]:
                         f"{last_summary.get('question_count', '')} 題"
                     )
 
-                st.markdown(
-                    f'<div class="printable-exam-area">{st.session_state["custom_exam_content"]}</div>',
-                    unsafe_allow_html=True,
-                )
+                render_math_content(st.session_state["custom_exam_content"])
                 render_share_buttons(
                     st.session_state["custom_exam_content"],
                     "cust_res",
@@ -5147,14 +5357,60 @@ elif st.session_state["setup_complete"]:
         )
 
         # Phase 2B 只在本機開發者模式顯示，避免 Pilot 功能誤露出到公開網站。
-        if st.session_state.get("developer_mode", False):
+        if is_local_developer_session():
             if DIAGNOSTIC_PILOT_AVAILABLE and render_diagnostic_pilot is not None:
-                render_diagnostic_pilot()
+                try:
+                    render_diagnostic_pilot(
+                        developer_mode=True,
+                        learning_runtime=learning_runtime,
+                        learning_map_tab_label=MAIN_TAB_LABELS[2],
+                    )
+                except TypeError as exc:
+                    # Streamlit may retain the pre-parameter renderer in sys.modules
+                    # until the server process restarts. Keep that one stale signature
+                    # usable without hiding unrelated TypeError exceptions.
+                    if "unexpected keyword argument 'developer_mode'" not in str(exc):
+                        raise
+                    render_diagnostic_pilot()
             else:
                 st.warning("初始診斷 Pilot 模組尚未載入。")
             st.markdown("---")
+            if PRIVATE_BETA_REPORT_AVAILABLE and render_private_beta_feedback_and_parent_report is not None:
+                render_private_beta_feedback_and_parent_report(
+                    user_profile=st.session_state["user_profile"],
+                    learning_runtime=learning_runtime,
+                    auth_client=get_private_beta_auth_client(create_if_missing=False),
+                )
+            else:
+                st.warning("Private Beta 教師回饋／家長報告模組尚未載入。")
+            st.markdown("---")
+            st.stop()
 
-        if not is_trial and not st.session_state.get("developer_mode", False):
+        if learning_runtime.persistence_enabled:
+            if DIAGNOSTIC_PILOT_AVAILABLE and render_diagnostic_pilot is not None:
+                render_diagnostic_pilot(
+                    developer_mode=False,
+                    learning_runtime=learning_runtime,
+                    learning_map_tab_label=MAIN_TAB_LABELS[2],
+                )
+            else:
+                st.warning("診斷模組目前無法載入，請稍後再試。")
+            st.markdown("---")
+            if PRIVATE_BETA_REPORT_AVAILABLE and render_private_beta_feedback_and_parent_report is not None:
+                render_private_beta_feedback_and_parent_report(
+                    user_profile=st.session_state["user_profile"],
+                    learning_runtime=learning_runtime,
+                    auth_client=get_private_beta_auth_client(create_if_missing=False),
+                )
+            else:
+                st.warning("Private Beta 教師回饋／家長報告模組尚未載入。")
+            st.markdown("---")
+
+        if (
+            not learning_runtime.persistence_enabled
+            and not is_trial
+            and not st.session_state.get("developer_mode", False)
+        ):
             diag_profile = st.session_state["user_profile"]
             diag_email = diag_profile.get("email", "")
             diag_credits = diag_profile.get("credits", 0)
@@ -5369,10 +5625,9 @@ elif st.session_state["setup_complete"]:
                         try:
                             res_text = call_gemini_api([prompt_hist])
                             final_hist_content = re.sub(r'```json.*?```', '', res_text, flags=re.DOTALL).strip()
-                            st.markdown(f'<div class="printable-exam-area">{final_hist_content}</div>', unsafe_allow_html=True)
+                            render_math_content(final_hist_content)
                             render_share_buttons(final_hist_content, "hist_res")
                             parse_and_insert_9_col_json(res_text)
                         except Exception as e: handle_api_error(e)
                 else:
                     show_trial_conversion_notice()
-
