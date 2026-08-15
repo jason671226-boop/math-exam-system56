@@ -12,6 +12,7 @@ from datetime import date, datetime, timedelta
 import uuid
 import base64
 import hashlib
+import hmac
 from pathlib import Path
 
 from math_output import MATH_OUTPUT_RULES, normalize_math_markdown
@@ -67,6 +68,11 @@ except ModuleNotFoundError:
         build_learning_runtime,
         resolve_authenticated_student,
     )
+
+try:
+    from beta_feedback_ui import render_beta_feedback
+except ModuleNotFoundError:
+    from app.beta_feedback_ui import render_beta_feedback
 
 # 嘗試載入 Pandas (處理 CSV)
 try:
@@ -344,7 +350,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-APP_VERSION = "v0.8.7"
+APP_VERSION = "v0.8.7.1"
 APP_DIR = Path(__file__).resolve().parent
 LOCAL_EMAILS_FILE = APP_DIR / "recent_emails.json"
 LINE_PAY_QR_FILE = APP_DIR / "line_pay_qr.jpg"
@@ -862,6 +868,7 @@ try:
     )
     SMTP_HOST = st.secrets.get("SMTP_HOST", "smtp.gmail.com")
     SMTP_PORT = int(st.secrets.get("SMTP_PORT", 465))
+    ADMIN_PASSWORD = str(st.secrets.get("MATHAI_ADMIN_PASSWORD", ""))
 except Exception:
     SUPABASE_URL = ""
     SUPABASE_KEY = ""
@@ -870,6 +877,7 @@ except Exception:
     SMTP_PASSWORD = ""
     SMTP_HOST = "smtp.gmail.com"
     SMTP_PORT = 465
+    ADMIN_PASSWORD = ""
 
 # 安全原則：金鑰只從 .streamlit/secrets.toml 讀取。
 # 若缺少設定，不使用任何寫死的備援金鑰。
@@ -2579,9 +2587,14 @@ with st.sidebar:
         """,
         unsafe_allow_html=True,
     )
-    feedback_text = st.text_area("使用回饋", placeholder="請輸入回饋…", key="sidebar_feedback_input", height=72, label_visibility="collapsed")
+    feedback_text = ""
+    render_beta_feedback(
+        st,
+        auth_client=_authenticated_account_client(),
+        context=str(st.session_state.get("main_tab", "app") or "app"),
+    )
     
-    if st.button("送出回饋", use_container_width=True):
+    if False and st.button("送出回饋", use_container_width=True):
         current_email = st.session_state["user_profile"].get("email", "試用者/未綁定")
         if current_email == "trial@example.com":
             st.warning("請先完成登入綁定，才能領取回饋點數喔！")
@@ -2637,7 +2650,7 @@ with st.sidebar:
     if not st.session_state["admin_unlocked"]:
         admin_pwd = st.text_input("輸入管理員密碼：", type="password", key="admin_pwd_input")
         if st.button("進入後臺管理"):
-            if admin_pwd == "jason575752":
+            if ADMIN_PASSWORD and hmac.compare_digest(admin_pwd, ADMIN_PASSWORD):
                 st.session_state["admin_unlocked"] = True
                 st.rerun()
             else:
