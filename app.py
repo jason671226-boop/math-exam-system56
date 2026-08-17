@@ -17,6 +17,7 @@ from pathlib import Path
 
 from math_output import MATH_OUTPUT_RULES, normalize_math_markdown
 from image_input import collect_image_inputs, image_bytes, load_rgb_image
+from navigation_state import apply_pending_main_tab, queue_main_tab
 
 # 學習地圖模組（MVP）
 try:
@@ -350,7 +351,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-APP_VERSION = "v0.8.7.2"
+APP_VERSION = "v0.8.7.3"
 APP_DIR = Path(__file__).resolve().parent
 LOCAL_EMAILS_FILE = APP_DIR / "recent_emails.json"
 LINE_PAY_QR_FILE = APP_DIR / "line_pay_qr.jpg"
@@ -3141,15 +3142,21 @@ def render_requested_page_top():
 
 def switch_main_tab(tab_label):
     """由桌面固定導覽列切換主功能。"""
-    st.session_state["main_tabs_control"] = tab_label
-    request_page_top()
+    if queue_main_tab(st.session_state, tab_label, MAIN_TAB_LABELS):
+        request_page_top()
+
+
+def request_main_tab(tab_label):
+    """Queue an in-page navigation request and start a clean Streamlit run."""
+    if queue_main_tab(st.session_state, tab_label, MAIN_TAB_LABELS):
+        request_page_top()
+        st.rerun()
 
 
 def switch_main_tab_from_mobile():
     """由手機下拉式選單切換主功能。"""
     selected_tab = st.session_state.get("mobile_main_nav_selector")
-    if selected_tab in MAIN_TAB_LABELS:
-        st.session_state["main_tabs_control"] = selected_tab
+    if queue_main_tab(st.session_state, selected_tab, MAIN_TAB_LABELS):
         request_page_top()
 
 
@@ -4294,8 +4301,10 @@ elif st.session_state["setup_complete"]:
 
     is_trial = st.session_state.get("is_trial", False)
 
-    if "main_tabs_control" not in st.session_state:
-        st.session_state["main_tabs_control"] = MAIN_TAB_LABELS[0]
+    current_main_tab = apply_pending_main_tab(
+        st.session_state,
+        MAIN_TAB_LABELS,
+    )
 
     with st.container(key="main_nav_desktop"):
         nav_columns = st.columns(5)
@@ -5361,12 +5370,19 @@ elif st.session_state["setup_complete"]:
                         developer_mode=True,
                         learning_runtime=learning_runtime,
                         learning_map_tab_label=MAIN_TAB_LABELS[2],
+                        request_main_tab=request_main_tab,
                     )
                 except TypeError as exc:
                     # Streamlit may retain the pre-parameter renderer in sys.modules
                     # until the server process restarts. Keep that one stale signature
                     # usable without hiding unrelated TypeError exceptions.
-                    if "unexpected keyword argument 'developer_mode'" not in str(exc):
+                    if not any(
+                        keyword in str(exc)
+                        for keyword in (
+                            "unexpected keyword argument 'developer_mode'",
+                            "unexpected keyword argument 'request_main_tab'",
+                        )
+                    ):
                         raise
                     render_diagnostic_pilot()
             else:
@@ -5381,6 +5397,7 @@ elif st.session_state["setup_complete"]:
                     developer_mode=False,
                     learning_runtime=learning_runtime,
                     learning_map_tab_label=MAIN_TAB_LABELS[2],
+                    request_main_tab=request_main_tab,
                 )
             else:
                 st.warning("診斷模組目前無法載入，請稍後再試。")

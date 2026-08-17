@@ -6,7 +6,7 @@ from decimal import Decimal, InvalidOperation
 import json
 import re
 from uuid import uuid4
-from typing import Any, Mapping, MutableMapping
+from typing import Any, Callable, Mapping, MutableMapping
 
 try:
     from math_output import MATH_OUTPUT_RULES, normalize_math_markdown
@@ -782,6 +782,7 @@ def render_diagnostic_pilot(
     developer_mode: bool = False,
     learning_runtime: Any | None = None,
     learning_map_tab_label: str | None = None,
+    request_main_tab: Callable[[str], None] | None = None,
 ) -> None:
     """Render the local Phase 2B diagnostic Pilot inside the existing diagnosis tab."""
 
@@ -937,13 +938,12 @@ def render_diagnostic_pilot(
         st.caption("診斷、Knowledge Mastery 與 Thinking evidence 已同步至持久化學習紀錄。")
     else:
         st.caption("本次診斷結果僅保留於目前 session；使用 Supabase Auth 登入可啟用跨 session 紀錄。")
-    if learning_map_tab_label and st.button(
+    if learning_map_tab_label and request_main_tab and st.button(
         "查看個人學習地圖與下一步建議",
         key="diag_open_learning_map",
         use_container_width=True,
     ):
-        st.session_state["main_tabs_control"] = learning_map_tab_label
-        st.rerun()
+        request_main_tab(learning_map_tab_label)
     if summary["has_partial"]:
         partial_sequences = [
             str(question_map[qid].sequence)
