@@ -18,6 +18,34 @@ from pathlib import Path
 from math_output import MATH_OUTPUT_RULES, normalize_math_markdown
 from image_input import collect_image_inputs, image_bytes, load_rgb_image
 from navigation_state import apply_pending_main_tab, queue_main_tab
+try:
+    from services.curriculum_catalog import (
+        DIFFICULTIES as SELF_BUILT_DIFFICULTIES,
+        PUBLISHERS as SELF_BUILT_PUBLISHERS,
+        SEMESTERS as SELF_BUILT_SEMESTERS,
+        SUPPORTED_GRADES as SELF_BUILT_GRADES,
+        SelectedExamSpec,
+        build_generation_context,
+        get_curriculum_path,
+        main_unit_names,
+        question_type_labels,
+        reset_dependent_selections,
+        subunit_labels,
+    )
+except ModuleNotFoundError:
+    from app.services.curriculum_catalog import (
+        DIFFICULTIES as SELF_BUILT_DIFFICULTIES,
+        PUBLISHERS as SELF_BUILT_PUBLISHERS,
+        SEMESTERS as SELF_BUILT_SEMESTERS,
+        SUPPORTED_GRADES as SELF_BUILT_GRADES,
+        SelectedExamSpec,
+        build_generation_context,
+        get_curriculum_path,
+        main_unit_names,
+        question_type_labels,
+        reset_dependent_selections,
+        subunit_labels,
+    )
 
 # 學習地圖模組（MVP）
 try:
@@ -353,7 +381,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-APP_VERSION = "v0.8.7.4"
+APP_VERSION = "v0.8.8"
 APP_DIR = Path(__file__).resolve().parent
 LOCAL_EMAILS_FILE = APP_DIR / "recent_emails.json"
 LINE_PAY_QR_FILE = APP_DIR / "line_pay_qr.jpg"
@@ -5039,41 +5067,51 @@ elif st.session_state["setup_complete"]:
             show_trial_conversion_notice()
         else:
             user_profile = st.session_state["user_profile"]
-            user_ver = user_profile.get("version", "康軒版")
-            user_gr = user_profile.get("grade", "8年級(國二)")
+            profile_grade_match = re.search(r"(\d+)", str(user_profile.get("grade", "")))
+            profile_grade = int(profile_grade_match.group(1)) if profile_grade_match else 8
+            if profile_grade not in SELF_BUILT_GRADES:
+                profile_grade = 8
+            profile_publisher = str(user_profile.get("version", "康軒版")).replace("版", "")
+            if profile_publisher not in SELF_BUILT_PUBLISHERS:
+                profile_publisher = "康軒"
 
-            custom_exam_profile_signature = f"{user_gr}|{user_ver}"
-            if (
-                st.session_state.get("custom_exam_profile_signature")
-                != custom_exam_profile_signature
-            ):
-                for state_key in (
-                    "custom_exam_main_units",
-                    "custom_exam_subunits",
-                    "custom_exam_topics",
-                    "custom_exam_question_types",
-                ):
-                    st.session_state.pop(state_key, None)
-                st.session_state[
-                    "custom_exam_profile_signature"
-                ] = custom_exam_profile_signature
+            selector_col1, selector_col2, selector_col3 = st.columns(3)
+            with selector_col1:
+                exam_grade = st.selectbox(
+                    "年級",
+                    SELF_BUILT_GRADES,
+                    index=SELF_BUILT_GRADES.index(profile_grade),
+                    format_func=lambda value: f"G{value}",
+                    key="custom_exam_grade",
+                )
+            with selector_col2:
+                exam_publisher = st.selectbox(
+                    "出版社",
+                    SELF_BUILT_PUBLISHERS,
+                    index=SELF_BUILT_PUBLISHERS.index(profile_publisher),
+                    key="custom_exam_publisher",
+                )
+            with selector_col3:
+                exam_semester = st.selectbox(
+                    "學期",
+                    SELF_BUILT_SEMESTERS,
+                    key="custom_exam_semester",
+                )
 
-            st.info(f"目前學生設定：**{user_gr}｜{user_ver}**")
+            catalog_signature = f"{exam_grade}|{exam_publisher}|{exam_semester}"
+            reset_dependent_selections(st.session_state, catalog_signature)
+            curriculum_path = get_curriculum_path(
+                exam_grade,
+                exam_publisher,
+                exam_semester,
+            )
+            user_gr = f"G{exam_grade}"
+            user_ver = f"{exam_publisher}版"
+            st.info(f"本次試卷設定：**{user_gr}｜{user_ver}｜{exam_semester}**")
 
             # 第一步：主單元
             st.markdown("### 1️⃣ 選擇出題範圍")
-            if LEARNING_MAP_AVAILABLE and get_unit_names_for_profile is not None:
-                unit_options = get_unit_names_for_profile(user_profile)
-            else:
-                unit_options = [
-                    "數與量",
-                    "計算與代數",
-                    "分數與小數",
-                    "比與比例",
-                    "幾何與測量",
-                    "統計與機率",
-                    "生活應用與跨單元",
-                ]
+            unit_options = main_unit_names(curriculum_path)
 
             sanitize_multiselect_state("custom_exam_main_units", unit_options)
             selected_mains = st.multiselect(
@@ -5084,13 +5122,7 @@ elif st.session_state["setup_complete"]:
             )
 
             # 第二步：次單元，嚴格依主單元連動
-            if selected_mains and LEARNING_MAP_AVAILABLE and get_subunit_names_for_units is not None:
-                subunit_options = get_subunit_names_for_units(
-                    user_profile,
-                    selected_mains,
-                )
-            else:
-                subunit_options = []
+            subunit_options = subunit_labels(curriculum_path, selected_mains)
 
             sanitize_multiselect_state("custom_exam_subunits", subunit_options)
             selected_subunits = st.multiselect(
@@ -5100,36 +5132,14 @@ elif st.session_state["setup_complete"]:
                 placeholder="請先選擇主單元" if not selected_mains else "請選擇次單元",
                 disabled=not selected_mains,
             )
-            if selected_mains and not subunit_options:
-                st.info("此年級／版本／主單元的次單元資料正在校對，暫不顯示通用假選項。")
-
-            # 第三步：學習重點，嚴格依次單元連動
-            if selected_subunits and LEARNING_MAP_AVAILABLE and get_topic_names_for_subunits is not None:
-                topic_options = get_topic_names_for_subunits(
-                    user_profile,
-                    selected_subunits,
-                )
-            else:
-                topic_options = []
-
-            sanitize_multiselect_state("custom_exam_topics", topic_options)
-            selected_topics = st.multiselect(
-                "學習重點（依上方次單元連動）",
-                topic_options,
-                key="custom_exam_topics",
-                placeholder="可不選；不選時由系統平均出題",
-                disabled=not selected_subunits,
-            )
+            selected_topics = []
 
             st.markdown("### 2️⃣ 選擇題型與難度")
 
-            if selected_subunits and LEARNING_MAP_AVAILABLE and get_classic_question_type_names_for_units is not None:
-                classic_type_options = get_classic_question_type_names_for_units(
-                    user_profile,
-                    selected_subunits,
-                )
-            else:
-                classic_type_options = []
+            classic_type_options = question_type_labels(
+                curriculum_path,
+                selected_subunits,
+            )
 
             sanitize_multiselect_state("custom_exam_question_types", classic_type_options)
             if classic_type_options:
@@ -5144,7 +5154,7 @@ elif st.session_state["setup_complete"]:
                 if selected_subunits:
                     st.caption("此範圍的細部題型尚未完成校對，因此暫時不顯示。")
 
-            difficulty_options = ["基礎", "標準", "進階", "挑戰"]
+            difficulty_options = list(SELF_BUILT_DIFFICULTIES)
             sanitize_multiselect_state(
                 "custom_exam_difficulties",
                 difficulty_options,
@@ -5255,7 +5265,23 @@ elif st.session_state["setup_complete"]:
                             subunit_topics_str = "、".join(selected_subunits)
                             topic_str = "、".join(selected_topics) if selected_topics else "由系統平均分配"
                             type_str = "、".join(selected_question_types) if selected_question_types else "混合題型"
-                            search_keywords = selected_mains + selected_subunits + selected_topics
+                            exam_spec = SelectedExamSpec(
+                                grade=exam_grade,
+                                publisher=exam_publisher,
+                                semester=exam_semester,
+                                main_units=tuple(selected_mains),
+                                subunits=tuple(selected_subunits),
+                                question_types=tuple(selected_question_types),
+                                difficulty=tuple(selected_difficulties or ["標準"]),
+                                question_count=display_q,
+                            )
+                            generation_context = build_generation_context(exam_spec)
+                            search_keywords = (
+                                [user_gr, exam_publisher, exam_semester]
+                                + selected_mains
+                                + selected_subunits
+                                + selected_question_types
+                            )
                             db_text = fetch_relevant_questions_from_db(
                                 search_keywords,
                                 limit=max(20, display_q * 2),
@@ -5265,8 +5291,7 @@ elif st.session_state["setup_complete"]:
 你是臺灣數學教師與試卷命題專家。請依照以下設定產生一份可直接給學生作答的數學試卷。
 
 【學生與教材】
-年級：{user_gr}
-教材版本：{user_ver}
+{generation_context}
 
 【出題範圍】
 主單元：{main_topics_str}
@@ -5290,7 +5315,7 @@ elif st.session_state["setup_complete"]:
 3. 嚴格符合選擇題、填空題、計算題的數量。
 4. 選擇題每題提供四個選項。
 5. 每題都要有標準答案與簡潔解析。
-6. 題庫題只能作為參考，請調整數字、敘述或情境，避免直接複製。
+6. 題庫只作為概念參考；必須生成全新題目，不可複製出版社或既有題目的原文。
 7. 先輸出「學生作答卷」，再輸出「答案與解析」。
 8. 使用繁體中文，數學符號清楚，題號連續。
 """
@@ -5329,6 +5354,8 @@ elif st.session_state["setup_complete"]:
                                 st.session_state["custom_exam_last_summary"] = {
                                     "grade": user_gr,
                                     "version": user_ver,
+                                    "publisher": exam_publisher,
+                                    "semester": exam_semester,
                                     "main_units": selected_mains,
                                     "subunits": selected_subunits,
                                     "topics": selected_topics,
