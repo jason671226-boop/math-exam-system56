@@ -19,6 +19,20 @@ from math_output import MATH_OUTPUT_RULES, normalize_math_markdown
 from image_input import collect_image_inputs, image_bytes, load_rgb_image
 from navigation_state import apply_pending_main_tab, queue_main_tab
 try:
+    from services.device_email_history import (
+        DeviceEmailHistory,
+        clean_email_history,
+        normalize_history_email,
+        remember_email,
+    )
+except ModuleNotFoundError:
+    from app.services.device_email_history import (
+        DeviceEmailHistory,
+        clean_email_history,
+        normalize_history_email,
+        remember_email,
+    )
+try:
     from services.curriculum_catalog import (
         DIFFICULTIES as SELF_BUILT_DIFFICULTIES,
         PUBLISHERS as SELF_BUILT_PUBLISHERS,
@@ -381,7 +395,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-APP_VERSION = "v0.8.8"
+APP_VERSION = "v0.8.8.1"
 APP_DIR = Path(__file__).resolve().parent
 LOCAL_EMAILS_FILE = APP_DIR / "recent_emails.json"
 LINE_PAY_QR_FILE = APP_DIR / "line_pay_qr.jpg"
@@ -692,26 +706,7 @@ def remaining_grade_version_changes(control):
 
 def _clean_recent_email_list(value):
     """將 Cookie 內容整理成安全、去重複的 Email 清單。"""
-    try:
-        if isinstance(value, str):
-            value = json.loads(value)
-    except Exception:
-        value = []
-
-    if not isinstance(value, list):
-        return []
-
-    cleaned = []
-    for item in value:
-        email = str(item).strip().lower()
-        if (
-            email
-            and "@" in email
-            and email != "trial@example.com"
-            and email not in cleaned
-        ):
-            cleaned.append(email)
-    return cleaned[:10]
+    return clean_email_history(value)
 
 
 def is_localhost_request():
@@ -756,43 +751,44 @@ def get_recent_emails():
         combined.extend(_read_local_recent_emails())
 
     if cookie_controller is not None:
-        try:
-            combined.extend(
-                _clean_recent_email_list(
-                    cookie_controller.get(DEVICE_EMAIL_COOKIE)
-                )
-            )
-        except Exception:
-            pass
+        storage = DeviceEmailHistory(
+            lambda: cookie_controller.get(DEVICE_EMAIL_COOKIE),
+            lambda payload: cookie_controller.set(
+                DEVICE_EMAIL_COOKIE,
+                payload,
+                expires=datetime.now() + timedelta(days=365),
+                same_site="lax",
+            ),
+            lambda: cookie_controller.remove(DEVICE_EMAIL_COOKIE, same_site="lax"),
+        )
+        combined.extend(storage.load())
 
     return _clean_recent_email_list(combined)
 
 
 def save_recent_email(email):
     """記住 Email；本機寫入檔案，瀏覽器同時寫入 Cookie。"""
-    email = str(email or "").strip().lower()
-    if not email or "@" not in email or email == "trial@example.com":
+    email = normalize_history_email(email)
+    if not email:
         return
 
-    emails = get_recent_emails()
-    if email in emails:
-        emails.remove(email)
-    emails.insert(0, email)
-    emails = emails[:10]
+    emails = remember_email(get_recent_emails(), email)
 
     if is_localhost_request():
         _write_local_recent_emails(emails)
 
     if cookie_controller is not None:
-        try:
-            cookie_controller.set(
+        storage = DeviceEmailHistory(
+            lambda: cookie_controller.get(DEVICE_EMAIL_COOKIE),
+            lambda payload: cookie_controller.set(
                 DEVICE_EMAIL_COOKIE,
-                json.dumps(emails, ensure_ascii=False),
+                payload,
                 expires=datetime.now() + timedelta(days=365),
                 same_site="lax",
-            )
-        except Exception:
-            pass
+            ),
+            lambda: cookie_controller.remove(DEVICE_EMAIL_COOKIE, same_site="lax"),
+        )
+        storage.remember(email)
 
 
 def clear_recent_emails():
@@ -805,13 +801,16 @@ def clear_recent_emails():
             pass
 
     if cookie_controller is not None:
-        try:
-            cookie_controller.remove(
+        DeviceEmailHistory(
+            lambda: cookie_controller.get(DEVICE_EMAIL_COOKIE),
+            lambda payload: cookie_controller.set(
                 DEVICE_EMAIL_COOKIE,
+                payload,
+                expires=datetime.now() + timedelta(days=365),
                 same_site="lax",
-            )
-        except Exception:
-            pass
+            ),
+            lambda: cookie_controller.remove(DEVICE_EMAIL_COOKIE, same_site="lax"),
+        ).clear()
 
 
 
@@ -1003,11 +1002,50 @@ def render_private_beta_auth_login():
     st.caption("輸入 Email，我們會寄送一次性驗證碼給你。")
     render_auth_diagnostics()
     with st.container():
-        email = st.text_input(
-            "Email",
-            value=st.session_state.get("private_beta_auth_email", ""),
-            key="private_beta_email_input",
-        ).strip()
+        recent_emails = get_recent_emails()
+        manual_email_option = "自行輸入新 Email"
+        if recent_emails:
+            selected_email_option = st.selectbox(
+                "最近使用的 Email",
+                [*recent_emails, manual_email_option],
+                key="private_beta_recent_email_choice",
+            )
+            if st.button(
+                "清除這台裝置的登入 Email 紀錄",
+                key="clear_private_beta_device_emails",
+            ):
+                clear_recent_emails()
+                for state_key in (
+                    "private_beta_recent_email_choice",
+                    "private_beta_email_input",
+                    "private_beta_remembered_email_display",
+                ):
+                    st.session_state.pop(state_key, None)
+                st.success("已清除這台裝置的登入 Email 紀錄。")
+                st.rerun()
+            if selected_email_option == manual_email_option:
+                email = st.text_input(
+                    "Email",
+                    value="",
+                    key="private_beta_email_input",
+                    autocomplete="email",
+                ).strip()
+            else:
+                st.session_state["private_beta_remembered_email_display"] = (
+                    selected_email_option
+                )
+                email = st.text_input(
+                    "Email",
+                    disabled=True,
+                    key="private_beta_remembered_email_display",
+                ).strip()
+        else:
+            email = st.text_input(
+                "Email",
+                value=st.session_state.get("private_beta_auth_email", ""),
+                key="private_beta_email_input",
+                autocomplete="email",
+            ).strip()
         if st.button(
             "寄送驗證碼",
             key="private_beta_send_otp",

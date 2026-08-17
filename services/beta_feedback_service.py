@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 
-APP_VERSION = "v0.8.8"
+APP_VERSION = "v0.8.8.1"
 CATEGORIES = frozenset(
     {
         "GENERAL",
