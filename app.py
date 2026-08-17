@@ -19,6 +19,10 @@ from math_output import MATH_OUTPUT_RULES, normalize_math_markdown
 from image_input import collect_image_inputs, image_bytes, load_rgb_image
 from navigation_state import apply_pending_main_tab, queue_main_tab
 try:
+    from device_email_history_component import sync_device_email_history
+except ModuleNotFoundError:
+    from app.device_email_history_component import sync_device_email_history
+try:
     from services.device_email_history import (
         DeviceEmailHistory,
         clean_email_history,
@@ -395,7 +399,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-APP_VERSION = "v0.8.8.1"
+APP_VERSION = "v0.8.8.2"
 APP_DIR = Path(__file__).resolve().parent
 LOCAL_EMAILS_FILE = APP_DIR / "recent_emails.json"
 LINE_PAY_QR_FILE = APP_DIR / "line_pay_qr.jpg"
@@ -747,6 +751,19 @@ def get_recent_emails():
     """
     combined = []
 
+    combined.extend(
+        clean_email_history(
+            st.session_state.get("device_email_history_values", [])
+        )
+    )
+
+    try:
+        combined.extend(
+            clean_email_history(st.context.cookies.get(DEVICE_EMAIL_COOKIE))
+        )
+    except Exception:
+        pass
+
     if is_localhost_request():
         combined.extend(_read_local_recent_emails())
 
@@ -773,6 +790,8 @@ def save_recent_email(email):
         return
 
     emails = remember_email(get_recent_emails(), email)
+    st.session_state["device_email_history_values"] = emails
+    st.session_state["device_email_history_pending_email"] = email
 
     if is_localhost_request():
         _write_local_recent_emails(emails)
@@ -811,6 +830,42 @@ def clear_recent_emails():
             ),
             lambda: cookie_controller.remove(DEVICE_EMAIL_COOKIE, same_site="lax"),
         ).clear()
+
+    st.session_state["device_email_history_values"] = []
+    st.session_state["device_email_history_pending_clear"] = True
+
+
+def sync_browser_email_history():
+    """Run the localStorage bridge on every rerun without making Auth depend on it."""
+    pending_email = normalize_history_email(
+        st.session_state.get("device_email_history_pending_email", "")
+    )
+    pending_clear = bool(
+        st.session_state.get("device_email_history_pending_clear", False)
+    )
+    cookie_seed = []
+    if cookie_controller is not None:
+        try:
+            cookie_seed = clean_email_history(
+                cookie_controller.get(DEVICE_EMAIL_COOKIE)
+            )
+        except Exception:
+            cookie_seed = []
+    history = sync_device_email_history(
+        remember=pending_email,
+        clear=pending_clear,
+        seed=cookie_seed,
+    )
+    if history is None:
+        return
+    st.session_state["device_email_history_values"] = history
+    if pending_clear and not history:
+        st.session_state.pop("device_email_history_pending_clear", None)
+    if pending_email and pending_email in history:
+        st.session_state.pop("device_email_history_pending_email", None)
+
+
+sync_browser_email_history()
 
 
 
@@ -982,6 +1037,24 @@ def apply_private_beta_identity(email, student_id, auth_user_id):
     save_recent_email(verified_email)
 
 
+def resolve_or_provision_authenticated_student(client):
+    """Resolve an existing owner or provision one after verified Email Auth."""
+    try:
+        return resolve_authenticated_student(client)
+    except LearningIdentityError:
+        try:
+            response = client.rpc("mathai_private_ensure_student").execute()
+            rows = getattr(response, "data", None) or []
+            row = rows[0] if isinstance(rows, list) and rows else rows
+            if not isinstance(row, dict) or not row.get("student_id"):
+                raise LearningIdentityError("student provisioning unavailable")
+        except LearningIdentityError:
+            raise
+        except Exception as exc:
+            raise LearningIdentityError("student provisioning unavailable") from exc
+        return resolve_authenticated_student(client)
+
+
 def render_auth_diagnostics():
     """Show implementation details only inside an explicitly privileged mode."""
     if not (
@@ -1080,7 +1153,7 @@ def render_private_beta_auth_login():
                         st.session_state.get("private_beta_auth_email", email),
                         otp,
                     )
-                    identity = resolve_authenticated_student(client)
+                    identity = resolve_or_provision_authenticated_student(client)
                     apply_private_beta_identity(
                         st.session_state.get("private_beta_auth_email", email),
                         identity.student_id,

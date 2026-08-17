@@ -20,6 +20,11 @@ PUBLIC_AUTH_ERROR_MESSAGES = {
     "invalid_code": "驗證碼錯誤",
     "expired_code": "驗證碼過期",
     "login_unavailable": "登入暫時失敗，請稍後再試",
+    "otp_rate_limit": "驗證碼剛剛已寄出，請稍候再試。",
+    "email_provider_error": "目前無法寄送驗證碼，請稍後再試。",
+    "network_error": "目前無法連線，請稍後再試。",
+    "auth_disabled": "目前無法寄送驗證碼，請稍後再試。",
+    "supabase_config_error": "登入服務暫時無法使用，請稍後再試。",
 }
 
 
@@ -38,8 +43,29 @@ def normalize_login_email(value: Any) -> str:
     return email
 
 
-def request_email_otp(client: Any, email: str) -> str:
-    """Request an OTP/magic-link email without creating unprovisioned users."""
+def _request_error_code(error: Exception) -> str:
+    detail = str(error).lower()
+    error_type = type(error).__name__.lower()
+    if any(token in detail for token in ("rate limit", "over_email_send_rate_limit", "429")):
+        return "otp_rate_limit"
+    if any(token in detail for token in ("smtp", "email provider", "mail provider")):
+        return "email_provider_error"
+    if "connect" in error_type or any(token in detail for token in ("network", "connection", "timeout", "dns", "winerror 10013")):
+        return "network_error"
+    if any(token in detail for token in ("otp_disabled", "signups not allowed", "auth disabled")):
+        return "auth_disabled"
+    if any(token in detail for token in ("invalid api key", "project not found", "configuration")):
+        return "supabase_config_error"
+    return "login_unavailable"
+
+
+def request_email_otp(
+    client: Any,
+    email: str,
+    *,
+    allow_registration: bool = True,
+) -> str:
+    """Request Email OTP; student provisioning still requires verified Auth."""
     normalized = normalize_login_email(email)
     if client is None or not hasattr(client, "auth"):
         raise AuthFlowError("auth unavailable", code="login_unavailable")
@@ -47,11 +73,11 @@ def request_email_otp(client: Any, email: str) -> str:
         client.auth.sign_in_with_otp(
             {
                 "email": normalized,
-                "options": {"should_create_user": False},
+                "options": {"should_create_user": bool(allow_registration)},
             }
         )
     except Exception as exc:
-        raise AuthFlowError("otp request failed", code="login_unavailable") from exc
+        raise AuthFlowError("otp request failed", code=_request_error_code(exc)) from exc
     return normalized
 
 
