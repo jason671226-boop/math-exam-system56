@@ -86,8 +86,20 @@
           if (email) history = write(storageKey, [email, ...history.filter(item => item !== email)]);
         }
         setValue(history);
-        if (syncCookie(cookieKey, history)) {
-          window.setTimeout(() => window.parent.location.reload(), 25);
+        const cookieChanged = syncCookie(cookieKey, history);
+        const reloadKey = `${storageKey}:reload`;
+        const reloadValue = JSON.stringify(history);
+        if (!cookieChanged) {
+          try { window.sessionStorage.removeItem(reloadKey); } catch (_) {}
+        } else if (history.length) {
+          let alreadyReloaded = false;
+          try {
+            alreadyReloaded = window.sessionStorage.getItem(reloadKey) === reloadValue;
+            window.sessionStorage.setItem(reloadKey, reloadValue);
+          } catch (_) {}
+          if (!alreadyReloaded) {
+            window.setTimeout(() => window.parent.location.reload(), 25);
+          }
         }
         window.parent.postMessage({
           isStreamlitMessage: true,
