@@ -822,8 +822,12 @@ def render_diagnostic_pilot(
 
     st.markdown(f"### 🧭 {DIAGNOSTIC_PROFILE_LABELS[selected_profile]}")
     st.caption(
-        f"{len(questions)} 題基礎診斷｜目前僅供開發驗證，不代表正式能力報告。"
+        f"{len(questions)} 題基礎診斷｜完成後會提供學習重點與下一步建議。"
     )
+    if developer_mode:
+        st.caption(
+            "開發者：診斷規則、Knowledge / Thinking Evidence 與 persistence 驗證已啟用。"
+        )
     render_developer_autofill_controls(
         st,
         questions,
@@ -832,8 +836,7 @@ def render_diagnostic_pilot(
 
     if not st.session_state.get("diag_pilot_started", False):
         st.info(
-            "這個 Pilot 用來驗證：學生作答 → 系統判定 → 錯因候選 → "
-            "Knowledge / Thinking Evidence。資料不會寫入正式 Supabase。"
+            "開始後請依序完成題目；送出後會顯示答題結果、學習重點與建議。"
         )
         if st.button(
             "開始診斷",
@@ -933,11 +936,13 @@ def render_diagnostic_pilot(
         f"{summary['full_correct']} / {summary['question_count']}"
     )
     if st.session_state.get("learning_persistence_warning"):
-        st.warning(st.session_state["learning_persistence_warning"])
+        st.warning("學習紀錄暫時無法同步，請稍後再試。")
+        if developer_mode:
+            st.code(st.session_state["learning_persistence_warning"])
     elif learning_runtime is not None and learning_runtime.persistence_enabled:
-        st.caption("診斷、Knowledge Mastery 與 Thinking evidence 已同步至持久化學習紀錄。")
+        st.caption("診斷結果與學習進度已安全儲存。")
     else:
-        st.caption("本次診斷結果僅保留於目前 session；使用 Supabase Auth 登入可啟用跨 session 紀錄。")
+        st.caption("本次診斷結果目前只保留在這次使用期間；登入 MathAI 可跨次保留學習紀錄。")
     if learning_map_tab_label and request_main_tab and st.button(
         "查看個人學習地圖與下一步建議",
         key="diag_open_learning_map",

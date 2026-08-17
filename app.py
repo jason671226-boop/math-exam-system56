@@ -49,6 +49,7 @@ try:
     from services.auth_service import (
         AuthFlowError,
         clear_authenticated_session,
+        public_auth_error_message,
         request_email_otp,
         verify_email_otp,
     )
@@ -61,6 +62,7 @@ except ModuleNotFoundError:
     from app.services.auth_service import (
         AuthFlowError,
         clear_authenticated_session,
+        public_auth_error_message,
         request_email_otp,
         verify_email_otp,
     )
@@ -351,7 +353,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-APP_VERSION = "v0.8.7.3"
+APP_VERSION = "v0.8.7.4"
 APP_DIR = Path(__file__).resolve().parent
 LOCAL_EMAILS_FILE = APP_DIR / "recent_emails.json"
 LINE_PAY_QR_FILE = APP_DIR / "line_pay_qr.jpg"
@@ -953,19 +955,33 @@ def apply_private_beta_identity(email, student_id, auth_user_id):
     save_recent_email(verified_email)
 
 
-def render_private_beta_auth_login():
-    """Render the Private Beta Supabase Auth OTP flow without exposing tokens."""
-    with st.expander("Private Beta 安全登入（Supabase Auth OTP）", expanded=True):
-        st.caption(
-            "此登入會建立 Supabase Auth session，並透過 student_access 取得正式 student_id。"
+def render_auth_diagnostics():
+    """Show implementation details only inside an explicitly privileged mode."""
+    if not (
+        st.session_state.get("developer_mode", False)
+        or st.session_state.get("admin_unlocked", False)
+    ):
+        return
+    with st.expander("開發者：Auth diagnostics", expanded=False):
+        st.code(
+            "Supabase Auth → auth.uid() → student_access → stable student_id\n"
+            "Ownership / RLS / RPC remain enforced; legacy OTP is compatibility-only."
         )
+
+
+def render_private_beta_auth_login():
+    """Render public passwordless Email login without internal terminology."""
+    st.markdown("#### Email 驗證")
+    st.caption("輸入 Email，我們會寄送一次性驗證碼給你。")
+    render_auth_diagnostics()
+    with st.container():
         email = st.text_input(
-            "Private Beta Email",
+            "Email",
             value=st.session_state.get("private_beta_auth_email", ""),
             key="private_beta_email_input",
         ).strip()
         if st.button(
-            "寄送 Supabase 登入驗證信",
+            "寄送驗證碼",
             key="private_beta_send_otp",
             use_container_width=True,
         ):
@@ -974,19 +990,19 @@ def render_private_beta_auth_login():
                 normalized = request_email_otp(client, email)
                 st.session_state["private_beta_auth_email"] = normalized
                 st.session_state["private_beta_otp_sent"] = True
-                st.success("驗證信已寄出；請輸入信中的一次性驗證碼。")
-            except AuthFlowError:
-                st.error("驗證信目前無法寄出；請確認 Email 格式與 Private Beta 資格後再試。")
+                st.success("驗證碼已寄出，請查看 Email。")
+            except AuthFlowError as exc:
+                st.error(public_auth_error_message(exc))
 
         if st.session_state.get("private_beta_otp_sent"):
             with st.form("private_beta_verify_otp_form"):
                 otp = st.text_input(
-                    "Supabase 一次性驗證碼",
+                    "驗證碼",
                     type="password",
                     autocomplete="one-time-code",
                 )
                 verify = st.form_submit_button(
-                    "驗證並登入 Private Beta",
+                    "登入／繼續",
                     type="primary",
                     use_container_width=True,
                 )
@@ -1012,8 +1028,10 @@ def render_private_beta_auth_login():
                         ),
                     )
                     st.rerun()
-                except (AuthFlowError, LearningIdentityError):
-                    st.error("登入驗證失敗；請確認驗證碼與 Private Beta 學生授權後再試。")
+                except AuthFlowError as exc:
+                    st.error(public_auth_error_message(exc))
+                except LearningIdentityError:
+                    st.error("登入暫時失敗，請稍後再試")
 
 # ==========================================
 # v0.7.0 資料架構規則
@@ -3283,7 +3301,8 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
                 st.rerun()
     st.markdown("---")
 
-    st.subheader("📋 註冊綁定 / 登入個人資料庫 (新會員登入即送 200 點)")
+    st.subheader("學生登入／註冊")
+    st.caption("完成新學生註冊送 200 點。")
     up = st.session_state["user_profile"]
 
     current_stored_email = st.session_state["user_profile"].get("email", "")
@@ -3291,6 +3310,11 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
 
     if not is_verified:
         render_private_beta_auth_login()
+        if not (
+            st.session_state.get("developer_mode", False)
+            or st.session_state.get("admin_unlocked", False)
+        ):
+            st.stop()
         st.markdown("---")
         st.caption(
             "舊版 Email OTP 僅供相容使用，不會取得 Supabase ownership，也不會啟用跨 session 學習紀錄。"
@@ -3498,10 +3522,7 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
         "",
     )
     if profile_read_warning:
-        st.warning(
-            "會員資料暫時無法從 Supabase 讀取。"
-            "請確認 v0.7.0 資料架構 SQL 已執行。"
-        )
+        st.warning("學生資料暫時無法載入，請稍後再試。")
         if st.session_state.get("admin_unlocked", False):
             st.code(profile_read_warning)
 
@@ -3510,10 +3531,9 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
         "",
     )
     if profile_save_warning:
-        st.warning(
-            "會員資料尚未成功同步到 Supabase。"
-            "請確認已執行「Supabase_v0.7.0_資料架構整理.sql」。"
-        )
+        st.warning("學生資料暫時無法儲存，請稍後再試。")
+        if st.session_state.get("admin_unlocked", False):
+            st.code(profile_save_warning)
 
     restore_retry_state_to_session()
     up = st.session_state["user_profile"]
@@ -3541,8 +3561,8 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
     )
     st.caption("紅色項目為必填欄位；姓名首次確認後鎖定，年級與版本每年可調整 2 次。")
     st.info(
-        "🔒 隱私提醒：不一定要輸入完整真實姓名。"
-        "姓氏可使用英文縮寫（例如 C），名字可使用英文名字或暱稱（例如 Kevin）。"
+        "為保護個人隱私，可以使用英文名字或暱稱，不一定要填寫真實中文姓名。"
+        "也就是說，不一定要輸入完整真實姓名。"
     )
 
     profile_account_source = current_stored_email or st.session_state.get("pending_email", "new_user")

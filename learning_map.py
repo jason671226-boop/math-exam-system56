@@ -120,12 +120,14 @@ def _render_dynamic_mastery_map(
 
     st.subheader(f"🌳 Grade {grade} 個人學習地圖")
     if learning_runtime is not None and learning_runtime.persistence_enabled:
-        st.caption("依 Knowledge catalog 與持久化 Mastery 動態產生；本次 session 最新證據會優先顯示。")
+        st.caption("依目前的學習紀錄動態產生，並優先顯示本次最新結果。")
     else:
-        st.caption("依 Knowledge catalog 與本次 session 證據動態產生；目前未啟用跨 session 持久化。")
+        st.caption("依本次學習結果動態產生；登入 MathAI 可跨次保留學習紀錄。")
     persistence_warning = st.session_state.get("learning_persistence_warning")
     if persistence_warning:
-        st.warning(persistence_warning)
+        st.warning("學習紀錄暫時無法同步，請稍後再試。")
+        if st.session_state.get("developer_mode", False):
+            st.code(persistence_warning)
     status_counts = {key: 0 for key in MASTERY_LABELS}
     for row in model["rows"]:
         status_counts[row["mastery_status"]] += 1

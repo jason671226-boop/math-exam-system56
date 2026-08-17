@@ -10,7 +10,7 @@ try:
     from services.teacher_feedback_service import (
         SupabaseTeacherFeedbackRepository,
         TeacherFeedbackError,
-        create_teacher_feedback,
+        create_teacher_feedback_once,
     )
 except ModuleNotFoundError:
     from app.catalog.diagnostic_loader import load_profile_knowledge_catalog
@@ -20,14 +20,14 @@ except ModuleNotFoundError:
     from app.services.teacher_feedback_service import (
         SupabaseTeacherFeedbackRepository,
         TeacherFeedbackError,
-        create_teacher_feedback,
+        create_teacher_feedback_once,
     )
 
 
 SCOPE_LABELS = {
     "整體觀察": "overall",
-    "Knowledge Point": "knowledge",
-    "Thinking Skill": "thinking_skill",
+    "知識概念": "knowledge",
+    "解題策略": "thinking_skill",
 }
 
 
@@ -60,7 +60,7 @@ def _render_teacher_feedback(
 ) -> None:
     repository = _feedback_repository(auth_client)
     if repository is None:
-        st.info("教師回饋需要已授權的 Supabase Auth session；目前不會建立本機假紀錄。")
+        st.info("請先登入已授權帳號，再新增或查看老師回饋。")
         return
 
     scope_label = st.selectbox("回饋範圍", tuple(SCOPE_LABELS))
@@ -69,15 +69,15 @@ def _render_teacher_feedback(
     thinking_id = None
     if scope == "knowledge":
         knowledge_id = st.selectbox(
-            "對應 Knowledge Point",
+            "對應知識概念",
             tuple(knowledge_names),
-            format_func=lambda value: f"{knowledge_names[value]}（{value}）",
+            format_func=lambda value: knowledge_names[value],
         )
     elif scope == "thinking_skill":
         thinking_id = st.selectbox(
-            "對應 Thinking Skill",
+            "對應解題策略",
             tuple(thinking_names),
-            format_func=lambda value: f"{thinking_names[value]}（{value}）",
+            format_func=lambda value: thinking_names[value],
         )
 
     with st.form("teacher_feedback_v1_form"):
@@ -87,7 +87,7 @@ def _render_teacher_feedback(
     if submitted:
         try:
             recorded_by = current_auth_user_id(auth_client)
-            create_teacher_feedback(
+            _, created = create_teacher_feedback_once(
                 repository,
                 student_id=student_id,
                 recorded_by=recorded_by,
@@ -103,7 +103,23 @@ def _render_teacher_feedback(
         except TeacherFeedbackError:
             st.error("回饋未儲存。請確認內容與教師授權；系統不會自行放寬存取權限。")
         else:
-            st.success("教師回饋已儲存；AI mastery 與 Thinking evidence 均未被修改。")
+            if created:
+                st.success("老師回饋已儲存，重新開啟頁面後仍可查看。")
+            else:
+                st.info("相同回饋剛剛已儲存，本次未重複新增。")
+
+    try:
+        recent = repository.list_for_student(student_id, profile_id=profile)
+    except Exception:
+        st.warning("已儲存的老師回饋目前無法載入，請稍後再試。")
+        return
+    st.markdown("#### 最近的老師回饋")
+    if not recent:
+        st.info("目前還沒有老師回饋；可先記錄一項具體觀察與下一步建議。")
+    for row in recent[:5]:
+        st.write(row.feedback_text)
+        if row.recommendation:
+            st.caption("下一步建議：" + row.recommendation)
 
 
 def _load_report(
@@ -120,7 +136,11 @@ def _load_report(
     knowledge = repository.load_latest_knowledge_mastery(student_id, profile)
     thinking = repository.load_latest_thinking_skill_summary(student_id, profile)
     feedback_repository = _feedback_repository(auth_client)
-    feedback = feedback_repository.list_for_student(student_id) if feedback_repository else ()
+    feedback = (
+        feedback_repository.list_for_student(student_id, profile_id=profile)
+        if feedback_repository
+        else ()
+    )
     return build_parent_report(
         student_id=student_id,
         profile=profile,
@@ -141,7 +161,7 @@ def _render_parent_report(st: Any, report: ParentReport) -> None:
         c1.metric("作答題數", summary["question_count"])
         c2.metric("完整得分", summary["full_credit"])
         average = summary["average_credit"]
-        c3.metric("平均 evidence credit", f"{average}%" if average is not None else "資料不足")
+        c3.metric("本次作答表現", f"{average}%" if average is not None else "資料不足")
     else:
         st.info("目前沒有最近診斷資料。")
 
@@ -152,14 +172,14 @@ def _render_parent_report(st: Any, report: ParentReport) -> None:
     else:
         st.info("目前尚未累積足夠證據辨識穩定優勢，並不代表學生沒有優勢。")
 
-    st.markdown("#### 優先補強 Knowledge Top 3")
+    st.markdown("#### 優先補強的知識概念（最多 3 項）")
     if report.knowledge_priorities:
         for index, item in enumerate(report.knowledge_priorities, 1):
             st.write(f"{index}. **{item['name']}** — {item['reason']}")
     else:
-        st.info("目前沒有足夠的 Knowledge evidence 可排序。")
+        st.info("目前沒有足夠的知識概念學習紀錄可排序。")
 
-    st.markdown("#### Thinking Skill Top 3")
+    st.markdown("#### 優先建立的解題策略（最多 3 項）")
     if report.thinking_priorities:
         for index, item in enumerate(report.thinking_priorities, 1):
             st.write(f"{index}. **{item['name']}** — {item['reason']}")
@@ -167,7 +187,7 @@ def _render_parent_report(st: Any, report: ParentReport) -> None:
         st.info("目前累積的解題策略證據還不足，完成更多練習後再更新判斷。")
 
     st.markdown("#### 老師觀察")
-    labels = {"overall": "Overall", "knowledge": "Knowledge", "thinking_skill": "Thinking Skill"}
+    labels = {"overall": "整體觀察", "knowledge": "知識概念", "thinking_skill": "解題策略"}
     if any(report.teacher_observations.values()):
         for scope, rows in report.teacher_observations.items():
             if rows:
@@ -205,9 +225,16 @@ def render_private_beta_feedback_and_parent_report(
 ) -> None:
     import streamlit as st
 
-    st.markdown("### 🧪 Private Beta｜教師回饋 + 家長報告")
+    st.markdown("### 老師回饋與家長報告")
+    st.caption("診斷 → 學習地圖 → 老師回饋 → 家長下一步；內容會依目前登入學生的授權資料即時計算。")
     if learning_runtime is None:
         st.info("學習資料尚未初始化。")
+        return
+    if auth_client is not None and not learning_runtime.persistence_enabled:
+        st.error("目前無法確認這位學生的授權身分，因此不顯示或寫入學習資料。請重新登入後再試。")
+        return
+    if not learning_runtime.persistence_enabled:
+        st.info("登入 MathAI 後，即可儲存老師回饋並跨次查看家長報告。")
         return
     if not profile:
         profile = str(st.session_state.get("diag_pilot_active_route") or "")

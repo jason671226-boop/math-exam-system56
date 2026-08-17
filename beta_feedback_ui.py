@@ -34,10 +34,10 @@ CATEGORY_LABELS = {
 
 
 def render_beta_feedback(st: Any, *, auth_client: Any | None, context: str) -> None:
-    with st.expander("📝 Private Beta 意見回饋", expanded=False):
+    with st.expander("📝 意見回饋", expanded=False):
         st.caption("請勿輸入密碼、驗證碼、Token、API Key 或其他登入資訊。")
         if auth_client is None:
-            st.info("登入 Private Beta 後即可安全提交回饋。")
+            st.info("登入 MathAI 後即可提交回饋。")
             return
         with st.form("private_beta_feedback_v0871"):
             category_label = st.selectbox("回饋類型", tuple(CATEGORY_LABELS))

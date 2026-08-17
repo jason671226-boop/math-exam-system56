@@ -10,11 +10,31 @@ EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 class AuthFlowError(ValueError):
     """Safe authentication error without credential or token details."""
 
+    def __init__(self, message: str, *, code: str = "login_unavailable") -> None:
+        super().__init__(message)
+        self.code = code
+
+
+PUBLIC_AUTH_ERROR_MESSAGES = {
+    "invalid_email": "Email 格式錯誤",
+    "invalid_code": "驗證碼錯誤",
+    "expired_code": "驗證碼過期",
+    "login_unavailable": "登入暫時失敗，請稍後再試",
+}
+
+
+def public_auth_error_message(error: AuthFlowError) -> str:
+    """Map an internal Auth failure to a fixed, non-sensitive UI message."""
+    return PUBLIC_AUTH_ERROR_MESSAGES.get(
+        getattr(error, "code", "login_unavailable"),
+        PUBLIC_AUTH_ERROR_MESSAGES["login_unavailable"],
+    )
+
 
 def normalize_login_email(value: Any) -> str:
     email = str(value or "").strip().lower()
     if not EMAIL_PATTERN.fullmatch(email):
-        raise AuthFlowError("請輸入有效的 Email。")
+        raise AuthFlowError("invalid email", code="invalid_email")
     return email
 
 
@@ -22,7 +42,7 @@ def request_email_otp(client: Any, email: str) -> str:
     """Request an OTP/magic-link email without creating unprovisioned users."""
     normalized = normalize_login_email(email)
     if client is None or not hasattr(client, "auth"):
-        raise AuthFlowError("Supabase Auth 目前無法使用。")
+        raise AuthFlowError("auth unavailable", code="login_unavailable")
     try:
         client.auth.sign_in_with_otp(
             {
@@ -31,7 +51,7 @@ def request_email_otp(client: Any, email: str) -> str:
             }
         )
     except Exception as exc:
-        raise AuthFlowError("無法寄送登入驗證信，請確認帳號已加入 Private Beta。") from exc
+        raise AuthFlowError("otp request failed", code="login_unavailable") from exc
     return normalized
 
 
@@ -39,19 +59,21 @@ def verify_email_otp(client: Any, email: str, token: str) -> Any:
     normalized = normalize_login_email(email)
     clean_token = str(token or "").strip()
     if not clean_token:
-        raise AuthFlowError("請輸入驗證碼。")
+        raise AuthFlowError("missing otp", code="invalid_code")
     if client is None or not hasattr(client, "auth"):
-        raise AuthFlowError("Supabase Auth 目前無法使用。")
+        raise AuthFlowError("auth unavailable", code="login_unavailable")
     try:
         response = client.auth.verify_otp(
             {"email": normalized, "token": clean_token, "type": "email"}
         )
     except Exception as exc:
-        raise AuthFlowError("驗證失敗或驗證碼已過期，請重新取得驗證信。") from exc
+        detail = str(exc).lower()
+        code = "expired_code" if "expired" in detail or "otp_expired" in detail else "invalid_code"
+        raise AuthFlowError("otp verification failed", code=code) from exc
     user = getattr(response, "user", None)
     session = getattr(response, "session", None)
     if not getattr(user, "id", None) or session is None:
-        raise AuthFlowError("Supabase Auth session 未建立，請重新登入。")
+        raise AuthFlowError("auth session unavailable", code="login_unavailable")
     return response
 
 
