@@ -4,8 +4,17 @@ from __future__ import annotations
 
 from typing import Any, MutableMapping, Sequence
 
-# Private-beta testing period only: install the duplicate-key-safe direct
-# on-screen OTP bridge before app.py imports the Auth helpers.
+# Private-beta testing period only.  Rebind Auth functions on EVERY rerun before
+# app.py imports them.  This prevents Streamlit Cloud hot reload from leaving the
+# testing UI in place while silently falling back to Supabase /otp Email sending.
+try:
+    from testing_auth_rebind_v3 import install_testing_auth_rebind_v3
+
+    install_testing_auth_rebind_v3()
+except Exception:
+    pass
+
+# Keep the duplicate-key-safe Email history / on-screen-code UI wrappers.
 try:
     from testing_login_patch_v2 import install_testing_login_patch_v2
 
