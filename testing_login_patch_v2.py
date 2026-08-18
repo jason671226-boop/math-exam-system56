@@ -8,7 +8,7 @@ Testing-period login UX:
 - establish a REAL Supabase Auth session before loading profile/mastery data.
 
 The database-side testing RPCs are temporary, allowlisted, expiring, and preserve
-RLS ownership.  No service_role key is used by the Streamlit app.
+RLS ownership. No service_role key is used by the Streamlit app.
 """
 
 from __future__ import annotations
@@ -42,6 +42,24 @@ def _bool_result(data: Any) -> bool:
 def install_testing_login_patch_v2() -> None:
     import streamlit as st
     import services.auth_service as auth_service
+
+    # v1 used a synthetic in-memory Auth client. If an old Streamlit session
+    # survives a hot deploy, discard only that synthetic state so the next login
+    # must establish a real Supabase session.
+    if st.session_state.pop("_mathai_testing_direct_login", False):
+        for stale_key in (
+            "private_beta_auth_client",
+            "private_beta_auth_user_id",
+            "private_beta_student_id",
+            "private_beta_otp_sent",
+            "_mathai_testing_otp",
+            "_mathai_testing_otp_email",
+            "_mathai_testing_otp_expires_at",
+        ):
+            st.session_state.pop(stale_key, None)
+        st.session_state["is_verified"] = False
+        st.session_state["setup_complete"] = False
+        st.session_state["wallet_synced_email"] = ""
 
     if getattr(st, "_mathai_testing_login_v2_installed", False):
         return
