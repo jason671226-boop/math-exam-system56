@@ -4,16 +4,15 @@ from __future__ import annotations
 
 from typing import Any, MutableMapping, Sequence
 
-# Private-beta testing period only: install the direct on-screen OTP bridge before
-# app.py imports the Auth helpers.  The bridge is isolated in its own module so
-# production Email OTP can be restored later by removing these lines.
+# Private-beta testing period only: install the duplicate-key-safe direct
+# on-screen OTP bridge before app.py imports the Auth helpers.
 try:
-    from testing_login_patch import install_testing_login_patch
+    from testing_login_patch_v2 import install_testing_login_patch_v2
 
-    install_testing_login_patch()
+    install_testing_login_patch_v2()
 except Exception:
     # Navigation must never fail just because the temporary testing bridge cannot
-    # load.  In that case app.py falls back to the normal Supabase Auth path.
+    # load. In that case app.py falls back to the normal Supabase Auth path.
     pass
 
 
