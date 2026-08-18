@@ -1,21 +1,34 @@
 """MathAI testing-login v2.
 
-Fixes StreamlitDuplicateElementKey by keeping the app's public Email widget key
-separate from the manual-entry widget rendered by the testing bridge.
+Testing-period login UX:
+- show a short verification code directly on screen (no Email delivery),
+- remember device-local Email history,
+- exchange the short code for a one-time temporary password through tightly scoped
+  Supabase RPCs,
+- establish a REAL Supabase Auth session before loading profile/mastery data.
+
+The database-side testing RPCs are temporary, allowlisted, expiring, and preserve
+RLS ownership.  No service_role key is used by the Streamlit app.
 """
 
 from __future__ import annotations
 
-from types import SimpleNamespace
 from typing import Any
 
 import testing_login_patch as base
 
 
+def _first_row(data: Any) -> dict[str, Any]:
+    if isinstance(data, list) and data and isinstance(data[0], dict):
+        return dict(data[0])
+    if isinstance(data, dict):
+        return dict(data)
+    return {}
+
+
 def install_testing_login_patch_v2() -> None:
     import streamlit as st
     import services.auth_service as auth_service
-    import services.learning_runtime as learning_runtime
 
     # Keep the sentinel on the Streamlit module so reruns/module reloads cannot
     # accidentally install nested wrappers around the same widget functions.
@@ -26,8 +39,6 @@ def install_testing_login_patch_v2() -> None:
     original_button = st.button
     original_success = st.success
     original_caption = st.caption
-    original_resolve = learning_runtime.resolve_authenticated_student
-    original_build_runtime = learning_runtime.build_learning_runtime
 
     def testing_text_input(label, *args, **kwargs):
         if kwargs.get("key") != "private_beta_email_input":
@@ -54,9 +65,8 @@ def install_testing_login_patch_v2() -> None:
         if selected != base.MANUAL_EMAIL_OPTION:
             return str(selected)
 
-        # IMPORTANT: do not reuse private_beta_email_input here.  The caller is
-        # already the public Email widget with that key, and reusing it creates
-        # StreamlitDuplicateElementKey on Streamlit Cloud.
+        # Do not reuse private_beta_email_input here. The caller is already the
+        # public Email widget with that key; reusing it causes DuplicateElementKey.
         manual_kwargs = dict(kwargs)
         manual_kwargs["key"] = "_mathai_testing_manual_email_input_v2"
         manual_kwargs["value"] = st.session_state.get(
@@ -88,7 +98,7 @@ def install_testing_login_patch_v2() -> None:
             code = st.session_state["_mathai_testing_otp"]
             return original_success(
                 f"🔧 **[測試模式] 登入驗證碼：{code}**  \n"
-                "目前不寄送 Email，請直接把上方驗證碼輸入下方欄位。"
+                "目前不寄送 Email；請直接把上方驗證碼輸入下方欄位。"
             )
         return original_success(body, *args, **kwargs)
 
@@ -98,25 +108,37 @@ def install_testing_login_patch_v2() -> None:
         *,
         allow_registration: bool = True,
     ) -> str:
+        del allow_registration  # testing allowlist is controlled in Supabase.
         normalized = base._clean_email(email)
         if not base._EMAIL_RE.fullmatch(normalized):
             raise auth_service.AuthFlowError(
                 "invalid email", code="invalid_email"
             )
+        if client is None:
+            raise auth_service.AuthFlowError(
+                "testing login unavailable", code="auth_unavailable"
+            )
 
-        auth_user_id, student_id = base._stable_ids(normalized)
-        import random
+        try:
+            response = client.rpc(
+                "mathai_testing_issue_login_code",
+                {"p_email": normalized},
+            ).execute()
+            row = _first_row(getattr(response, "data", None))
+            code = str(row.get("code") or "").strip()
+            if not code:
+                raise ValueError("missing testing code")
+        except Exception as exc:
+            raise auth_service.AuthFlowError(
+                "testing login unavailable", code="auth_unavailable"
+            ) from exc
 
-        code = str(random.randint(100000, 999999))
         st.session_state["_mathai_testing_otp"] = code
         st.session_state["_mathai_testing_otp_email"] = normalized
-        st.session_state["private_beta_auth_client"] = base._TestingClient(
-            st,
-            normalized,
-            auth_user_id,
-            student_id,
+        st.session_state["_mathai_testing_otp_expires_at"] = str(
+            row.get("expires_at") or ""
         )
-        base._save_recent_email(st, normalized)
+        st.session_state["private_beta_auth_email"] = normalized
         return normalized
 
     def verify_email_otp_testing(client: Any, email: str, token: str):
@@ -124,12 +146,9 @@ def install_testing_login_patch_v2() -> None:
         expected_email = base._clean_email(
             st.session_state.get("_mathai_testing_otp_email", "")
         )
-        expected_code = str(
-            st.session_state.get("_mathai_testing_otp", "")
-        ).strip()
         clean_token = str(token or "").strip()
 
-        if not clean_token or clean_token != expected_code:
+        if not clean_token:
             raise auth_service.AuthFlowError(
                 "invalid otp", code="invalid_code"
             )
@@ -137,60 +156,52 @@ def install_testing_login_patch_v2() -> None:
             raise auth_service.AuthFlowError(
                 "invalid otp email", code="invalid_code"
             )
+        if client is None:
+            raise auth_service.AuthFlowError(
+                "testing login unavailable", code="auth_unavailable"
+            )
 
-        auth_user_id, student_id = base._stable_ids(normalized)
-        testing_client = base._TestingClient(
-            st,
-            normalized,
-            auth_user_id,
-            student_id,
-        )
-        st.session_state["private_beta_auth_client"] = testing_client
-        st.session_state["_mathai_testing_direct_login"] = True
-        st.session_state["private_beta_auth_user_id"] = auth_user_id
-        st.session_state["private_beta_student_id"] = student_id
+        try:
+            verify_response = client.rpc(
+                "mathai_testing_verify_login_code",
+                {"p_email": normalized, "p_code": clean_token},
+            ).execute()
+            row = _first_row(getattr(verify_response, "data", None))
+            temp_password = str(row.get("temp_password") or "").strip()
+            if not temp_password:
+                raise ValueError("missing temporary password")
+
+            auth_response = client.auth.sign_in_with_password(
+                {"email": normalized, "password": temp_password}
+            )
+            user = getattr(auth_response, "user", None)
+            session = getattr(auth_response, "session", None)
+            if user is None or session is None:
+                raise ValueError("Supabase session was not established")
+
+            # Immediately rotate the temporary password away after the real
+            # authenticated session exists. The current JWT/session remains valid.
+            try:
+                client.rpc("mathai_testing_consume_login_password", {}).execute()
+            except Exception:
+                # The session is already valid. Do not discard a successful login
+                # because cleanup failed; the DB allowlist still expires.
+                pass
+        except auth_service.AuthFlowError:
+            raise
+        except Exception as exc:
+            raise auth_service.AuthFlowError(
+                "invalid or expired testing code", code="invalid_code"
+            ) from exc
+
         base._save_recent_email(st, normalized)
-        return SimpleNamespace(
-            user=SimpleNamespace(id=auth_user_id, email=normalized),
-            session=SimpleNamespace(access_token="testing-period-session"),
-        )
-
-    def resolve_authenticated_student_testing(
-        client: Any,
-        *,
-        preferred_student_id: str | None = None,
-    ):
-        if isinstance(client, base._TestingClient):
-            return learning_runtime.AuthenticatedStudent(
-                client.auth_user_id,
-                client.student_id,
-                "owner",
-            )
-        return original_resolve(
-            client,
-            preferred_student_id=preferred_student_id,
-        )
-
-    def build_learning_runtime_testing(
-        state,
-        authenticated_client,
-        *,
-        preferred_student_id: str | None = None,
-    ):
-        if (
-            state.get("_mathai_testing_direct_login", False)
-            or isinstance(authenticated_client, base._TestingClient)
+        for key in (
+            "_mathai_testing_otp",
+            "_mathai_testing_otp_email",
+            "_mathai_testing_otp_expires_at",
         ):
-            return original_build_runtime(
-                state,
-                None,
-                preferred_student_id=preferred_student_id,
-            )
-        return original_build_runtime(
-            state,
-            authenticated_client,
-            preferred_student_id=preferred_student_id,
-        )
+            st.session_state.pop(key, None)
+        return auth_response
 
     st.text_input = testing_text_input
     st.button = testing_button
@@ -198,9 +209,5 @@ def install_testing_login_patch_v2() -> None:
     st.success = testing_success
     auth_service.request_email_otp = request_email_otp_testing
     auth_service.verify_email_otp = verify_email_otp_testing
-    learning_runtime.resolve_authenticated_student = (
-        resolve_authenticated_student_testing
-    )
-    learning_runtime.build_learning_runtime = build_learning_runtime_testing
 
     st._mathai_testing_login_v2_installed = True
