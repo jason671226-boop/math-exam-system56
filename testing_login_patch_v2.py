@@ -26,12 +26,23 @@ def _first_row(data: Any) -> dict[str, Any]:
     return {}
 
 
+def _bool_result(data: Any) -> bool:
+    if isinstance(data, bool):
+        return data
+    if isinstance(data, list) and data:
+        if isinstance(data[0], bool):
+            return bool(data[0])
+        if isinstance(data[0], dict):
+            return bool(next(iter(data[0].values()), False))
+    if isinstance(data, dict):
+        return bool(next(iter(data.values()), False))
+    return False
+
+
 def install_testing_login_patch_v2() -> None:
     import streamlit as st
     import services.auth_service as auth_service
 
-    # Keep the sentinel on the Streamlit module so reruns/module reloads cannot
-    # accidentally install nested wrappers around the same widget functions.
     if getattr(st, "_mathai_testing_login_v2_installed", False):
         return
 
@@ -65,8 +76,6 @@ def install_testing_login_patch_v2() -> None:
         if selected != base.MANUAL_EMAIL_OPTION:
             return str(selected)
 
-        # Do not reuse private_beta_email_input here. The caller is already the
-        # public Email widget with that key; reusing it causes DuplicateElementKey.
         manual_kwargs = dict(kwargs)
         manual_kwargs["key"] = "_mathai_testing_manual_email_input_v2"
         manual_kwargs["value"] = st.session_state.get(
@@ -108,7 +117,7 @@ def install_testing_login_patch_v2() -> None:
         *,
         allow_registration: bool = True,
     ) -> str:
-        del allow_registration  # testing allowlist is controlled in Supabase.
+        del allow_registration
         normalized = base._clean_email(email)
         if not base._EMAIL_RE.fullmatch(normalized):
             raise auth_service.AuthFlowError(
@@ -116,7 +125,7 @@ def install_testing_login_patch_v2() -> None:
             )
         if client is None:
             raise auth_service.AuthFlowError(
-                "testing login unavailable", code="auth_unavailable"
+                "testing login unavailable", code="login_unavailable"
             )
 
         try:
@@ -130,7 +139,7 @@ def install_testing_login_patch_v2() -> None:
                 raise ValueError("missing testing code")
         except Exception as exc:
             raise auth_service.AuthFlowError(
-                "testing login unavailable", code="auth_unavailable"
+                "testing login unavailable", code="login_unavailable"
             ) from exc
 
         st.session_state["_mathai_testing_otp"] = code
@@ -158,9 +167,12 @@ def install_testing_login_patch_v2() -> None:
             )
         if client is None:
             raise auth_service.AuthFlowError(
-                "testing login unavailable", code="auth_unavailable"
+                "testing login unavailable", code="login_unavailable"
             )
 
+        temp_password = ""
+        auth_response = None
+        cleanup_ok = False
         try:
             verify_response = client.rpc(
                 "mathai_testing_verify_login_code",
@@ -178,21 +190,50 @@ def install_testing_login_patch_v2() -> None:
             session = getattr(auth_response, "session", None)
             if user is None or session is None:
                 raise ValueError("Supabase session was not established")
-
-            # Immediately rotate the temporary password away after the real
-            # authenticated session exists. The current JWT/session remains valid.
-            try:
-                client.rpc("mathai_testing_consume_login_password", {}).execute()
-            except Exception:
-                # The session is already valid. Do not discard a successful login
-                # because cleanup failed; the DB allowlist still expires.
-                pass
         except auth_service.AuthFlowError:
             raise
         except Exception as exc:
             raise auth_service.AuthFlowError(
                 "invalid or expired testing code", code="invalid_code"
             ) from exc
+        finally:
+            if temp_password:
+                try:
+                    revoke_response = client.rpc(
+                        "mathai_testing_revoke_temp_password",
+                        {
+                            "p_email": normalized,
+                            "p_temp_password": temp_password,
+                        },
+                    ).execute()
+                    cleanup_ok = _bool_result(
+                        getattr(revoke_response, "data", None)
+                    )
+                except Exception:
+                    cleanup_ok = False
+
+        if auth_response is None:
+            raise auth_service.AuthFlowError(
+                "testing login unavailable", code="login_unavailable"
+            )
+        if not cleanup_ok:
+            try:
+                consume_response = client.rpc(
+                    "mathai_testing_consume_login_password", {}
+                ).execute()
+                cleanup_ok = _bool_result(
+                    getattr(consume_response, "data", None)
+                )
+            except Exception:
+                cleanup_ok = False
+        if not cleanup_ok:
+            try:
+                client.auth.sign_out()
+            except Exception:
+                pass
+            raise auth_service.AuthFlowError(
+                "testing login cleanup failed", code="login_unavailable"
+            )
 
         base._save_recent_email(st, normalized)
         for key in (
