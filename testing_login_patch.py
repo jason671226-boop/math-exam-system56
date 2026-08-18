@@ -258,6 +258,7 @@ def install_testing_login_patch() -> None:
     original_text_input = st.text_input
     original_button = st.button
     original_success = st.success
+    original_caption = st.caption
     original_resolve = learning_runtime.resolve_authenticated_student
     original_build_runtime = learning_runtime.build_learning_runtime
 
@@ -279,7 +280,7 @@ def install_testing_login_patch() -> None:
             help="最後一項可手動輸入新的 Email。",
         )
         if recent:
-            st.caption(
+            original_caption(
                 "✅ 已載入這台裝置曾使用的 Email；最後一項可手動輸入新 Email。"
             )
 
@@ -297,6 +298,13 @@ def install_testing_login_patch() -> None:
         if kwargs.get("key") == "private_beta_send_otp":
             label = "顯示驗證碼（測試期間）"
         return original_button(label, *args, **kwargs)
+
+    def testing_caption(body, *args, **kwargs):
+        if str(body) == "輸入 Email，我們會寄送一次性驗證碼給你。":
+            body = (
+                "測試期間先不寄 Email；按下方按鈕後，登入驗證碼會直接顯示在畫面上。"
+            )
+        return original_caption(body, *args, **kwargs)
 
     def testing_success(body, *args, **kwargs):
         if (
@@ -411,6 +419,7 @@ def install_testing_login_patch() -> None:
 
     st.text_input = testing_text_input
     st.button = testing_button
+    st.caption = testing_caption
     st.success = testing_success
     auth_service.request_email_otp = request_email_otp_testing
     auth_service.verify_email_otp = verify_email_otp_testing
