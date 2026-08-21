@@ -1,10 +1,8 @@
-"""Normalized G5-G9 curriculum adapter for the self-built exam flow.
+"""Normalized curriculum adapter for the self-built exam flow.
 
-The repository's knowledge maps remain the source of truth.  Publisher and
-semester are explicit catalog dimensions so UI state and generation context
-cannot leak across selections.  G7 uses the deeper publisher catalog when it
-is available; other grades use the reviewed MathAI grade knowledge maps until
-publisher-specific source data is added.
+Legacy G5-G9 catalog behavior remains the default.  When Curriculum Master
+v2.7 is explicitly enabled, generation context is augmented with canonical
+Skill / micro-skill metadata without changing the current Streamlit UI.
 """
 
 from __future__ import annotations
@@ -223,8 +221,7 @@ def reset_dependent_selections(state: MutableMapping[str, Any], signature: str) 
     state[key] = signature
 
 
-def build_generation_context(spec: SelectedExamSpec) -> str:
-    """Produce the complete, testable context passed to bank search and AI fallback."""
+def _legacy_generation_context(spec: SelectedExamSpec) -> str:
     return "\n".join(
         (
             f"年級：{spec.grade_label}",
@@ -237,3 +234,67 @@ def build_generation_context(spec: SelectedExamSpec) -> str:
             f"題數：{spec.question_count}",
         )
     )
+
+
+def _selected_subunit_names(labels: Iterable[str]) -> set[str]:
+    result: set[str] = set()
+    for label in labels:
+        text = str(label).strip()
+        if "＞" in text:
+            text = text.rsplit("＞", 1)[-1].strip()
+        if text:
+            result.add(text)
+    return result
+
+
+def _canonical_generation_context(spec: SelectedExamSpec) -> str:
+    """Best-effort canonical augmentation for the current G5-G9 UI.
+
+    The current UI is publisher/semester driven, while v2.7 canonical skills are
+    publisher-independent.  We therefore only attach skills that match the
+    selected MathAI main/subunit labels.  If no safe match exists, legacy context
+    is returned unchanged rather than broadening the requested scope.
+    """
+    try:
+        from .curriculum_master_feature import (
+            curriculum_master_v27,
+            curriculum_master_v27_enabled,
+        )
+    except (ImportError, ModuleNotFoundError):
+        return ""
+    if not curriculum_master_v27_enabled():
+        return ""
+    try:
+        runtime = curriculum_master_v27()
+        route = runtime.resolve_route(spec.grade_label)
+        selected_main = {str(x).strip() for x in spec.main_units if str(x).strip()}
+        selected_sub = _selected_subunit_names(spec.subunits)
+        candidates = [
+            skill for skill in runtime.load_standard_skills(route)
+            if skill.main_unit in selected_main or skill.subunit in selected_sub
+        ]
+        if not candidates:
+            return ""
+        # Keep prompt size bounded while preserving selected canonical scope.
+        candidates = candidates[:24]
+        return "\n".join((
+            "",
+            "【MathAI Curriculum Master v2.7 canonical context】",
+            runtime.build_prompt_context(route, [skill.skill_id for skill in candidates]),
+            "每題必須回傳 canonical skill_id；若可判定，另回傳 micro_skill_id。",
+        ))
+    except Exception:
+        # Feature-flagged rollout must never break the legacy self-built exam.
+        return ""
+
+
+def build_generation_context(spec: SelectedExamSpec) -> str:
+    """Produce the complete context passed to bank search and AI fallback.
+
+    Flag OFF: byte-for-byte equivalent legacy structure.
+    Flag ON + valid v2.7 archive: append canonical Skill context.
+    Any v2.7 load/match failure: fall back to legacy context.
+    """
+    legacy = _legacy_generation_context(spec)
+    canonical = _canonical_generation_context(spec)
+    return legacy + canonical
