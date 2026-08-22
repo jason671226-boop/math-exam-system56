@@ -86,6 +86,15 @@ try:
         build_learning_runtime,
         resolve_authenticated_student,
     )
+    from services.testing_auth_service import (
+        TestingAuthError,
+        clear_testing_challenge,
+        complete_testing_login,
+        issue_testing_code,
+        public_testing_auth_error_message,
+        testing_challenge_email,
+        testing_code_display,
+    )
 except ModuleNotFoundError:
     from app.services.auth_service import (
         AuthFlowError,
@@ -98,6 +107,15 @@ except ModuleNotFoundError:
         LearningIdentityError,
         build_learning_runtime,
         resolve_authenticated_student,
+    )
+    from app.services.testing_auth_service import (
+        TestingAuthError,
+        clear_testing_challenge,
+        complete_testing_login,
+        issue_testing_code,
+        public_testing_auth_error_message,
+        testing_challenge_email,
+        testing_code_display,
     )
 
 try:
@@ -983,6 +1001,24 @@ def apply_private_beta_identity(email, student_id, auth_user_id):
     save_recent_email(verified_email)
 
 
+def resolve_or_provision_authenticated_student(client):
+    """Resolve an existing owner or provision one after verified Email Auth."""
+    try:
+        return resolve_authenticated_student(client)
+    except LearningIdentityError:
+        try:
+            response = client.rpc("mathai_private_ensure_student").execute()
+            rows = getattr(response, "data", None) or []
+            row = rows[0] if isinstance(rows, list) and rows else rows
+            if not isinstance(row, dict) or not row.get("student_id"):
+                raise LearningIdentityError("student provisioning unavailable")
+        except LearningIdentityError:
+            raise
+        except Exception as exc:
+            raise LearningIdentityError("student provisioning unavailable") from exc
+        return resolve_authenticated_student(client)
+
+
 def render_auth_diagnostics():
     """Show implementation details only inside an explicitly privileged mode."""
     if not (
@@ -997,69 +1033,206 @@ def render_auth_diagnostics():
         )
 
 
-def render_private_beta_auth_login():
-    """Render public passwordless Email login without internal terminology."""
-    st.markdown("#### Email 驗證")
-    st.caption("輸入 Email，我們會寄送一次性驗證碼給你。")
-    render_auth_diagnostics()
-    with st.container():
-        email = st.text_input(
-            "Email",
-            value=st.session_state.get("private_beta_auth_email", ""),
-            key="private_beta_email_input",
-        ).strip()
-        if st.button(
-            "寄送驗證碼",
-            key="private_beta_send_otp",
-            use_container_width=True,
-        ):
+def render_email_otp_fallback_login():
+    """Explicit secondary login path: real Email OTP.
+
+    The testing-mode path never calls this function and never falls back to
+    /otp.  This surface stays available for users until the testing-auth
+    bridge is provisioned.
+    """
+    st.caption("此為正式 Email OTP 流程：系統會寄送驗證碼到你的 Email。")
+    email = st.text_input(
+        "Email（正式 OTP 流程）",
+        value=st.session_state.get("private_beta_auth_email", ""),
+        key="private_beta_email_input",
+        autocomplete="email",
+    ).strip()
+    if st.button(
+        "寄送驗證碼",
+        key="private_beta_send_otp",
+        use_container_width=True,
+    ):
+        client = get_private_beta_auth_client()
+        try:
+            normalized = request_email_otp(client, email)
+            st.session_state["private_beta_auth_email"] = normalized
+            st.session_state["private_beta_otp_sent"] = True
+            st.success("驗證碼已寄出，請查看 Email。")
+        except AuthFlowError as exc:
+            st.error(public_auth_error_message(exc))
+
+    if st.session_state.get("private_beta_otp_sent"):
+        with st.form("private_beta_verify_otp_form"):
+            otp = st.text_input(
+                "驗證碼",
+                type="password",
+                autocomplete="one-time-code",
+                key="private_beta_otp_input",
+            )
+            verify = st.form_submit_button(
+                "登入／繼續",
+                type="primary",
+                use_container_width=True,
+            )
+        if verify:
             client = get_private_beta_auth_client()
             try:
-                normalized = request_email_otp(client, email)
-                st.session_state["private_beta_auth_email"] = normalized
-                st.session_state["private_beta_otp_sent"] = True
-                st.success("驗證碼已寄出，請查看 Email。")
+                response = verify_email_otp(
+                    client,
+                    st.session_state.get("private_beta_auth_email", email),
+                    otp,
+                )
+                identity = resolve_or_provision_authenticated_student(client)
+                apply_private_beta_identity(
+                    st.session_state.get("private_beta_auth_email", email),
+                    identity.student_id,
+                    identity.auth_user_id,
+                )
+                sync_wallet_balance_to_session(
+                    st.session_state["user_profile"].get("email", ""),
+                    force=True,
+                    is_new_account=st.session_state.get(
+                        "is_new_account_registration", False
+                    ),
+                )
+                st.rerun()
             except AuthFlowError as exc:
                 st.error(public_auth_error_message(exc))
+            except LearningIdentityError:
+                st.error("登入暫時失敗，請稍後再試")
 
-        if st.session_state.get("private_beta_otp_sent"):
-            with st.form("private_beta_verify_otp_form"):
-                otp = st.text_input(
-                    "驗證碼",
-                    type="password",
-                    autocomplete="one-time-code",
+
+def render_private_beta_auth_login():
+    """Render the single public login surface for the testing period.
+
+    Primary path: device Email history -> 「顯示驗證碼（測試期間）」 -> direct
+    6-digit code -> verification -> REAL Supabase Auth session.  Real Email
+    OTP stays available as an explicit, separate secondary option.
+    """
+    st.markdown("#### Email 驗證（測試期間）")
+    st.caption(
+        "選擇或輸入 Email 後，按「顯示驗證碼（測試期間）」即可在畫面直接取得 6 位數驗證碼。"
+    )
+    render_auth_diagnostics()
+
+    recent_emails = get_recent_emails()
+    manual_email_option = "➕ 手動輸入新 Email"
+    manual_email_input_key = "testing_login_email_input"
+    email = ""
+
+    if recent_emails:
+        selected_email_option = st.selectbox(
+            "這台裝置曾使用的 Email",
+            [*recent_emails, manual_email_option],
+            key="testing_login_email_choice",
+        )
+        if st.button(
+            "清除這台裝置的登入 Email 紀錄",
+            key="clear_testing_login_device_emails",
+        ):
+            clear_recent_emails()
+            for state_key in (
+                "testing_login_email_choice",
+                manual_email_input_key,
+                "testing_login_remembered_email_display",
+            ):
+                st.session_state.pop(state_key, None)
+            clear_testing_challenge(st.session_state)
+            st.success("已清除這台裝置的登入 Email 紀錄。")
+            st.rerun()
+        if selected_email_option == manual_email_option:
+            email = st.text_input(
+                "Email",
+                value="",
+                key=manual_email_input_key,
+                autocomplete="email",
+            ).strip()
+        else:
+            email = normalize_email(str(selected_email_option))
+            st.text_input(
+                "Email",
+                value=email,
+                disabled=True,
+                key="testing_login_remembered_email_display",
+            )
+    else:
+        email = st.text_input(
+            "Email",
+            value=testing_challenge_email(st.session_state),
+            key=manual_email_input_key,
+            autocomplete="email",
+        ).strip()
+
+    if st.button(
+        "顯示驗證碼（測試期間）",
+        key="testing_login_show_code",
+        use_container_width=True,
+    ):
+        try:
+            issue_testing_code(
+                get_private_beta_auth_client(),
+                st.session_state,
+                email=email,
+            )
+        except TestingAuthError as exc:
+            st.error(public_testing_auth_error_message(exc))
+        except AuthFlowError as exc:
+            st.error(public_auth_error_message(exc))
+
+    displayed_code = testing_code_display(st.session_state)
+    if displayed_code:
+        st.info(
+            f"🔧 **[測試期間] 您的登入驗證碼是： {displayed_code}**"
+            "（10 分鐘內有效，重新整理前請先完成驗證）"
+        )
+
+    challenged_email = testing_challenge_email(st.session_state)
+    if challenged_email:
+        with st.form("testing_login_verify_form"):
+            token = st.text_input(
+                "驗證碼",
+                max_chars=6,
+                autocomplete="one-time-code",
+                key="testing_login_code_input",
+            )
+            verify = st.form_submit_button(
+                "驗證並登入",
+                type="primary",
+                use_container_width=True,
+            )
+        if verify:
+            client = get_private_beta_auth_client()
+            try:
+                response, verified_email = complete_testing_login(
+                    client,
+                    st.session_state,
+                    email=challenged_email,
+                    token=token,
                 )
-                verify = st.form_submit_button(
-                    "登入／繼續",
-                    type="primary",
-                    use_container_width=True,
+                identity = resolve_or_provision_authenticated_student(client)
+                apply_private_beta_identity(
+                    verified_email,
+                    identity.student_id,
+                    identity.auth_user_id,
                 )
-            if verify:
-                client = get_private_beta_auth_client()
-                try:
-                    response = verify_email_otp(
-                        client,
-                        st.session_state.get("private_beta_auth_email", email),
-                        otp,
-                    )
-                    identity = resolve_authenticated_student(client)
-                    apply_private_beta_identity(
-                        st.session_state.get("private_beta_auth_email", email),
-                        identity.student_id,
-                        identity.auth_user_id,
-                    )
-                    sync_wallet_balance_to_session(
-                        st.session_state["user_profile"].get("email", ""),
-                        force=True,
-                        is_new_account=st.session_state.get(
-                            "is_new_account_registration", False
-                        ),
-                    )
-                    st.rerun()
-                except AuthFlowError as exc:
-                    st.error(public_auth_error_message(exc))
-                except LearningIdentityError:
-                    st.error("登入暫時失敗，請稍後再試")
+                sync_wallet_balance_to_session(
+                    st.session_state["user_profile"].get("email", ""),
+                    force=True,
+                    is_new_account=st.session_state.get(
+                        "is_new_account_registration", False
+                    ),
+                )
+                st.rerun()
+            except TestingAuthError as exc:
+                st.error(public_testing_auth_error_message(exc))
+            except AuthFlowError as exc:
+                st.error(public_auth_error_message(exc))
+            except LearningIdentityError:
+                st.error("登入暫時失敗，請稍後再試")
+
+    st.markdown("---")
+    with st.expander("改用 Email 寄送驗證碼登入（正式流程）"):
+        render_email_otp_fallback_login()
 
 # ==========================================
 # v0.7.0 資料架構規則
@@ -3338,134 +3511,10 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
 
     if not is_verified:
         render_private_beta_auth_login()
-        if not (
-            st.session_state.get("developer_mode", False)
-            or st.session_state.get("admin_unlocked", False)
-        ):
-            st.stop()
-        st.markdown("---")
-        st.caption(
-            "舊版 Email OTP 僅供相容使用，不會取得 Supabase ownership，也不會啟用跨 session 學習紀錄。"
-        )
-        recent_emails = get_recent_emails()
-        manual_email_option = "➕ 手動輸入新 Email..."
-        email_options = recent_emails + [manual_email_option]
-
-        st.markdown("#### 📧 請選擇或輸入您的登入 Email (必填)")
-        if recent_emails:
-            st.caption("✅ 已載入這台裝置曾驗證過的 Email；最近使用的帳號會排在最前面。")
-        elif not COOKIE_CONTROLLER_AVAILABLE:
-            st.caption("ℹ️ 裝置記憶元件尚未安裝，目前仍可手動輸入 Email。")
-
-        selected_option = st.selectbox(
-            "點擊選擇曾登入過的帳號：",
-            email_options,
-            key="single_email_select",
-        )
-
-        if recent_emails:
-            if st.button(
-                "🧹 清除這台裝置記住的 Email",
-                key="clear_device_emails",
-            ):
-                clear_recent_emails()
-                st.session_state.pop("single_email_select", None)
-                st.session_state["pending_email"] = ""
-                st.success("已清除這台裝置的 Email 記錄。")
-                st.rerun()
-
-        if selected_option == manual_email_option:
-            typed_email = st.text_input(
-                "請輸入新的 Email (綁定與驗證用)：",
-                value=st.session_state["pending_email"],
-                placeholder="example@gmail.com",
-            )
-            user_email_input = typed_email.strip()
-        else:
-            user_email_input = normalize_email(selected_option)
-            st.session_state["pending_email"] = user_email_input
-            st.caption(
-                "完成 OTP 驗證後，系統會自動載入此帳號之前儲存的資料。"
-            )
-
-
-        col_otp1, col_otp2 = st.columns([1, 2])
-        with col_otp1:
-            if st.button("📧 1. 傳送 6 位數驗證碼"):
-                if user_email_input and "@" in user_email_input:
-                    new_otp = str(random.randint(100000, 999999))
-                    st.session_state["generated_otp"] = new_otp
-                    st.session_state["pending_email"] = user_email_input
-                    if send_otp_email(user_email_input, new_otp):
-                        st.session_state["otp_sent"] = True
-                        st.rerun()
-                else:
-                    st.warning("請輸入正確的 Email 格式！")
-        
-        if st.session_state["otp_sent"]:
-            with col_otp2:
-                st.info(f"🔧 **[測試模式] 您的登入驗證碼是： {st.session_state['generated_otp']}**")
-                
-                with st.form("otp_login_form", border=False):
-                    user_otp_input = st.text_input("🔑 請輸入您收到的驗證碼（輸入後可直接按 Enter 鍵）：", max_chars=6)
-                    submit_login = st.form_submit_button("🔗 2. 驗證 OTP 並登入", type="primary", use_container_width=True)
-                    
-                    if submit_login:
-                        if user_otp_input == st.session_state["generated_otp"]:
-                            clear_private_beta_auth_session()
-                            verified_email = normalize_email(
-                                st.session_state["pending_email"]
-                            )
-                            clear_profile_widget_state(verified_email)
-                            db_profile = build_complete_user_profile(verified_email)
-                            if db_profile:
-                                apply_user_profile_to_session(
-                                    db_profile,
-                                    verified_email,
-                                )
-                                st.session_state["profile_load_notice"] = "existing"
-                                st.session_state[
-                                    "is_new_account_registration"
-                                ] = False
-                            else:
-                                reset_user_profile_for_new_account(
-                                    verified_email,
-                                    credits=200,
-                                )
-                                st.session_state["profile_load_notice"] = "new"
-                                st.session_state[
-                                    "is_new_account_registration"
-                                ] = True
-                            # 正常 Email 登入必須退出本機開發者模式，
-                            # 避免前一次 developer_mode 狀態污染正式會員。
-                            st.session_state["developer_mode"] = False
-                            st.session_state["is_trial"] = False
-                            st.session_state["wallet_synced_email"] = ""
-                            st.session_state["is_verified"] = True
-                            st.session_state["otp_sent"] = False
-                            save_recent_email(verified_email)
-
-                            # v0.6.19：第一次把舊系統目前點數搬入 Supabase wallet，
-                            # 之後跨裝置／重新登入都以雲端點數為準。
-                            sync_wallet_balance_to_session(
-                                verified_email,
-                                force=True,
-                                is_new_account=st.session_state.get(
-                                    "is_new_account_registration",
-                                    False,
-                                ),
-                            )
-                            st.rerun()
-                        else:
-                            st.error("❌ 驗證碼錯誤，請重新確認！")
-        st.markdown("---")
+        st.stop()
     else:
         st.success(f"✅ 您目前已登入 Email：**{current_stored_email}**")
         st.markdown("---")
-
-    if not is_verified:
-        st.info("請先完成 Email 驗證，驗證成功後才會顯示學生資料。")
-        st.stop()
 
     verified_profile_email = normalize_email(
         st.session_state["user_profile"].get("email", "")
