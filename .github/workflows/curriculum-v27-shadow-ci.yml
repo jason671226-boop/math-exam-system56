@@ -1,0 +1,29 @@
+name: Curriculum v2.7 Shadow CI
+
+on:
+  push:
+    branches:
+      - feature/curriculum-runtime-v0.9
+  workflow_dispatch:
+
+jobs:
+  shadow-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile rewired modules
+        run: |
+          python -m py_compile \
+            services/curriculum_shadow_runtime_v27.py \
+            services/curriculum_shadow_v27.py \
+            services/curriculum_source_v27.py \
+            services/curriculum_supabase_runtime.py \
+            services/curriculum_master_feature.py \
+            services/curriculum_catalog.py \
+            services/diagnostic_service.py \
+            learning_map/__init__.py
+      - name: Run shadow runtime unit tests
+        run: python -m unittest tests.test_curriculum_supabase_runtime
