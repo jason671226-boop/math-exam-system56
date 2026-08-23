@@ -1,4 +1,4 @@
-"""Shared, pure helpers for preserving MathAI mathematical output."""
+"""Shared, deployable helpers for preserving MathAI mathematical output."""
 
 from __future__ import annotations
 
