@@ -6,9 +6,14 @@ from typing import Any, Callable
 
 from .curriculum_master_runtime import CurriculumMasterRuntime
 from .curriculum_shadow_runtime_v27 import ShadowObservationV27
-from .curriculum_source_v27 import curriculum_source_v27, select_curriculum_runtime_v27
+from .curriculum_source_v27 import (
+    SOURCE_SHADOW,
+    curriculum_source_v27,
+    select_curriculum_runtime_v27,
+)
 
 ENV_FLAG = "CURRICULUM_MASTER_V27_ENABLED"
+_SHADOW_RUNTIME_CACHE: dict[int, tuple[Any, Any]] = {}
 
 
 def curriculum_master_v27_enabled() -> bool:
@@ -24,6 +29,16 @@ def curriculum_master_v27() -> CurriculumMasterRuntime:
     return runtime
 
 
+def _session_supabase_client() -> Any | None:
+    """Reuse the app's already-authenticated client without reading credentials."""
+    try:
+        import streamlit as st
+
+        return st.session_state.get("private_beta_auth_client")
+    except Exception:
+        return None
+
+
 def curriculum_master_v27_runtime(
     supabase_client: Any | None = None,
     *,
@@ -35,9 +50,25 @@ def curriculum_master_v27_runtime(
     running read-only Supabase parity checks. Supabase becomes user-visible only
     after the explicit active + activation-gate cutover.
     """
+    source = curriculum_source_v27()
+    client = supabase_client if supabase_client is not None else _session_supabase_client()
+
+    if source == SOURCE_SHADOW and client is not None and shadow_report_sink is None:
+        cache_key = id(client)
+        cached = _SHADOW_RUNTIME_CACHE.get(cache_key)
+        if cached is not None and cached[0] is client:
+            return cached[1]
+        runtime = select_curriculum_runtime_v27(
+            curriculum_master_v27(),
+            client,
+            source=source,
+        )
+        _SHADOW_RUNTIME_CACHE[cache_key] = (client, runtime)
+        return runtime
+
     return select_curriculum_runtime_v27(
         curriculum_master_v27(),
-        supabase_client,
-        source=curriculum_source_v27(),
+        client,
+        source=source,
         shadow_report_sink=shadow_report_sink,
     )
