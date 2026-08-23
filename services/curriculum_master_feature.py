@@ -17,12 +17,14 @@ _SHADOW_RUNTIME_CACHE: dict[int, tuple[Any, Any]] = {}
 
 
 def curriculum_master_v27_enabled() -> bool:
-    return os.getenv(ENV_FLAG, "").strip().lower() in {"1", "true", "yes", "on"}
+    # Test branch default: enable v2.7 so G6/G8 shadow observation runs without
+    # deployment-specific environment configuration. Explicit ENV still wins.
+    return os.getenv(ENV_FLAG, "1").strip().lower() in {"1", "true", "yes", "on"}
 
 
 @lru_cache(maxsize=1)
 def curriculum_master_v27() -> CurriculumMasterRuntime:
-    """Return the validated ZIP runtime. Existing callers keep this behavior."""
+    """Return the validated local runtime. Existing callers keep this behavior."""
     runtime = CurriculumMasterRuntime()
     if runtime.validate().get("release_gate") != "PASS":
         raise RuntimeError("Curriculum Master v2.7 release gate is not PASS")
@@ -46,9 +48,9 @@ def curriculum_master_v27_runtime(
 ) -> Any:
     """Return the user-visible runtime selected by CURRICULUM_MASTER_V27_SOURCE.
 
-    Default is ZIP. Shadow mode remains ZIP-authoritative while optionally
-    running read-only Supabase parity checks. Supabase becomes user-visible only
-    after the explicit active + activation-gate cutover.
+    Shadow mode remains local/ZIP-authoritative while optionally running
+    read-only Supabase parity checks. Supabase becomes user-visible only after
+    the explicit active + activation-gate cutover.
     """
     source = curriculum_source_v27()
     client = supabase_client if supabase_client is not None else _session_supabase_client()
