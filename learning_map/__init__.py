@@ -25,7 +25,6 @@ if _spec is None or _spec.loader is None:  # pragma: no cover - packaging failur
 _legacy = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_legacy)
 
-# Public helpers used by app.py remain the legacy implementation.
 get_classic_question_type_names_for_units = _legacy.get_classic_question_type_names_for_units
 get_subunit_names_for_units = _legacy.get_subunit_names_for_units
 get_topic_names_for_subunits = _legacy.get_topic_names_for_subunits
@@ -117,21 +116,21 @@ def render_learning_map(
     try:
         try:
             from services.curriculum_master_feature import (
-                curriculum_master_v27,
                 curriculum_master_v27_enabled,
+                curriculum_master_v27_runtime,
             )
             from services.learning_map_provider_v27 import try_resolve_learning_map_v27
         except ModuleNotFoundError:
             from app.services.curriculum_master_feature import (
-                curriculum_master_v27,
                 curriculum_master_v27_enabled,
+                curriculum_master_v27_runtime,
             )
             from app.services.learning_map_provider_v27 import try_resolve_learning_map_v27
 
         if not curriculum_master_v27_enabled():
             return _legacy.render_learning_map(user_profile, is_trial, learning_runtime)
 
-        runtime = curriculum_master_v27()
+        runtime = curriculum_master_v27_runtime()
         student_id = (
             learning_runtime.student_id
             if learning_runtime is not None
@@ -151,10 +150,20 @@ def render_learning_map(
         if result is None:
             _developer_warning("Curriculum Master v2.7 路由未能安全解析，已回退舊學習地圖。")
             return _legacy.render_learning_map(user_profile, is_trial, learning_runtime)
+        if st.session_state.get("developer_mode", False):
+            observer = getattr(runtime, "shadow_observation", None)
+            if callable(observer):
+                observation = observer(result.profile_id)
+                if observation is not None:
+                    if observation.matched:
+                        st.caption(f"Shadow parity PASS｜{result.profile_id}")
+                    else:
+                        _developer_warning(
+                            f"Shadow parity mismatch｜{result.profile_id}｜"
+                            f"{observation.error or getattr(observation.report, 'differences', ())}"
+                        )
         _render_v27_model(result, runtime, learning_runtime)
     except Exception as exc:
-        # The feature is additive. Any v2.7 data/runtime failure must not take
-        # down the production learning map.
         _developer_warning(f"Curriculum Master v2.7 fallback: {type(exc).__name__}: {exc}")
         return _legacy.render_learning_map(user_profile, is_trial, learning_runtime)
 
