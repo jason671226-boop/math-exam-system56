@@ -26,6 +26,9 @@ jobs:
             services/diagnostic_service.py \
             learning_map/__init__.py
       - name: Run shadow runtime unit tests
-        run: python -m unittest tests.test_curriculum_supabase_runtime
+        run: |
+          python -m unittest \
+            tests.test_curriculum_supabase_runtime \
+            tests.test_curriculum_shadow_runtime_v27
 
 # Intentionally scoped to the feature branch until shadow cutover is verified.
