@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - feature/curriculum-runtime-v0.9
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
@@ -24,11 +27,20 @@ jobs:
             services/curriculum_master_feature.py \
             services/curriculum_catalog.py \
             services/diagnostic_service.py \
+            services/master_curriculum_loader.py \
             learning_map/__init__.py
-      - name: Run shadow runtime unit tests
+      - name: Run focused integration tests
         run: |
           python -m unittest \
             tests.test_curriculum_supabase_runtime \
-            tests.test_curriculum_shadow_runtime_v27
+            tests.test_curriculum_shadow_runtime_v27 \
+            tests.test_learning_map_entry_v27 \
+            tests.test_learning_map_provider_v27 \
+            tests.test_curriculum_catalog_v27 \
+            tests.test_curriculum_catalog_feature_bridge \
+            tests.test_diagnostic_mastery_bridge_v27 \
+            tests.test_practice_mastery_bridge_v27 \
+            tests.test_self_built_exam_curriculum \
+            tests.test_g8_master_curriculum
 
-# Intentionally scoped to the feature branch until shadow cutover is verified.
+# Feature-branch integration gate. Draft PR is CI-only and must not be merged.
