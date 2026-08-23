@@ -20,7 +20,9 @@ ACTIVATION_GATE = "activation_gate"
 
 
 def curriculum_source_v27() -> str:
-    value = os.getenv(SOURCE_ENV, SOURCE_ZIP).strip().lower() or SOURCE_ZIP
+    # Test branch default: observe Supabase while keeping ZIP user-visible.
+    # Any explicit environment value still overrides this default.
+    value = os.getenv(SOURCE_ENV, SOURCE_SHADOW).strip().lower() or SOURCE_SHADOW
     if value not in VALID_SOURCES:
         raise ValueError(f"invalid {SOURCE_ENV}: {value}")
     return value
