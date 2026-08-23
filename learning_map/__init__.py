@@ -96,9 +96,8 @@ def _render_v27_model(result: Any, runtime: Any, learning_runtime: Any = None) -
         name = skill.skill_name if skill is not None else priority.skill_id
         blockers = []
         for prereq_id in priority.blocking_prerequisites:
-            hit = runtime.find_skill(prereq_id)
-            row = hit.get("row") if hit else None
-            blockers.append((row or {}).get("skill_name") or prereq_id)
+            prereq_skill = skill_by_id.get(prereq_id)
+            blockers.append(prereq_skill.skill_name if prereq_skill is not None else prereq_id)
         blocker_text = f"｜先備缺口：{'、'.join(blockers)}" if blockers else ""
         st.markdown(
             f"{index}. **{name}** — {priority.reason}"
