@@ -1,0 +1,17 @@
+{
+  "input": {
+    "route_context": "object",
+    "skill_id": "string",
+    "micro_skill_id": "string?",
+    "variation_mode": "string",
+    "difficulty": "1..5"
+  },
+  "output": {
+    "prompt": "string",
+    "answer": "string",
+    "solution": "string",
+    "skill_id": "string",
+    "micro_skill_id": "string?",
+    "validation": "object"
+  }
+}

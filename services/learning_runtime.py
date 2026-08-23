@@ -63,14 +63,34 @@ def resolve_authenticated_student(
 ) -> AuthenticatedStudent:
     """Resolve auth.uid() ownership through student_access without using email."""
     user_id = current_auth_user_id(client)
-    rows = (
-        client.table("student_access")
-        .select("student_id,role")
-        .eq("user_id", user_id)
-        .execute()
-        .data
-    )
-    owned = [row for row in (rows or []) if row.get("role") in {"owner", "student", "guardian"}]
+    def fetch_rows() -> Any:
+        return (
+            client.table("student_access")
+            .select("student_id,role")
+            .eq("user_id", user_id)
+            .execute()
+            .data
+        )
+
+    try:
+        rows = fetch_rows()
+    except Exception as exc:
+        if str(getattr(exc, "code", "")) != "555":
+            raise LearningIdentityError(
+                "Unable to load the student account. Please try again."
+            ) from exc
+        try:
+            rows = fetch_rows()
+        except Exception as retry_exc:
+            raise LearningIdentityError(
+                "Unable to load the student account. Please try again."
+            ) from retry_exc
+
+    owned = [
+        row
+        for row in (rows or [])
+        if row.get("role") in {"owner", "student", "guardian"}
+    ]
     if preferred_student_id:
         preferred = _uuid(preferred_student_id, field="preferred student id")
         owned = [row for row in owned if str(row.get("student_id")) == preferred]

@@ -1,0 +1,4 @@
+﻿track_id,applicable_groups,g10_status,recommended_total_credits,runtime_rule
+TECH-A,家政群、藝術群,G10 detailed complete,4-8,load TECH_A/G10 only
+TECH-B,商業與管理、外語、設計、農業、食品、餐旅、海事、水產,G10 detailed complete,建議總計12,load TECH_B/G10 only
+TECH-C,機械、動力機械、電機與電子、化工、土木與建築,G10 detailed complete,建議總計16,load TECH_C/G10 only

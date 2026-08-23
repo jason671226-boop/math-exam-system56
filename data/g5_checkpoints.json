@@ -1,0 +1,60 @@
+{
+  "schema_version": "1.0",
+  "display_name": "MathAI G5 Integrated Checkpoints",
+  "default_threshold": 0.80,
+  "notes": [
+    "Checkpoints integrate knowledge every 3-6 core topics.",
+    "Core knowledge is standardised from the existing G5 neutral baseline.",
+    "Threshold is configurable; failing routes back to knowledge/thinking-skill weakness."
+  ],
+  "checkpoints": [
+    {
+      "id": "CP-G5-A1",
+      "semester": "上學期",
+      "name": "整數四則與小數",
+      "core_ids": ["G5-C01", "G5-C02", "G5-C03", "G5-C04", "G5-C05", "G5-C06"],
+      "threshold": 0.80,
+      "composition": {"基礎核心題": 3, "數字變形題": 2, "中等應用題": 2, "陌生題": 1, "跨單元題": 1}
+    },
+    {
+      "id": "CP-G5-A2",
+      "semester": "上學期",
+      "name": "因數與倍數",
+      "core_ids": ["G5-C07", "G5-C08", "G5-C09", "G5-C10", "G5-C11", "G5-C12"],
+      "threshold": 0.80,
+      "composition": {"基礎核心題": 3, "數字變形題": 2, "中等應用題": 2, "陌生題": 1, "跨單元題": 1}
+    },
+    {
+      "id": "CP-G5-A3",
+      "semester": "上學期",
+      "name": "分數基礎",
+      "core_ids": ["G5-C13", "G5-C14", "G5-C15"],
+      "threshold": 0.80,
+      "composition": {"基礎核心題": 3, "數字變形題": 2, "中等應用題": 2, "陌生題": 1, "跨單元題": 1}
+    },
+    {
+      "id": "CP-G5-B1",
+      "semester": "下學期",
+      "name": "分數互換與單位量",
+      "core_ids": ["G5-C16", "G5-C17", "G5-C18", "G5-C19", "G5-C20"],
+      "threshold": 0.80,
+      "composition": {"基礎核心題": 3, "數字變形題": 2, "中等應用題": 2, "陌生題": 1, "跨單元題": 1}
+    },
+    {
+      "id": "CP-G5-B2",
+      "semester": "下學期",
+      "name": "幾何",
+      "core_ids": ["G5-C21", "G5-C22", "G5-C23", "G5-C24", "G5-C25", "G5-C26", "G5-C27"],
+      "threshold": 0.80,
+      "composition": {"基礎核心題": 3, "數字變形題": 2, "中等應用題": 2, "陌生題": 1, "跨單元題": 1}
+    },
+    {
+      "id": "CP-G5-B3",
+      "semester": "下學期",
+      "name": "規律與計數",
+      "core_ids": ["G5-C28", "G5-C29", "G5-C30"],
+      "threshold": 0.80,
+      "composition": {"基礎核心題": 3, "數字變形題": 2, "中等應用題": 2, "陌生題": 1, "跨單元題": 1}
+    }
+  ]
+}

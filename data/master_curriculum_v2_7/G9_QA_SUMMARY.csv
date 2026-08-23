@@ -1,0 +1,9 @@
+﻿Metric,Result,Status
+G9 official code coverage,19/19,PASS
+G9 standard skills,83,PASS
+G9 layer-2 micro-skills,541,PASS
+Duplicate G9 Skill IDs,0,PASS
+Missing micro parent refs,0,PASS
+Broken G8→G9/internal refs,0,PASS
+Publisher subunit rows,37,PASS
+Publisher school year,pending (not explicit on landing pages),INFO

@@ -1,0 +1,218 @@
+[
+  {
+    "code": "N-10-1",
+    "name": "數線",
+    "track": "B",
+    "grade": "G10",
+    "verification_status": "official_verified",
+    "source_url": "https://stv.naer.edu.tw/data/course_manual/B/%E4%B8%80%E8%88%AC%E7%A7%91%E7%9B%AE%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F%E8%AA%B2%E7%A8%8B%E6%89%8B%E5%86%8A%EF%BC%88111%E5%B9%B47%E6%9C%88%E6%9B%B4%E6%96%B0%EF%BC%89.pdf"
+  },
+  {
+    "code": "N-10-2",
+    "name": "絕對值",
+    "track": "B",
+    "grade": "G10",
+    "verification_status": "official_verified",
+    "source_url": "https://stv.naer.edu.tw/data/course_manual/B/%E4%B8%80%E8%88%AC%E7%A7%91%E7%9B%AE%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F%E8%AA%B2%E7%A8%8B%E6%89%8B%E5%86%8A%EF%BC%88111%E5%B9%B47%E6%9C%88%E6%9B%B4%E6%96%B0%EF%BC%89.pdf"
+  },
+  {
+    "code": "N-10-3",
+    "name": "平面坐標系",
+    "track": "B",
+    "grade": "G10",
+    "verification_status": "official_verified",
+    "source_url": "https://stv.naer.edu.tw/data/course_manual/B/%E4%B8%80%E8%88%AC%E7%A7%91%E7%9B%AE%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F%E8%AA%B2%E7%A8%8B%E6%89%8B%E5%86%8A%EF%BC%88111%E5%B9%B47%E6%9C%88%E6%9B%B4%E6%96%B0%EF%BC%89.pdf"
+  },
+  {
+    "code": "R-10-1",
+    "name": "線型函數",
+    "track": "B",
+    "grade": "G10",
+    "verification_status": "official_verified",
+    "source_url": "https://stv.naer.edu.tw/data/course_manual/B/%E4%B8%80%E8%88%AC%E7%A7%91%E7%9B%AE%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F%E8%AA%B2%E7%A8%8B%E6%89%8B%E5%86%8A%EF%BC%88111%E5%B9%B47%E6%9C%88%E6%9B%B4%E6%96%B0%EF%BC%89.pdf"
+  },
+  {
+    "code": "R-10-2",
+    "name": "二次函數",
+    "track": "B",
+    "grade": "G10",
+    "verification_status": "official_verified",
+    "source_url": "https://stv.naer.edu.tw/data/course_manual/B/%E4%B8%80%E8%88%AC%E7%A7%91%E7%9B%AE%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F%E8%AA%B2%E7%A8%8B%E6%89%8B%E5%86%8A%EF%BC%88111%E5%B9%B47%E6%9C%88%E6%9B%B4%E6%96%B0%EF%BC%89.pdf"
+  },
+  {
+    "code": "R-10-3",
+    "name": "斜率",
+    "track": "B",
+    "grade": "G10",
+    "verification_status": "official_verified",
+    "source_url": "https://stv.naer.edu.tw/data/course_manual/B/%E4%B8%80%E8%88%AC%E7%A7%91%E7%9B%AE%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F%E8%AA%B2%E7%A8%8B%E6%89%8B%E5%86%8A%EF%BC%88111%E5%B9%B47%E6%9C%88%E6%9B%B4%E6%96%B0%EF%BC%89.pdf"
+  },
+  {
+    "code": "R-10-4",
+    "name": "直線方程式",
+    "track": "B",
+    "grade": "G10",
+    "verification_status": "official_verified",
+    "source_url": "https://stv.naer.edu.tw/data/course_manual/B/%E4%B8%80%E8%88%AC%E7%A7%91%E7%9B%AE%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F%E8%AA%B2%E7%A8%8B%E6%89%8B%E5%86%8A%EF%BC%88111%E5%B9%B47%E6%9C%88%E6%9B%B4%E6%96%B0%EF%BC%89.pdf"
+  },
+  {
+    "code": "A-10-1",
+    "name": "配方法",
+    "track": "B",
+    "grade": "G10",
+    "verification_status": "official_verified",
+    "source_url": "https://stv.naer.edu.tw/data/course_manual/B/%E4%B8%80%E8%88%AC%E7%A7%91%E7%9B%AE%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F%E8%AA%B2%E7%A8%8B%E6%89%8B%E5%86%8A%EF%BC%88111%E5%B9%B47%E6%9C%88%E6%9B%B4%E6%96%B0%EF%BC%89.pdf"
+  },
+  {
+    "code": "A-10-2",
+    "name": "一元二次不等式",
+    "track": "B",
+    "grade": "G10",
+    "verification_status": "official_verified",
+    "source_url": "https://stv.naer.edu.tw/data/course_manual/B/%E4%B8%80%E8%88%AC%E7%A7%91%E7%9B%AE%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F%E8%AA%B2%E7%A8%8B%E6%89%8B%E5%86%8A%EF%BC%88111%E5%B9%B47%E6%9C%88%E6%9B%B4%E6%96%B0%EF%BC%89.pdf"
+  },
+  {
+    "code": "A-10-3",
+    "name": "多項式的基本概念",
+    "track": "B",
+    "grade": "G10",
+    "verification_status": "official_verified",
+    "source_url": "https://stv.naer.edu.tw/data/course_manual/B/%E4%B8%80%E8%88%AC%E7%A7%91%E7%9B%AE%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F%E8%AA%B2%E7%A8%8B%E6%89%8B%E5%86%8A%EF%BC%88111%E5%B9%B47%E6%9C%88%E6%9B%B4%E6%96%B0%EF%BC%89.pdf"
+  },
+  {
+    "code": "A-10-4",
+    "name": "因式分解",
+    "track": "B",
+    "grade": "G10",
+    "verification_status": "official_verified",
+    "source_url": "https://stv.naer.edu.tw/data/course_manual/B/%E4%B8%80%E8%88%AC%E7%A7%91%E7%9B%AE%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F%E8%AA%B2%E7%A8%8B%E6%89%8B%E5%86%8A%EF%BC%88111%E5%B9%B47%E6%9C%88%E6%9B%B4%E6%96%B0%EF%BC%89.pdf"
+  },
+  {
+    "code": "A-10-5",
+    "name": "除法原理與餘式定理",
+    "track": "B",
+    "grade": "G10",
+    "verification_status": "official_verified",
+    "source_url": "https://stv.naer.edu.tw/data/course_manual/B/%E4%B8%80%E8%88%AC%E7%A7%91%E7%9B%AE%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F%E8%AA%B2%E7%A8%8B%E6%89%8B%E5%86%8A%EF%BC%88111%E5%B9%B47%E6%9C%88%E6%9B%B4%E6%96%B0%EF%BC%89.pdf"
+  },
+  {
+    "code": "A-10-6",
+    "name": "分式",
+    "track": "B",
+    "grade": "G10",
+    "verification_status": "official_verified",
+    "source_url": "https://stv.naer.edu.tw/data/course_manual/B/%E4%B8%80%E8%88%AC%E7%A7%91%E7%9B%AE%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F%E8%AA%B2%E7%A8%8B%E6%89%8B%E5%86%8A%EF%BC%88111%E5%B9%B47%E6%9C%88%E6%9B%B4%E6%96%B0%EF%BC%89.pdf"
+  },
+  {
+    "code": "N-10-4",
+    "name": "比與比值",
+    "track": "B",
+    "grade": "G10",
+    "verification_status": "official_verified",
+    "source_url": "https://stv.naer.edu.tw/data/course_manual/B/%E4%B8%80%E8%88%AC%E7%A7%91%E7%9B%AE%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F%E8%AA%B2%E7%A8%8B%E6%89%8B%E5%86%8A%EF%BC%88111%E5%B9%B47%E6%9C%88%E6%9B%B4%E6%96%B0%EF%BC%89.pdf"
+  },
+  {
+    "code": "N-10-5",
+    "name": "角度的基本性質",
+    "track": "B",
+    "grade": "G10",
+    "verification_status": "official_verified",
+    "source_url": "https://stv.naer.edu.tw/data/course_manual/B/%E4%B8%80%E8%88%AC%E7%A7%91%E7%9B%AE%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F%E8%AA%B2%E7%A8%8B%E6%89%8B%E5%86%8A%EF%BC%88111%E5%B9%B47%E6%9C%88%E6%9B%B4%E6%96%B0%EF%BC%89.pdf"
+  },
+  {
+    "code": "N-10-6",
+    "name": "銳角三角函數",
+    "track": "B",
+    "grade": "G10",
+    "verification_status": "official_verified",
+    "source_url": "https://stv.naer.edu.tw/data/course_manual/B/%E4%B8%80%E8%88%AC%E7%A7%91%E7%9B%AE%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F%E8%AA%B2%E7%A8%8B%E6%89%8B%E5%86%8A%EF%BC%88111%E5%B9%B47%E6%9C%88%E6%9B%B4%E6%96%B0%EF%BC%89.pdf"
+  },
+  {
+    "code": "N-10-7",
+    "name": "任意角三角函數",
+    "track": "B",
+    "grade": "G10",
+    "verification_status": "official_verified",
+    "source_url": "https://stv.naer.edu.tw/data/course_manual/B/%E4%B8%80%E8%88%AC%E7%A7%91%E7%9B%AE%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F%E8%AA%B2%E7%A8%8B%E6%89%8B%E5%86%8A%EF%BC%88111%E5%B9%B47%E6%9C%88%E6%9B%B4%E6%96%B0%EF%BC%89.pdf"
+  },
+  {
+    "code": "N-10-8",
+    "name": "正弦定理",
+    "track": "B",
+    "grade": "G10",
+    "verification_status": "official_verified",
+    "source_url": "https://stv.naer.edu.tw/data/course_manual/B/%E4%B8%80%E8%88%AC%E7%A7%91%E7%9B%AE%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F%E8%AA%B2%E7%A8%8B%E6%89%8B%E5%86%8A%EF%BC%88111%E5%B9%B47%E6%9C%88%E6%9B%B4%E6%96%B0%EF%BC%89.pdf"
+  },
+  {
+    "code": "N-10-9",
+    "name": "餘弦定理",
+    "track": "B",
+    "grade": "G10",
+    "verification_status": "official_verified",
+    "source_url": "https://stv.naer.edu.tw/data/course_manual/B/%E4%B8%80%E8%88%AC%E7%A7%91%E7%9B%AE%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F%E8%AA%B2%E7%A8%8B%E6%89%8B%E5%86%8A%EF%BC%88111%E5%B9%B47%E6%9C%88%E6%9B%B4%E6%96%B0%EF%BC%89.pdf"
+  },
+  {
+    "code": "R-10-5",
+    "name": "正弦函數、餘弦函數週期現象的表徵",
+    "track": "B",
+    "grade": "G10",
+    "verification_status": "official_verified",
+    "source_url": "https://stv.naer.edu.tw/data/course_manual/B/%E4%B8%80%E8%88%AC%E7%A7%91%E7%9B%AE%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F%E8%AA%B2%E7%A8%8B%E6%89%8B%E5%86%8A%EF%BC%88111%E5%B9%B47%E6%9C%88%E6%9B%B4%E6%96%B0%EF%BC%89.pdf"
+  },
+  {
+    "code": "N-10-10",
+    "name": "向量的坐標表示法",
+    "track": "B",
+    "grade": "G10",
+    "verification_status": "official_verified",
+    "source_url": "https://stv.naer.edu.tw/data/course_manual/B/%E4%B8%80%E8%88%AC%E7%A7%91%E7%9B%AE%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F%E8%AA%B2%E7%A8%8B%E6%89%8B%E5%86%8A%EF%BC%88111%E5%B9%B47%E6%9C%88%E6%9B%B4%E6%96%B0%EF%BC%89.pdf"
+  },
+  {
+    "code": "N-10-11",
+    "name": "向量的內積",
+    "track": "B",
+    "grade": "G10",
+    "verification_status": "official_verified",
+    "source_url": "https://stv.naer.edu.tw/data/course_manual/B/%E4%B8%80%E8%88%AC%E7%A7%91%E7%9B%AE%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F%E8%AA%B2%E7%A8%8B%E6%89%8B%E5%86%8A%EF%BC%88111%E5%B9%B47%E6%9C%88%E6%9B%B4%E6%96%B0%EF%BC%89.pdf"
+  },
+  {
+    "code": "S-10-3",
+    "name": "向量的作圖",
+    "track": "B",
+    "grade": "G10",
+    "verification_status": "official_verified",
+    "source_url": "https://stv.naer.edu.tw/data/course_manual/B/%E4%B8%80%E8%88%AC%E7%A7%91%E7%9B%AE%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F%E8%AA%B2%E7%A8%8B%E6%89%8B%E5%86%8A%EF%BC%88111%E5%B9%B47%E6%9C%88%E6%9B%B4%E6%96%B0%EF%BC%89.pdf"
+  },
+  {
+    "code": "S-10-1",
+    "name": "圓方程式",
+    "track": "B",
+    "grade": "G10",
+    "verification_status": "official_verified",
+    "source_url": "https://stv.naer.edu.tw/data/course_manual/B/%E4%B8%80%E8%88%AC%E7%A7%91%E7%9B%AE%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F%E8%AA%B2%E7%A8%8B%E6%89%8B%E5%86%8A%EF%BC%88111%E5%B9%B47%E6%9C%88%E6%9B%B4%E6%96%B0%EF%BC%89.pdf"
+  },
+  {
+    "code": "S-10-2",
+    "name": "圓與直線的關係",
+    "track": "B",
+    "grade": "G10",
+    "verification_status": "official_verified",
+    "source_url": "https://stv.naer.edu.tw/data/course_manual/B/%E4%B8%80%E8%88%AC%E7%A7%91%E7%9B%AE%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F%E8%AA%B2%E7%A8%8B%E6%89%8B%E5%86%8A%EF%BC%88111%E5%B9%B47%E6%9C%88%E6%9B%B4%E6%96%B0%EF%BC%89.pdf"
+  },
+  {
+    "code": "N-10-12",
+    "name": "等差數列與等差級數",
+    "track": "B",
+    "grade": "G10",
+    "verification_status": "official_verified",
+    "source_url": "https://stv.naer.edu.tw/data/course_manual/B/%E4%B8%80%E8%88%AC%E7%A7%91%E7%9B%AE%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F%E8%AA%B2%E7%A8%8B%E6%89%8B%E5%86%8A%EF%BC%88111%E5%B9%B47%E6%9C%88%E6%9B%B4%E6%96%B0%EF%BC%89.pdf"
+  },
+  {
+    "code": "N-10-13",
+    "name": "等比數列與等比級數",
+    "track": "B",
+    "grade": "G10",
+    "verification_status": "official_verified",
+    "source_url": "https://stv.naer.edu.tw/data/course_manual/B/%E4%B8%80%E8%88%AC%E7%A7%91%E7%9B%AE%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F%E8%AA%B2%E7%A8%8B%E6%89%8B%E5%86%8A%EF%BC%88111%E5%B9%B47%E6%9C%88%E6%9B%B4%E6%96%B0%EF%BC%89.pdf"
+  }
+]

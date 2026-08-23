@@ -1,0 +1,170 @@
+[
+  {
+    "code": "N-2-1",
+    "domain": "數與量",
+    "name": "一千以內的數",
+    "summary": "位值積木、百位、位值換算、局部前後數數",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-2-2",
+    "domain": "數與量",
+    "name": "加減算式與直式計算",
+    "summary": "以位值理解多位數加減；加法可含二次進位、減法限一次退位；含0題型",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-2-3",
+    "domain": "數與量",
+    "name": "解題：加減應用問題",
+    "summary": "含加數、被加數、減數、被減數未知；連結加減互逆",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-2-4",
+    "domain": "數與量",
+    "name": "解題：簡單加減估算",
+    "summary": "以百位數或生活量感做簡單估算",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-2-5",
+    "domain": "數與量",
+    "name": "解題：100元、500元、1000元",
+    "summary": "認識大面額錢幣、幣值換算與生活應用",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-2-6",
+    "domain": "數與量",
+    "name": "乘法",
+    "summary": "理解倍的意義與乘法算式；2、5、4、8、3、6、9、7等乘法事實",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-2-7",
+    "domain": "數與量",
+    "name": "十十乘法",
+    "summary": "建立1到10乘法表熟練度並理解交換性初步",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-2-8",
+    "domain": "數與量",
+    "name": "解題：兩步驟應用問題",
+    "summary": "兩步驟加減、乘加、乘減；以分步算式記錄",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-2-9",
+    "domain": "數與量",
+    "name": "解題：分裝與平分",
+    "summary": "除法前置概念，透過操作理解平均分與每份多少",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-2-10",
+    "domain": "數與量",
+    "name": "單位分數",
+    "summary": "以等分操作認識二分之一、四分之一等單位分數",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-2-11",
+    "domain": "數與量",
+    "name": "長度：公分、公尺",
+    "summary": "使用尺測量與畫線；公分、公尺與簡單換算",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-2-12",
+    "domain": "數與量",
+    "name": "容量、重量、面積",
+    "summary": "以操作活動做初步認識、直接比較、間接比較與個別單位",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-2-13",
+    "domain": "數與量",
+    "name": "鐘面的時刻",
+    "summary": "認識幾時幾分與簡單時間先後",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-2-14",
+    "domain": "數與量",
+    "name": "時間：年、月、星期、日",
+    "summary": "日曆與年月日星期；不做跨日期時間間隔",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-2-1",
+    "domain": "空間與形狀",
+    "name": "物體的幾何特徵",
+    "summary": "以操作觀察形體的邊、角、面等直觀特徵",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-2-2",
+    "domain": "空間與形狀",
+    "name": "簡單幾何形體",
+    "summary": "認識常見平面圖形與立體形體",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-2-3",
+    "domain": "空間與形狀",
+    "name": "直尺操作",
+    "summary": "測量、畫線與長度表徵",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-2-4",
+    "domain": "空間與形狀",
+    "name": "平面圖形的邊長",
+    "summary": "認識周界、周長與簡單圖形邊長總和",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-2-5",
+    "domain": "空間與形狀",
+    "name": "面積",
+    "summary": "以重疊、拼排、個別單位比較面的大小",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "R-2-1",
+    "domain": "關係",
+    "name": "大小關係與遞移",
+    "summary": "A>B、B>C 可推得 A>C 的直觀比較",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "R-2-2",
+    "domain": "關係",
+    "name": "三數相加順序",
+    "summary": "三數相加可改變計算順序以簡化",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "R-2-3",
+    "domain": "關係",
+    "name": "兩數相乘順序",
+    "summary": "乘法交換性初步",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "R-2-4",
+    "domain": "關係",
+    "name": "加法與減法的關係",
+    "summary": "以互逆關係驗算並解未知數量",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "D-2-1",
+    "domain": "資料與不確定性",
+    "name": "分類與呈現",
+    "summary": "分類、紀錄、報讀簡單表徵與統計前置",
+    "verification_status": "official_verified"
+  }
+]

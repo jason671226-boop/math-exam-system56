@@ -1,0 +1,100 @@
+{
+  "schema_version": "1.0",
+  "display_name": "MathAI G1-G9 Grade Registry",
+  "notes": [
+    "G7 is 'formal' (backed by learning_map_g7.json); all other grades are 'skeleton' placeholders pending content authoring.",
+    "Cross-grade edges connect same-domain knowledge chains across consecutive grades, plus cross-domain and G7-concrete bridges.",
+    "Domain anchors use 'G{grade}:{domain}'; G7 uses its concrete 'G7-C##' knowledge IDs.",
+    "Edges support one-to-many and many-to-one. Broken links and cycles are detected by the Rollout Validator."
+  ],
+  "grades": {
+    "1": {"status": "skeleton", "semesters": ["上學期", "下學期"], "domains": ["數與量", "空間與形狀"]},
+    "2": {"status": "skeleton", "semesters": ["上學期", "下學期"], "domains": ["數與量", "空間與形狀"]},
+    "3": {"status": "skeleton", "semesters": ["上學期", "下學期"], "domains": ["數與量", "空間與形狀", "資料與不確定性"]},
+    "4": {"status": "skeleton", "semesters": ["上學期", "下學期"], "domains": ["數與量", "空間與形狀", "資料與不確定性"]},
+    "5": {"status": "formal", "semesters": ["上學期", "下學期"], "domains": ["數與量", "空間與形狀", "代數", "資料與不確定性"]},
+    "6": {"status": "formal", "semesters": ["上學期", "下學期"], "domains": ["數與量", "空間與形狀", "代數", "資料與不確定性"]},
+    "7": {"status": "formal", "semesters": ["上學期", "下學期"], "domains": ["數與量", "代數", "空間與形狀", "資料與不確定性"]},
+    "8": {"status": "formal", "semesters": ["上學期", "下學期"], "domains": ["數與量", "代數", "空間與形狀", "資料與不確定性"]},
+    "9": {"status": "formal", "semesters": ["上學期", "下學期"], "domains": ["數與量", "代數", "空間與形狀", "資料與不確定性"]}
+  },
+  "cross_grade_edges": [
+    {"from": "G1:數與量", "to": "G2:數與量"},
+    {"from": "G2:數與量", "to": "G3:數與量"},
+    {"from": "G3:數與量", "to": "G4:數與量"},
+    {"from": "G4:數與量", "to": "G5:數與量"},
+    {"from": "G5:數與量", "to": "G6:數與量"},
+    {"from": "G6:數與量", "to": "G7-C01"},
+
+    {"from": "G1:空間與形狀", "to": "G2:空間與形狀"},
+    {"from": "G2:空間與形狀", "to": "G3:空間與形狀"},
+    {"from": "G3:空間與形狀", "to": "G4:空間與形狀"},
+    {"from": "G4:空間與形狀", "to": "G5:空間與形狀"},
+    {"from": "G5:空間與形狀", "to": "G6:空間與形狀"},
+    {"from": "G6:空間與形狀", "to": "G7-C23"},
+
+    {"from": "G3:資料與不確定性", "to": "G4:資料與不確定性"},
+    {"from": "G4:資料與不確定性", "to": "G5:資料與不確定性"},
+    {"from": "G5:資料與不確定性", "to": "G6:資料與不確定性"},
+    {"from": "G6:資料與不確定性", "to": "G7-C21"},
+
+    {"from": "G5:代數", "to": "G6:代數"},
+    {"from": "G6:代數", "to": "G7-C09"},
+
+    {"from": "G7-C08", "to": "G8:數與量"},
+    {"from": "G8:數與量", "to": "G9:數與量"},
+    {"from": "G7-C23", "to": "G8:空間與形狀"},
+    {"from": "G8:空間與形狀", "to": "G9:空間與形狀"},
+    {"from": "G7-C22", "to": "G8:資料與不確定性"},
+    {"from": "G8:資料與不確定性", "to": "G9:資料與不確定性"},
+    {"from": "G7-C11", "to": "G8:代數"},
+    {"from": "G8:代數", "to": "G9:代數"},
+
+    {"from": "G6:數與量", "to": "G7-C09"},
+    {"from": "G6:數與量", "to": "G7-C17"},
+    {"from": "G6:數與量", "to": "G7-C21"},
+    {"from": "G5:數與量", "to": "G6:代數"},
+    {"from": "G6:代數", "to": "G7-C12"},
+
+    {"from": "G4:數與量", "to": "G5-C01"},
+    {"from": "G4:空間與形狀", "to": "G5-C21"},
+
+    {"from": "G5-C01", "to": "G6-C01"},
+    {"from": "G5-C16", "to": "G6-C02"},
+    {"from": "G5-C13", "to": "G6-C03"},
+    {"from": "G5-C17", "to": "G6-C08"},
+    {"from": "G5-C18", "to": "G6-C09"},
+    {"from": "G5-C22", "to": "G6-C14"},
+    {"from": "G5-C29", "to": "G6-C11"},
+
+    {"from": "G6-C01", "to": "G7-C01"},
+    {"from": "G6-C03", "to": "G7-C07"},
+    {"from": "G6-C06", "to": "G7-C09"},
+    {"from": "G6-C07", "to": "G7-C17"},
+    {"from": "G6-C13", "to": "G7-C23"},
+
+    {"from": "G7-C08", "to": "G8-C01"},
+    {"from": "G7-C09", "to": "G8-C02"},
+    {"from": "G7-C12", "to": "G8-C04"},
+    {"from": "G7-C16", "to": "G8-C05"},
+    {"from": "G7-C23", "to": "G8-C06"},
+    {"from": "G7-C23", "to": "G8-C07"},
+    {"from": "G7-C23", "to": "G8-C08"},
+    {"from": "G7-C22", "to": "G8-C09"},
+    {"from": "G5-C30", "to": "G8-C10"},
+
+    {"from": "G8-C01", "to": "G9-C01"},
+    {"from": "G8-C03", "to": "G9-C02"},
+    {"from": "G8-C05", "to": "G9-C04"},
+    {"from": "G8-C06", "to": "G9-C05"},
+    {"from": "G8-C08", "to": "G9-C07"},
+    {"from": "G8-C09", "to": "G9-C08"},
+    {"from": "G8-C10", "to": "G9-C09"},
+    {"from": "G8-C11", "to": "G9-C10"},
+
+    {"from": "G9-C01", "to": "HS:代數"},
+    {"from": "G9-C04", "to": "HS:代數"},
+    {"from": "G9-C07", "to": "HS:空間與形狀"},
+    {"from": "G9-C08", "to": "HS:資料與不確定性"}
+  ]
+}

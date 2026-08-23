@@ -1,0 +1,57 @@
+{
+  "version": "1.0",
+  "modules": {
+    "diagnostic_interpreter": {
+      "path": "functional_modules/diagnostic_interpreter",
+      "purpose": "Map evidence from a student's wrong answer to canonical skill + micro-skill + error type + confidence.",
+      "requires": [
+        "route_context",
+        "standard_skills",
+        "layer2_micro_skills",
+        "OUT_OF_SCOPE_RULES"
+      ],
+      "outputs": [
+        "diagnosis"
+      ]
+    },
+    "item_generator": {
+      "path": "functional_modules/item_generator",
+      "purpose": "Generate targeted variants from diagnosed micro-skills while preserving grade/track scope.",
+      "requires": [
+        "diagnosis",
+        "standard_skill",
+        "micro_skill",
+        "OUT_OF_SCOPE_RULES"
+      ],
+      "outputs": [
+        "item_blueprint",
+        "generated_item"
+      ]
+    },
+    "learning_map_recommender": {
+      "path": "functional_modules/learning_map_recommender",
+      "purpose": "Choose next-best skills from mastery evidence and prerequisite graph.",
+      "requires": [
+        "mastery_state",
+        "prerequisite_graph",
+        "standard_skills"
+      ],
+      "outputs": [
+        "next_skill_recommendations"
+      ]
+    },
+    "assessment_blueprint_builder": {
+      "path": "functional_modules/assessment_blueprint_builder",
+      "purpose": "Build balanced self-test / worksheet blueprints from skills, difficulty and diagnostic intent.",
+      "requires": [
+        "route_context",
+        "target_skills",
+        "micro_skills",
+        "scope_rules"
+      ],
+      "outputs": [
+        "assessment_blueprint"
+      ]
+    }
+  }
+}

@@ -15,9 +15,27 @@ import hashlib
 import hmac
 from pathlib import Path
 
-from math_output import MATH_OUTPUT_RULES, normalize_math_markdown
+from math_output import MATH_OUTPUT_RULES, normalize_math_markdown, render_math_markdown, split_math_segments
 from image_input import collect_image_inputs, image_bytes, load_rgb_image
 from navigation_state import apply_pending_main_tab, queue_main_tab
+try:
+    from device_email_history_component import sync_device_email_history
+except ModuleNotFoundError:
+    from app.device_email_history_component import sync_device_email_history
+try:
+    from services.device_email_history import (
+        DeviceEmailHistory,
+        clean_email_history,
+        normalize_history_email,
+        remember_email,
+    )
+except ModuleNotFoundError:
+    from app.services.device_email_history import (
+        DeviceEmailHistory,
+        clean_email_history,
+        normalize_history_email,
+        remember_email,
+    )
 try:
     from services.curriculum_catalog import (
         DIFFICULTIES as SELF_BUILT_DIFFICULTIES,
@@ -26,10 +44,18 @@ try:
         SUPPORTED_GRADES as SELF_BUILT_GRADES,
         SelectedExamSpec,
         build_generation_context,
+        curriculum_versions,
+        exam_output_has_question_count,
         get_curriculum_path,
+        knowledge_point_ids,
+        knowledge_point_labels,
+        micro_skill_ids,
         main_unit_names,
+        question_bank_search_plan,
         question_type_labels,
         reset_dependent_selections,
+        standard_knowledge_ids,
+        skill_ids,
         subunit_labels,
     )
 except ModuleNotFoundError:
@@ -40,11 +66,44 @@ except ModuleNotFoundError:
         SUPPORTED_GRADES as SELF_BUILT_GRADES,
         SelectedExamSpec,
         build_generation_context,
+        curriculum_versions,
+        exam_output_has_question_count,
         get_curriculum_path,
+        knowledge_point_ids,
+        knowledge_point_labels,
+        micro_skill_ids,
         main_unit_names,
+        question_bank_search_plan,
         question_type_labels,
         reset_dependent_selections,
+        standard_knowledge_ids,
+        skill_ids,
         subunit_labels,
+    )
+
+try:
+    from services.g8_question_service import (
+        build_g8_request_spec,
+        build_g8_subunit_request_specs,
+        deliver_g8_ui_selection,
+        deliver_questions,
+        deliver_mixed_questions,
+        format_question_set,
+        generate_validated_questions,
+        local_question_bank,
+        validate_generated_payload,
+    )
+except ModuleNotFoundError:
+    from app.services.g8_question_service import (
+        build_g8_request_spec,
+        build_g8_subunit_request_specs,
+        deliver_g8_ui_selection,
+        deliver_questions,
+        deliver_mixed_questions,
+        format_question_set,
+        generate_validated_questions,
+        local_question_bank,
+        validate_generated_payload,
     )
 
 # 學習地圖模組（MVP）
@@ -86,6 +145,13 @@ try:
         build_learning_runtime,
         resolve_authenticated_student,
     )
+    from services.local_test_session import (
+        ALLOWLISTED_LOCAL_TEST_EMAILS,
+        LocalTestSessionError,
+        create_local_test_user_session,
+        generate_visible_test_code,
+        local_test_login_enabled,
+    )
 except ModuleNotFoundError:
     from app.services.auth_service import (
         AuthFlowError,
@@ -98,6 +164,13 @@ except ModuleNotFoundError:
         LearningIdentityError,
         build_learning_runtime,
         resolve_authenticated_student,
+    )
+    from app.services.local_test_session import (
+        ALLOWLISTED_LOCAL_TEST_EMAILS,
+        LocalTestSessionError,
+        create_local_test_user_session,
+        generate_visible_test_code,
+        local_test_login_enabled,
     )
 
 try:
@@ -381,7 +454,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-APP_VERSION = "v0.8.8"
+APP_VERSION = "v0.8.8.2"
 APP_DIR = Path(__file__).resolve().parent
 LOCAL_EMAILS_FILE = APP_DIR / "recent_emails.json"
 LINE_PAY_QR_FILE = APP_DIR / "line_pay_qr.jpg"
@@ -913,6 +986,14 @@ except Exception:
 # 安全原則：金鑰只從 .streamlit/secrets.toml 讀取。
 # 若缺少設定，不使用任何寫死的備援金鑰。
 
+def get_streamlit_secret(name, default=""):
+    """Read an optional server-side secret without breaking bare imports."""
+    try:
+        return st.secrets.get(name, default)
+    except Exception:
+        return default
+
+
 @st.cache_resource
 def init_supabase(url, key):
     if not SUPABASE_AVAILABLE or not url or not key: return None
@@ -959,9 +1040,13 @@ def clear_private_beta_auth_session():
     clear_authenticated_session(st.session_state, client)
 
 
-def apply_private_beta_identity(email, student_id, auth_user_id):
+def apply_private_beta_identity(
+    email, student_id, auth_user_id, *, require_existing=False
+):
     """Load legacy profile metadata while keeping UUID ownership authoritative."""
     verified_email = normalize_email(email)
+    st.session_state["authenticated"] = True
+    st.session_state["private_beta_auth_email"] = verified_email
     st.session_state["private_beta_auth_user_id"] = auth_user_id
     st.session_state["private_beta_student_id"] = student_id
     clear_profile_widget_state(verified_email)
@@ -971,6 +1056,8 @@ def apply_private_beta_identity(email, student_id, auth_user_id):
         st.session_state["profile_load_notice"] = "existing"
         st.session_state["is_new_account_registration"] = False
     else:
+        if require_existing:
+            raise LearningIdentityError("Existing student profile is unavailable")
         reset_user_profile_for_new_account(verified_email, credits=200)
         st.session_state["profile_load_notice"] = "new"
         st.session_state["is_new_account_registration"] = True
@@ -997,69 +1084,362 @@ def render_auth_diagnostics():
         )
 
 
-def render_private_beta_auth_login():
-    """Render public passwordless Email login without internal terminology."""
-    st.markdown("#### Email 驗證")
-    st.caption("輸入 Email，我們會寄送一次性驗證碼給你。")
-    render_auth_diagnostics()
-    with st.container():
-        email = st.text_input(
-            "Email",
-            value=st.session_state.get("private_beta_auth_email", ""),
-            key="private_beta_email_input",
-        ).strip()
-        if st.button(
-            "寄送驗證碼",
-            key="private_beta_send_otp",
-            use_container_width=True,
-        ):
+def render_email_otp_fallback_login():
+    """Explicit secondary login path: real Email OTP.
+
+    The testing-mode path never calls this function and never falls back to
+    /otp.  This surface stays available for users until the testing-auth
+    bridge is provisioned.
+    """
+    st.caption("此為正式 Email OTP 流程：系統會寄送驗證碼到你的 Email。")
+    email = st.text_input(
+        "Email（正式 OTP 流程）",
+        value=st.session_state.get("private_beta_auth_email", ""),
+        key="private_beta_email_input",
+        autocomplete="email",
+    ).strip()
+    if st.button(
+        "寄送驗證碼",
+        key="private_beta_send_otp",
+        use_container_width=True,
+    ):
+        client = get_private_beta_auth_client()
+        try:
+            normalized = request_email_otp(client, email)
+            st.session_state["private_beta_auth_email"] = normalized
+            st.session_state["private_beta_otp_sent"] = True
+            st.success("驗證碼已寄出，請查看 Email。")
+        except AuthFlowError as exc:
+            st.error(public_auth_error_message(exc))
+
+    if st.session_state.get("private_beta_otp_sent"):
+        with st.form("private_beta_verify_otp_form"):
+            otp = st.text_input(
+                "驗證碼",
+                type="password",
+                autocomplete="one-time-code",
+                key="private_beta_otp_input",
+            )
+            verify = st.form_submit_button(
+                "登入／繼續",
+                type="primary",
+                use_container_width=True,
+            )
+        if verify:
             client = get_private_beta_auth_client()
             try:
-                normalized = request_email_otp(client, email)
-                st.session_state["private_beta_auth_email"] = normalized
-                st.session_state["private_beta_otp_sent"] = True
-                st.success("驗證碼已寄出，請查看 Email。")
+                response = verify_email_otp(
+                    client,
+                    st.session_state.get("private_beta_auth_email", email),
+                    otp,
+                )
+                identity = resolve_or_provision_authenticated_student(client)
+                apply_private_beta_identity(
+                    st.session_state.get("private_beta_auth_email", email),
+                    identity.student_id,
+                    identity.auth_user_id,
+                )
+                sync_wallet_balance_to_session(
+                    st.session_state["user_profile"].get("email", ""),
+                    force=True,
+                    is_new_account=st.session_state.get(
+                        "is_new_account_registration", False
+                    ),
+                )
+                st.rerun()
             except AuthFlowError as exc:
                 st.error(public_auth_error_message(exc))
+            except LearningIdentityError:
+                st.error("登入暫時失敗，請稍後再試")
 
-        if st.session_state.get("private_beta_otp_sent"):
-            with st.form("private_beta_verify_otp_form"):
-                otp = st.text_input(
-                    "驗證碼",
-                    type="password",
-                    autocomplete="one-time-code",
+
+def render_native_email_otp_login():
+    """Remembered-device Email picker backed only by Supabase native OTP."""
+    st.markdown("#### Email 驗證")
+    st.caption("選擇或輸入 Email，我們會寄送 6 位數一次性驗證碼。")
+    render_auth_diagnostics()
+
+    recent_emails = get_recent_emails()
+    manual_email_option = "手動輸入新 Email"
+    selected_email = manual_email_option
+    if recent_emails:
+        selected_email = st.selectbox(
+            "這台裝置曾使用的 Email",
+            [*recent_emails, manual_email_option],
+            key="native_otp_email_choice",
+        )
+        if st.button(
+            "清除這台裝置的登入 Email 紀錄",
+            key="clear_native_otp_device_emails",
+        ):
+            clear_recent_emails()
+            for state_key in (
+                "native_otp_email_choice",
+                "native_otp_manual_email",
+                "native_otp_remembered_email",
+            ):
+                st.session_state.pop(state_key, None)
+            st.success("已清除這台裝置的登入 Email 紀錄。")
+            st.rerun()
+
+    if selected_email == manual_email_option:
+        email = st.text_input(
+            "Email", value="", key="native_otp_manual_email", autocomplete="email"
+        ).strip()
+    else:
+        email = normalize_email(selected_email)
+        st.text_input(
+            "Email", value=email, disabled=True, key="native_otp_remembered_email"
+        )
+
+    local_test_enabled = local_test_login_enabled(
+        is_localhost=is_localhost_request(),
+        explicit_flag=get_streamlit_secret("LOCAL_TEST_LOGIN_ENABLED", False),
+        app_env=get_streamlit_secret("APP_ENV", ""),
+    )
+    if local_test_enabled:
+        if st.button(
+            "取得驗證碼", key="local_test_code_generate", use_container_width=True
+        ):
+            normalized = normalize_email(email)
+            if normalized not in ALLOWLISTED_LOCAL_TEST_EMAILS:
+                st.error("此帳號目前未開放測試登入")
+            else:
+                st.session_state["local_test_login_email"] = normalized
+                st.session_state["local_test_login_code"] = generate_visible_test_code()
+
+        test_code = str(st.session_state.get("local_test_login_code", ""))
+        test_email = normalize_email(
+            st.session_state.get("local_test_login_email", "")
+        )
+        if test_code and test_email:
+            st.info(f"測試期間驗證碼：{test_code}")
+            with st.form("local_test_code_verify_form"):
+                entered_code = st.text_input(
+                    "輸入驗證碼", max_chars=6,
+                    autocomplete="one-time-code", key="local_test_code_input",
                 )
-                verify = st.form_submit_button(
-                    "登入／繼續",
-                    type="primary",
-                    use_container_width=True,
+                confirm = st.form_submit_button(
+                    "確認驗證碼", type="primary", use_container_width=True
                 )
-            if verify:
+            if confirm:
+                if not hmac.compare_digest(entered_code.strip(), test_code):
+                    st.error("驗證碼錯誤")
+                    return
                 client = get_private_beta_auth_client()
                 try:
-                    response = verify_email_otp(
-                        client,
-                        st.session_state.get("private_beta_auth_email", email),
-                        otp,
+                    create_local_test_user_session(
+                        supabase_url=SUPABASE_URL,
+                        service_role_key=str(
+                            get_streamlit_secret("SUPABASE_SERVICE_ROLE_KEY", "")
+                        ),
+                        email=test_email,
+                        user_client=client,
+                        is_localhost=is_localhost_request(),
+                        explicit_flag=get_streamlit_secret(
+                            "LOCAL_TEST_LOGIN_ENABLED", False
+                        ),
+                        app_env=get_streamlit_secret("APP_ENV", ""),
                     )
                     identity = resolve_authenticated_student(client)
                     apply_private_beta_identity(
-                        st.session_state.get("private_beta_auth_email", email),
-                        identity.student_id,
-                        identity.auth_user_id,
+                        test_email, identity.student_id, identity.auth_user_id,
+                        require_existing=True,
                     )
-                    sync_wallet_balance_to_session(
-                        st.session_state["user_profile"].get("email", ""),
-                        force=True,
-                        is_new_account=st.session_state.get(
-                            "is_new_account_registration", False
-                        ),
+                    wallet_balance = sync_wallet_balance_to_session(
+                        test_email, force=True, is_new_account=False
                     )
+                    if wallet_balance is None:
+                        raise LearningIdentityError(
+                            "Existing member wallet is unavailable"
+                        )
+                    st.session_state["setup_complete"] = True
+                    st.session_state.pop("local_test_login_code", None)
+                    st.session_state.pop("local_test_login_email", None)
                     st.rerun()
-                except AuthFlowError as exc:
-                    st.error(public_auth_error_message(exc))
-                except LearningIdentityError:
-                    st.error("登入暫時失敗，請稍後再試")
+                except (LocalTestSessionError, LearningIdentityError):
+                    st.error("測試登入無法載入既有帳號資料。")
+        return
+
+    if st.button("寄送驗證碼", key="native_otp_send", use_container_width=True):
+        try:
+            normalized = request_email_otp(get_private_beta_auth_client(), email)
+            st.session_state["private_beta_auth_email"] = normalized
+            st.session_state["private_beta_otp_sent"] = True
+            st.success("驗證碼已寄出，請查看 Email。")
+        except AuthFlowError as exc:
+            st.error(public_auth_error_message(exc))
+
+    if not st.session_state.get("private_beta_otp_sent"):
+        return
+    with st.form("native_otp_verify_form"):
+        otp = st.text_input(
+            "6 位數驗證碼", type="password", max_chars=6,
+            autocomplete="one-time-code", key="native_otp_code",
+        )
+        verify = st.form_submit_button(
+            "登入／繼續", type="primary", use_container_width=True
+        )
+    if not verify:
+        return
+
+    client = get_private_beta_auth_client()
+    verified_email = st.session_state.get("private_beta_auth_email", "")
+    try:
+        verify_email_otp(client, verified_email, otp)
+        identity = resolve_authenticated_student(client)
+        apply_private_beta_identity(
+            verified_email,
+            identity.student_id,
+            identity.auth_user_id,
+            require_existing=True,
+        )
+        wallet_balance = sync_wallet_balance_to_session(
+            verified_email, force=True, is_new_account=False
+        )
+        if wallet_balance is None:
+            raise LearningIdentityError("Existing member wallet is unavailable")
+        st.session_state["setup_complete"] = True
+        st.rerun()
+    except AuthFlowError as exc:
+        st.error(public_auth_error_message(exc))
+    except LearningIdentityError:
+        st.error("找不到此帳號既有的學生資料，請聯絡管理員。")
+
+
+def render_private_beta_auth_login():
+    """Render the single public login surface for the testing period.
+
+    Primary path: device Email history -> 「顯示驗證碼（測試期間）」 -> direct
+    6-digit code -> verification -> REAL Supabase Auth session.  Real Email
+    OTP stays available as an explicit, separate secondary option.
+    """
+    return render_native_email_otp_login()
+
+    st.markdown("#### Email 驗證（測試期間）")
+    st.caption(
+        "選擇或輸入 Email 後，按「顯示驗證碼（測試期間）」即可在畫面直接取得 6 位數驗證碼。"
+    )
+    render_auth_diagnostics()
+
+    recent_emails = get_recent_emails()
+    manual_email_option = "➕ 手動輸入新 Email"
+    manual_email_input_key = "testing_login_email_input"
+    email = ""
+
+    if recent_emails:
+        selected_email_option = st.selectbox(
+            "這台裝置曾使用的 Email",
+            [*recent_emails, manual_email_option],
+            key="testing_login_email_choice",
+        )
+        if st.button(
+            "清除這台裝置的登入 Email 紀錄",
+            key="clear_testing_login_device_emails",
+        ):
+            clear_recent_emails()
+            for state_key in (
+                "testing_login_email_choice",
+                manual_email_input_key,
+                "testing_login_remembered_email_display",
+            ):
+                st.session_state.pop(state_key, None)
+            clear_testing_challenge(st.session_state)
+            st.success("已清除這台裝置的登入 Email 紀錄。")
+            st.rerun()
+        if selected_email_option == manual_email_option:
+            email = st.text_input(
+                "Email",
+                value="",
+                key=manual_email_input_key,
+                autocomplete="email",
+            ).strip()
+        else:
+            email = normalize_email(str(selected_email_option))
+            st.text_input(
+                "Email",
+                value=email,
+                disabled=True,
+                key="testing_login_remembered_email_display",
+            )
+    else:
+        email = st.text_input(
+            "Email",
+            value=testing_challenge_email(st.session_state),
+            key=manual_email_input_key,
+            autocomplete="email",
+        ).strip()
+
+    if st.button(
+        "顯示驗證碼（測試期間）",
+        key="testing_login_show_code",
+        use_container_width=True,
+    ):
+        try:
+            issue_testing_code(
+                get_private_beta_auth_client(),
+                st.session_state,
+                email=email,
+            )
+        except TestingAuthError as exc:
+            st.error(public_testing_auth_error_message(exc))
+        except AuthFlowError as exc:
+            st.error(public_auth_error_message(exc))
+
+    displayed_code = testing_code_display(st.session_state)
+    if displayed_code:
+        st.info(
+            f"🔧 **[測試期間] 您的登入驗證碼是： {displayed_code}**"
+            "（10 分鐘內有效，重新整理前請先完成驗證）"
+        )
+
+    challenged_email = testing_challenge_email(st.session_state)
+    if challenged_email:
+        with st.form("testing_login_verify_form"):
+            token = st.text_input(
+                "驗證碼",
+                max_chars=6,
+                autocomplete="one-time-code",
+                key="testing_login_code_input",
+            )
+            verify = st.form_submit_button(
+                "驗證並登入",
+                type="primary",
+                use_container_width=True,
+            )
+        if verify:
+            client = get_private_beta_auth_client()
+            try:
+                response, verified_email = complete_testing_login(
+                    client,
+                    st.session_state,
+                    email=challenged_email,
+                    token=token,
+                )
+                identity = resolve_or_provision_authenticated_student(client)
+                apply_private_beta_identity(
+                    verified_email,
+                    identity.student_id,
+                    identity.auth_user_id,
+                )
+                sync_wallet_balance_to_session(
+                    st.session_state["user_profile"].get("email", ""),
+                    force=True,
+                    is_new_account=st.session_state.get(
+                        "is_new_account_registration", False
+                    ),
+                )
+                st.rerun()
+            except TestingAuthError as exc:
+                st.error(public_testing_auth_error_message(exc))
+            except AuthFlowError as exc:
+                st.error(public_auth_error_message(exc))
+            except LearningIdentityError:
+                st.error("登入暫時失敗，請稍後再試")
+
+    st.markdown("---")
+    with st.expander("改用 Email 寄送驗證碼登入（正式流程）"):
+        render_email_otp_fallback_login()
 
 # ==========================================
 # v0.7.0 資料架構規則
@@ -1410,12 +1790,15 @@ def fetch_relevant_questions_from_db(keywords, limit=20):
         search_terms = []
         for kw in keywords:
             core_kw = kw.split("：")[-1] if "：" in kw else kw
-            search_terms.append(core_kw[:10].strip()) 
-            
+            # 保留知識點/課綱編碼的完整長度（如 G8-KX-A-U1-S1-KP01、A-8-1）。
+            search_terms.append(core_kw[:32].strip())
+
         for term in search_terms:
             if not term: continue
             res_unit = supabase_client.table("item_bank").select("original_question, new_question, correct_answer").ilike("unit", f"%{term}%").limit(limit).execute()
             if res_unit.data: extracted_data.extend(res_unit.data)
+            res_tag = supabase_client.table("item_bank").select("original_question, new_question, correct_answer").ilike("knowledge_tag", f"%{term}%").limit(limit).execute()
+            if res_tag.data: extracted_data.extend(res_tag.data)
             res_q = supabase_client.table("item_bank").select("original_question, new_question, correct_answer").ilike("new_question", f"%{term}%").limit(limit).execute()
             if res_q.data: extracted_data.extend(res_q.data)
 
@@ -1718,6 +2101,12 @@ def sync_wallet_balance_to_session(
         is_new_account = bool(
             st.session_state.get("is_new_account_registration", False)
         )
+
+    if not is_new_account:
+        st.session_state["wallet_rpc_debug"] = (
+            "Existing member wallet is unavailable; bootstrap was blocked."
+        )
+        return None
 
     return wallet_bootstrap(
         email,
@@ -2886,7 +3275,11 @@ with st.sidebar:
 
 def render_math_content(content_text):
     """Render mixed Markdown + HTML while letting Streamlit display math cleanly."""
-    st.markdown(normalize_math_markdown(content_text), unsafe_allow_html=True)
+    # Keep prose, short formulas, and answer choices in one Markdown paragraph.
+    # ``render_math_markdown`` supplies KaTeX delimiters without splitting each
+    # inline expression into a separate ``st.latex`` block.
+    for line in str(content_text or "").splitlines():
+        st.markdown(render_math_markdown(line), unsafe_allow_html=True)
 
 
 def show_trial_conversion_notice():
@@ -3334,138 +3727,20 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
     up = st.session_state["user_profile"]
 
     current_stored_email = st.session_state["user_profile"].get("email", "")
-    is_verified = bool(current_stored_email and current_stored_email != "trial@example.com")
+    is_verified = bool(
+        st.session_state.get("authenticated")
+        and st.session_state.get("private_beta_auth_user_id")
+        and st.session_state.get("private_beta_student_id")
+        and current_stored_email
+        and current_stored_email != "trial@example.com"
+    )
 
     if not is_verified:
         render_private_beta_auth_login()
-        if not (
-            st.session_state.get("developer_mode", False)
-            or st.session_state.get("admin_unlocked", False)
-        ):
-            st.stop()
-        st.markdown("---")
-        st.caption(
-            "舊版 Email OTP 僅供相容使用，不會取得 Supabase ownership，也不會啟用跨 session 學習紀錄。"
-        )
-        recent_emails = get_recent_emails()
-        manual_email_option = "➕ 手動輸入新 Email..."
-        email_options = recent_emails + [manual_email_option]
-
-        st.markdown("#### 📧 請選擇或輸入您的登入 Email (必填)")
-        if recent_emails:
-            st.caption("✅ 已載入這台裝置曾驗證過的 Email；最近使用的帳號會排在最前面。")
-        elif not COOKIE_CONTROLLER_AVAILABLE:
-            st.caption("ℹ️ 裝置記憶元件尚未安裝，目前仍可手動輸入 Email。")
-
-        selected_option = st.selectbox(
-            "點擊選擇曾登入過的帳號：",
-            email_options,
-            key="single_email_select",
-        )
-
-        if recent_emails:
-            if st.button(
-                "🧹 清除這台裝置記住的 Email",
-                key="clear_device_emails",
-            ):
-                clear_recent_emails()
-                st.session_state.pop("single_email_select", None)
-                st.session_state["pending_email"] = ""
-                st.success("已清除這台裝置的 Email 記錄。")
-                st.rerun()
-
-        if selected_option == manual_email_option:
-            typed_email = st.text_input(
-                "請輸入新的 Email (綁定與驗證用)：",
-                value=st.session_state["pending_email"],
-                placeholder="example@gmail.com",
-            )
-            user_email_input = typed_email.strip()
-        else:
-            user_email_input = normalize_email(selected_option)
-            st.session_state["pending_email"] = user_email_input
-            st.caption(
-                "完成 OTP 驗證後，系統會自動載入此帳號之前儲存的資料。"
-            )
-
-
-        col_otp1, col_otp2 = st.columns([1, 2])
-        with col_otp1:
-            if st.button("📧 1. 傳送 6 位數驗證碼"):
-                if user_email_input and "@" in user_email_input:
-                    new_otp = str(random.randint(100000, 999999))
-                    st.session_state["generated_otp"] = new_otp
-                    st.session_state["pending_email"] = user_email_input
-                    if send_otp_email(user_email_input, new_otp):
-                        st.session_state["otp_sent"] = True
-                        st.rerun()
-                else:
-                    st.warning("請輸入正確的 Email 格式！")
-        
-        if st.session_state["otp_sent"]:
-            with col_otp2:
-                st.info(f"🔧 **[測試模式] 您的登入驗證碼是： {st.session_state['generated_otp']}**")
-                
-                with st.form("otp_login_form", border=False):
-                    user_otp_input = st.text_input("🔑 請輸入您收到的驗證碼（輸入後可直接按 Enter 鍵）：", max_chars=6)
-                    submit_login = st.form_submit_button("🔗 2. 驗證 OTP 並登入", type="primary", use_container_width=True)
-                    
-                    if submit_login:
-                        if user_otp_input == st.session_state["generated_otp"]:
-                            clear_private_beta_auth_session()
-                            verified_email = normalize_email(
-                                st.session_state["pending_email"]
-                            )
-                            clear_profile_widget_state(verified_email)
-                            db_profile = build_complete_user_profile(verified_email)
-                            if db_profile:
-                                apply_user_profile_to_session(
-                                    db_profile,
-                                    verified_email,
-                                )
-                                st.session_state["profile_load_notice"] = "existing"
-                                st.session_state[
-                                    "is_new_account_registration"
-                                ] = False
-                            else:
-                                reset_user_profile_for_new_account(
-                                    verified_email,
-                                    credits=200,
-                                )
-                                st.session_state["profile_load_notice"] = "new"
-                                st.session_state[
-                                    "is_new_account_registration"
-                                ] = True
-                            # 正常 Email 登入必須退出本機開發者模式，
-                            # 避免前一次 developer_mode 狀態污染正式會員。
-                            st.session_state["developer_mode"] = False
-                            st.session_state["is_trial"] = False
-                            st.session_state["wallet_synced_email"] = ""
-                            st.session_state["is_verified"] = True
-                            st.session_state["otp_sent"] = False
-                            save_recent_email(verified_email)
-
-                            # v0.6.19：第一次把舊系統目前點數搬入 Supabase wallet，
-                            # 之後跨裝置／重新登入都以雲端點數為準。
-                            sync_wallet_balance_to_session(
-                                verified_email,
-                                force=True,
-                                is_new_account=st.session_state.get(
-                                    "is_new_account_registration",
-                                    False,
-                                ),
-                            )
-                            st.rerun()
-                        else:
-                            st.error("❌ 驗證碼錯誤，請重新確認！")
-        st.markdown("---")
+        st.stop()
     else:
         st.success(f"✅ 您目前已登入 Email：**{current_stored_email}**")
         st.markdown("---")
-
-    if not is_verified:
-        st.info("請先完成 Email 驗證，驗證成功後才會顯示學生資料。")
-        st.stop()
 
     verified_profile_email = normalize_email(
         st.session_state["user_profile"].get("email", "")
@@ -5071,9 +5346,7 @@ elif st.session_state["setup_complete"]:
             profile_grade = int(profile_grade_match.group(1)) if profile_grade_match else 8
             if profile_grade not in SELF_BUILT_GRADES:
                 profile_grade = 8
-            profile_publisher = str(user_profile.get("version", "康軒版")).replace("版", "")
-            if profile_publisher not in SELF_BUILT_PUBLISHERS:
-                profile_publisher = "康軒"
+            profile_publisher = str(user_profile.get("version", "康軒版")).removesuffix("版")
 
             selector_col1, selector_col2, selector_col3 = st.columns(3)
             with selector_col1:
@@ -5084,11 +5357,23 @@ elif st.session_state["setup_complete"]:
                     format_func=lambda value: f"G{value}",
                     key="custom_exam_grade",
                 )
+            version_options = curriculum_versions(exam_grade)
+            if profile_publisher not in version_options:
+                profile_publisher = version_options[0]
+            if st.session_state.get("custom_exam_publisher") not in version_options:
+                st.session_state.pop("custom_exam_publisher", None)
             with selector_col2:
                 exam_publisher = st.selectbox(
-                    "出版社",
-                    SELF_BUILT_PUBLISHERS,
-                    index=SELF_BUILT_PUBLISHERS.index(profile_publisher),
+                    "教材版本／類型",
+                    version_options,
+                    index=version_options.index(profile_publisher),
+                    format_func=lambda value: (
+                        "報考私立國中"
+                        if value == "報考私中"
+                        else f"{value}版"
+                        if value in SELF_BUILT_PUBLISHERS
+                        else value
+                    ),
                     key="custom_exam_publisher",
                 )
             with selector_col3:
@@ -5134,11 +5419,26 @@ elif st.session_state["setup_complete"]:
             )
             selected_topics = []
 
+            # 第二步半：細分知識點（依次單元連動，G8-G9 才有）
+            kp_options = knowledge_point_labels(curriculum_path, selected_subunits)
+            sanitize_multiselect_state("custom_exam_knowledge_points", kp_options)
+            if kp_options:
+                selected_knowledge_points = st.multiselect(
+                    "細分知識點（依次單元連動，可複選）",
+                    kp_options,
+                    key="custom_exam_knowledge_points",
+                    placeholder="請選擇知識點",
+                    disabled=not selected_subunits,
+                )
+            else:
+                selected_knowledge_points = []
+
             st.markdown("### 2️⃣ 選擇題型與難度")
 
             classic_type_options = question_type_labels(
                 curriculum_path,
                 selected_subunits,
+                selected_knowledge_points,
             )
 
             sanitize_multiselect_state("custom_exam_question_types", classic_type_options)
@@ -5223,6 +5523,7 @@ elif st.session_state["setup_complete"]:
             with st.expander("查看完整出題設定", expanded=True):
                 st.markdown(f"**主單元：** {'、'.join(selected_mains) if selected_mains else '尚未選擇'}")
                 st.markdown(f"**次單元：** {'、'.join(selected_subunits) if selected_subunits else '尚未選擇'}")
+                st.markdown(f"**細分知識點：** {'、'.join(selected_knowledge_points) if selected_knowledge_points else '未指定（系統依次單元分配）'}")
                 st.markdown(f"**學習重點：** {'、'.join(selected_topics) if selected_topics else '系統平均分配'}")
                 st.markdown(f"**細部題型：** {'、'.join(selected_question_types) if selected_question_types else '系統混合題型'}")
                 st.markdown(
@@ -5263,8 +5564,13 @@ elif st.session_state["setup_complete"]:
                         with st.spinner("正在依照教材範圍智慧組卷，請稍候…"):
                             main_topics_str = "、".join(selected_mains)
                             subunit_topics_str = "、".join(selected_subunits)
+                            kp_topics_str = "、".join(selected_knowledge_points) if selected_knowledge_points else "由系統依次單元分配"
                             topic_str = "、".join(selected_topics) if selected_topics else "由系統平均分配"
                             type_str = "、".join(selected_question_types) if selected_question_types else "混合題型"
+                            kp_ids = knowledge_point_ids(curriculum_path, selected_knowledge_points)
+                            std_ids = standard_knowledge_ids(curriculum_path, selected_knowledge_points)
+                            selected_skill_ids = skill_ids(curriculum_path, selected_knowledge_points)
+                            selected_micro_skill_ids = micro_skill_ids(curriculum_path, selected_knowledge_points)
                             exam_spec = SelectedExamSpec(
                                 grade=exam_grade,
                                 publisher=exam_publisher,
@@ -5274,14 +5580,19 @@ elif st.session_state["setup_complete"]:
                                 question_types=tuple(selected_question_types),
                                 difficulty=tuple(selected_difficulties or ["標準"]),
                                 question_count=display_q,
+                                knowledge_points=tuple(selected_knowledge_points),
+                                standard_knowledge_ids=std_ids,
+                                skill_ids=selected_skill_ids,
+                                micro_skill_ids=selected_micro_skill_ids,
                             )
                             generation_context = build_generation_context(exam_spec)
-                            search_keywords = (
-                                [user_gr, exam_publisher, exam_semester]
-                                + selected_mains
-                                + selected_subunits
-                                + selected_question_types
-                            )
+                            # 題庫檢索順序：knowledge_point_id → standard_knowledge_id
+                            # → 次單元 → 主單元 → AI fallback。
+                            search_plan = question_bank_search_plan(curriculum_path, exam_spec)
+                            search_keywords = [user_gr, exam_publisher, exam_semester]
+                            for _tier, terms in search_plan:
+                                search_keywords.extend(terms)
+                            search_keywords = list(dict.fromkeys(search_keywords))
                             db_text = fetch_relevant_questions_from_db(
                                 search_keywords,
                                 limit=max(20, display_q * 2),
@@ -5296,6 +5607,7 @@ elif st.session_state["setup_complete"]:
 【出題範圍】
 主單元：{main_topics_str}
 次單元：{subunit_topics_str}
+細分知識點：{kp_topics_str}
 學習重點：{topic_str}
 指定細部題型：{type_str}
 難度：{difficulty}
@@ -5326,10 +5638,138 @@ elif st.session_state["setup_complete"]:
                                 main_topics_str,
                             )
 
+                            g8_request = None
+                            g8_mixed_specs = ()
+                            local_records = ()
+                            resolved_skill_counts = {}
                             custom_ai_succeeded = False
+                            local_delivery_status = ""
+                            if (
+                                exam_grade == 8
+                                and len(selected_mains) == 1
+                                and len(selected_subunits) == 1
+                            ):
+                                try:
+                                    local_records, local_delivery_status, ui_specs = deliver_g8_ui_selection(
+                                        curriculum_path,
+                                        main_unit=selected_mains[0],
+                                        subunit=selected_subunits[0],
+                                        knowledge_points=selected_knowledge_points,
+                                        question_types=selected_question_types,
+                                        difficulties=selected_difficulties or ["標準"],
+                                        question_count=display_q,
+                                        records=local_question_bank(),
+                                    )
+                                    g8_mixed_specs = ui_specs
+                                    g8_request = ui_specs[0] if len(ui_specs) == 1 else None
+                                    if len(local_records) >= display_q:
+                                        res_text = format_question_set(local_records)
+                                        custom_ai_succeeded = True
+                                    resolved_skill_counts = {
+                                        skill_id: sum(1 for row in local_records if row.get("skill_id") == skill_id)
+                                        for skill_id in {spec.skill_id for spec in ui_specs}
+                                    }
+                                    st.session_state["custom_exam_delivery_debug"] = {
+                                        "mode": "knowledge_mixed" if selected_knowledge_points and not selected_question_types else "ui_selection",
+                                        "skill_ids": [spec.skill_id for spec in ui_specs],
+                                        "micro_skill_ids": [spec.micro_skill_id for spec in ui_specs],
+                                        "difficulty": list(selected_difficulties or ["標準"]),
+                                        "generator_output": sum(row.get("source") == "LOCAL_GENERATOR" for row in local_records),
+                                        "validated_output": len(local_records),
+                                        "final_delivered": len(local_records),
+                                        "ai_requested": local_delivery_status == "local+ai",
+                                        "delivery_status": local_delivery_status,
+                                    }
+                                except (ValueError, IndexError) as exc:
+                                    g8_request = None
+                                    g8_mixed_specs = ()
+                                    st.session_state["custom_exam_delivery_debug"] = {
+                                        "request_error": str(exc),
+                                        "grade": exam_grade,
+                                        "question_count": display_q,
+                                    }
+
+                            if (
+                                exam_grade == 8
+                                and not g8_mixed_specs
+                                and not selected_knowledge_points
+                                and selected_mains
+                                and selected_subunits
+                            ):
+                                try:
+                                    g8_mixed_specs = build_g8_subunit_request_specs(
+                                        curriculum_path,
+                                        main_unit=selected_mains[0],
+                                        subunit=selected_subunits[0],
+                                        question_type=selected_question_types[0] if selected_question_types else "",
+                                        difficulty=selected_difficulties[0] if selected_difficulties else "挑戰",
+                                        question_count=display_q,
+                                    )
+                                    local_records, local_delivery_status = deliver_mixed_questions(
+                                        local_question_bank(), g8_mixed_specs
+                                    )
+                                    st.session_state["custom_exam_delivery_debug"] = {
+                                        "mode": "subunit_mixed",
+                                        "skill_ids": [spec.skill_id for spec in g8_mixed_specs],
+                                        "mapped_skills": len(g8_mixed_specs),
+                                        "difficulty": selected_difficulties[0] if selected_difficulties else "挑戰",
+                                        "local_available": len(local_records),
+                                        "local_selected": len(local_records),
+                                        "ai_requested": False,
+                                        "delivery_status": local_delivery_status,
+                                    }
+                                    if len(local_records) >= display_q:
+                                        res_text = format_question_set(local_records)
+                                        custom_ai_succeeded = True
+                                    resolved_skill_counts = {
+                                        skill_id: sum(1 for row in local_records if row.get("skill_id") == skill_id)
+                                        for skill_id in {spec.skill_id for spec in g8_mixed_specs}
+                                    }
+                                except (ValueError, IndexError):
+                                    g8_mixed_specs = ()
+
+                            if g8_request is not None and not custom_ai_succeeded:
+                                local_records, local_delivery_status = deliver_questions(
+                                    local_question_bank(), g8_request
+                                )
+                                st.session_state["custom_exam_delivery_debug"] = {
+                                    "skill_id": g8_request.skill_id,
+                                    "micro_skill_id": g8_request.micro_skill_id,
+                                    "difficulty": g8_request.difficulty,
+                                    "question_count": g8_request.question_count,
+                                    "local_exact_count": sum(
+                                        1 for row in local_question_bank()
+                                        if row.get("skill_id") == g8_request.skill_id
+                                        and row.get("micro_skill_id") == g8_request.micro_skill_id
+                                        and row.get("difficulty") == g8_request.difficulty
+                                    ),
+                                    "local_selected": len(local_records),
+                                    "ai_requested": local_delivery_status == "local+ai",
+                                    "delivery_status": local_delivery_status,
+                                }
+                                if len(local_records) >= g8_request.question_count:
+                                    res_text = format_question_set(local_records)
+                                    custom_ai_succeeded = True
+                                resolved_skill_counts = {g8_request.skill_id: len(local_records)}
+                            elif g8_mixed_specs and len(local_records) >= display_q:
+                                res_text = format_question_set(local_records)
+                                custom_ai_succeeded = True
+                            delivery_active = g8_request is not None or bool(g8_mixed_specs)
                             try:
                                 # 只把真正的 Gemini 呼叫放在 try/except 內。
-                                res_text = call_gemini_api([prompt_custom])
+                                if not custom_ai_succeeded:
+                                    res_text = call_gemini_api([prompt_custom])
+                                    if not exam_output_has_question_count(res_text, display_q):
+                                        raise ValueError("incomplete exam output")
+                                if g8_request is not None and not custom_ai_succeeded:
+                                    valid_payload, _, _ = validate_generated_payload(res_text, g8_request)
+                                    if not valid_payload:
+                                        res_text = generate_validated_questions(
+                                            lambda attempt: call_gemini_api([
+                                                prompt_custom + f"\nValidator retry attempt: {attempt + 1}"
+                                            ]),
+                                            g8_request,
+                                        )
                                 custom_ai_succeeded = True
                             except Exception as e:
                                 # 只有 Gemini 真正失敗才退款。
@@ -5340,7 +5780,12 @@ elif st.session_state["setup_complete"]:
                                     reference_type="custom_exam_refund",
                                     reference_id=str(uuid.uuid4()),
                                 )
-                                handle_api_error(e)
+                                if delivery_active:
+                                    st.info("題庫正在建置中，請稍等")
+                                    st.caption("我們正在持續增加此單元的題目，請稍後再試或改選其他題型。")
+                                else:
+                                    st.info("題庫正在建置中，請稍等")
+                                    st.caption("我們正在持續增加此單元的題目，請稍後再試或改選其他題型。")
 
                             if custom_ai_succeeded:
                                 final_custom_content = re.sub(
@@ -5358,11 +5803,13 @@ elif st.session_state["setup_complete"]:
                                     "semester": exam_semester,
                                     "main_units": selected_mains,
                                     "subunits": selected_subunits,
+                                    "knowledge_points": selected_knowledge_points,
                                     "topics": selected_topics,
                                     "question_types": selected_question_types,
                                     "difficulty": difficulty,
                                     "question_count": display_q,
                                     "points": req_pts,
+                                    "resolved_skill_counts": resolved_skill_counts,
                                 }
 
                                 # 後處理失敗不能冒充 Gemini 失敗。
@@ -5395,6 +5842,10 @@ elif st.session_state["setup_complete"]:
                         f"{last_summary.get('difficulty', '')}｜"
                         f"{last_summary.get('question_count', '')} 題"
                     )
+                    if last_summary.get("resolved_skill_counts"):
+                        st.markdown("**本卷涵蓋知識點：**")
+                        for skill_id, count in last_summary["resolved_skill_counts"].items():
+                            st.markdown(f"- `{skill_id}`：{count} 題")
 
                 render_math_content(st.session_state["custom_exam_content"])
                 render_share_buttons(
@@ -5493,6 +5944,7 @@ elif st.session_state["setup_complete"]:
                 for stale_key in [
                     "custom_exam_main_units",
                     "custom_exam_subunits",
+                    "custom_exam_knowledge_points",
                     "custom_exam_topics",
                     "custom_exam_question_types",
                 ]:

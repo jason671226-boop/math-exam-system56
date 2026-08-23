@@ -1,0 +1,17 @@
+﻿Metric,Result,Status
+Released curriculum packs,17,PASS
+Canonical standard skills,977,PASS
+Layer-2 micro-skills,6056,PASS
+Duplicate canonical Skill IDs,0,PASS
+Missing micro parent refs,0,PASS
+Broken prerequisite refs,0,PASS
+Broken successor refs,0,PASS
+Official coverage,100%,PASS
+Unresolved future references,0,PASS
+Unresolved aliases,0,PASS
+Exact same-pack name groups,0,PASS
+Scope guardrails,17/17,PASS
+Runtime route dry-runs,12/12,PASS
+Ambiguous-route rejection,3/3,PASS
+Functional modules wired,4,PASS
+Release gate,PASS,PASS

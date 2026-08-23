@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0",
+  "display_name": "MathAI G6 Integrated Checkpoints",
+  "default_threshold": 0.80,
+  "notes": [
+    "Checkpoints integrate knowledge every 3-5 core topics.",
+    "Core knowledge is standardised from the existing G6 pilot baseline.",
+    "Threshold is configurable; failing routes back to knowledge/thinking-skill weakness."
+  ],
+  "checkpoints": [
+    {
+      "id": "CP-G6-A1",
+      "semester": "上學期",
+      "name": "四則與分數小數",
+      "core_ids": ["G6-C01", "G6-C02", "G6-C03", "G6-C04", "G6-C05"],
+      "threshold": 0.80,
+      "composition": {"基礎核心題": 3, "數字變形題": 2, "中等應用題": 2, "陌生題": 1, "跨單元題": 1}
+    },
+    {
+      "id": "CP-G6-A2",
+      "semester": "上學期",
+      "name": "方程與比",
+      "core_ids": ["G6-C06", "G6-C07", "G6-C08"],
+      "threshold": 0.80,
+      "composition": {"基礎核心題": 3, "數字變形題": 2, "中等應用題": 2, "陌生題": 1, "跨單元題": 1}
+    },
+    {
+      "id": "CP-G6-B1",
+      "semester": "下學期",
+      "name": "數量關係應用",
+      "core_ids": ["G6-C09", "G6-C10", "G6-C11", "G6-C12"],
+      "threshold": 0.80,
+      "composition": {"基礎核心題": 3, "數字變形題": 2, "中等應用題": 2, "陌生題": 1, "跨單元題": 1}
+    },
+    {
+      "id": "CP-G6-B2",
+      "semester": "下學期",
+      "name": "圖形與表徵",
+      "core_ids": ["G6-C13", "G6-C14", "G6-C15", "G6-C16"],
+      "threshold": 0.80,
+      "composition": {"基礎核心題": 3, "數字變形題": 2, "中等應用題": 2, "陌生題": 1, "跨單元題": 1}
+    }
+  ]
+}

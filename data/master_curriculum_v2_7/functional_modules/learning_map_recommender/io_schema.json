@@ -1,0 +1,10 @@
+{
+  "input": {
+    "route_context": "object",
+    "mastery_state": "object",
+    "recent_evidence": "array"
+  },
+  "output": {
+    "recommendations": "array"
+  }
+}

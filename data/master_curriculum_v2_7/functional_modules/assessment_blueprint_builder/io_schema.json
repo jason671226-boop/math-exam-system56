@@ -1,0 +1,11 @@
+{
+  "input": {
+    "route_context": "object",
+    "target_skills": "string[]",
+    "question_count": "integer",
+    "difficulty_mix": "object"
+  },
+  "output": {
+    "blueprint_items": "array"
+  }
+}

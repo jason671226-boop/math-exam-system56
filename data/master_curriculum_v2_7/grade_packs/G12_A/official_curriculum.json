@@ -1,0 +1,114 @@
+[
+  {
+    "code": "N-12甲-1",
+    "name": "數列的極限",
+    "grade": "G12",
+    "track": "甲",
+    "verification_status": "official_verified",
+    "source_url": "https://guidelines.ms.cshs.tc.edu.tw/108/%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F/%E5%AD%B8%E7%BF%92%E5%85%A7%E5%AE%B9"
+  },
+  {
+    "code": "N-12甲-2",
+    "name": "無窮等比級數",
+    "grade": "G12",
+    "track": "甲",
+    "verification_status": "official_verified",
+    "source_url": "https://guidelines.ms.cshs.tc.edu.tw/108/%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F/%E5%AD%B8%E7%BF%92%E5%85%A7%E5%AE%B9"
+  },
+  {
+    "code": "N-12甲-3",
+    "name": "複數",
+    "grade": "G12",
+    "track": "甲",
+    "verification_status": "official_verified",
+    "source_url": "https://guidelines.ms.cshs.tc.edu.tw/108/%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F/%E5%AD%B8%E7%BF%92%E5%85%A7%E5%AE%B9"
+  },
+  {
+    "code": "G-12甲-1",
+    "name": "二次曲線",
+    "grade": "G12",
+    "track": "甲",
+    "verification_status": "official_verified",
+    "source_url": "https://guidelines.ms.cshs.tc.edu.tw/108/%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F/%E5%AD%B8%E7%BF%92%E5%85%A7%E5%AE%B9"
+  },
+  {
+    "code": "A-12甲-1",
+    "name": "複數與方程式",
+    "grade": "G12",
+    "track": "甲",
+    "verification_status": "official_verified",
+    "source_url": "https://guidelines.ms.cshs.tc.edu.tw/108/%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F/%E5%AD%B8%E7%BF%92%E5%85%A7%E5%AE%B9"
+  },
+  {
+    "code": "F-12甲-1",
+    "name": "函數",
+    "grade": "G12",
+    "track": "甲",
+    "verification_status": "official_verified",
+    "source_url": "https://guidelines.ms.cshs.tc.edu.tw/108/%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F/%E5%AD%B8%E7%BF%92%E5%85%A7%E5%AE%B9"
+  },
+  {
+    "code": "F-12甲-2",
+    "name": "函數的極限",
+    "grade": "G12",
+    "track": "甲",
+    "verification_status": "official_verified",
+    "source_url": "https://guidelines.ms.cshs.tc.edu.tw/108/%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F/%E5%AD%B8%E7%BF%92%E5%85%A7%E5%AE%B9"
+  },
+  {
+    "code": "F-12甲-3",
+    "name": "微分",
+    "grade": "G12",
+    "track": "甲",
+    "verification_status": "official_verified",
+    "source_url": "https://guidelines.ms.cshs.tc.edu.tw/108/%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F/%E5%AD%B8%E7%BF%92%E5%85%A7%E5%AE%B9"
+  },
+  {
+    "code": "F-12甲-4",
+    "name": "導函數",
+    "grade": "G12",
+    "track": "甲",
+    "verification_status": "official_verified",
+    "source_url": "https://guidelines.ms.cshs.tc.edu.tw/108/%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F/%E5%AD%B8%E7%BF%92%E5%85%A7%E5%AE%B9"
+  },
+  {
+    "code": "F-12甲-5",
+    "name": "黎曼和",
+    "grade": "G12",
+    "track": "甲",
+    "verification_status": "official_verified",
+    "source_url": "https://guidelines.ms.cshs.tc.edu.tw/108/%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F/%E5%AD%B8%E7%BF%92%E5%85%A7%E5%AE%B9"
+  },
+  {
+    "code": "F-12甲-6",
+    "name": "積分",
+    "grade": "G12",
+    "track": "甲",
+    "verification_status": "official_verified",
+    "source_url": "https://guidelines.ms.cshs.tc.edu.tw/108/%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F/%E5%AD%B8%E7%BF%92%E5%85%A7%E5%AE%B9"
+  },
+  {
+    "code": "F-12甲-7",
+    "name": "積分的應用",
+    "grade": "G12",
+    "track": "甲",
+    "verification_status": "official_verified",
+    "source_url": "https://guidelines.ms.cshs.tc.edu.tw/108/%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F/%E5%AD%B8%E7%BF%92%E5%85%A7%E5%AE%B9"
+  },
+  {
+    "code": "D-12甲-1",
+    "name": "離散型隨機變數",
+    "grade": "G12",
+    "track": "甲",
+    "verification_status": "official_verified",
+    "source_url": "https://guidelines.ms.cshs.tc.edu.tw/108/%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F/%E5%AD%B8%E7%BF%92%E5%85%A7%E5%AE%B9"
+  },
+  {
+    "code": "D-12甲-2",
+    "name": "二項分布與幾何分布",
+    "grade": "G12",
+    "track": "甲",
+    "verification_status": "official_verified",
+    "source_url": "https://guidelines.ms.cshs.tc.edu.tw/108/%E6%95%B8%E5%AD%B8%E9%A0%98%E5%9F%9F/%E5%AD%B8%E7%BF%92%E5%85%A7%E5%AE%B9"
+  }
+]

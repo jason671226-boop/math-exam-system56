@@ -1,0 +1,184 @@
+[
+  {
+    "code": "N-4-1",
+    "domain": "數與量",
+    "name": "一億以內的數",
+    "summary": "十萬到一億的讀寫、位值、比較與大數加減",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-4-2",
+    "domain": "數與量",
+    "name": "較大位數乘除計算",
+    "summary": "多位數乘二位數、四位數除二位數等整數乘除",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-4-3",
+    "domain": "數與量",
+    "name": "兩步驟乘除應用",
+    "summary": "乘除、乘加乘減等兩步驟情境",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-4-4",
+    "domain": "數與量",
+    "name": "大數取概數",
+    "summary": "四捨五入到指定位數與估算",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-4-5",
+    "domain": "數與量",
+    "name": "同分母分數",
+    "summary": "真分數、假分數、帶分數與同分母加減",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-4-6",
+    "domain": "數與量",
+    "name": "等值分數",
+    "summary": "等值分數初步、分數與小數連結",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-4-7",
+    "domain": "數與量",
+    "name": "二位小數",
+    "summary": "百分位、小數比較、加減與小數乘整數初步",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-4-8",
+    "domain": "數與量",
+    "name": "數線與分數小數",
+    "summary": "整數、分數、小數在數線上的位置與比較",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-4-9",
+    "domain": "數與量",
+    "name": "公里",
+    "summary": "公里、公尺與公分的量感、換算與應用",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-4-10",
+    "domain": "數與量",
+    "name": "角度：度",
+    "summary": "量角器、角度測量與畫角",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-4-11",
+    "domain": "數與量",
+    "name": "平方公尺",
+    "summary": "平方公分/平方公尺、正方形長方形面積",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-4-12",
+    "domain": "數與量",
+    "name": "體積與立方公分",
+    "summary": "立方公分、堆疊與簡單體積計數",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-4-13",
+    "domain": "數與量",
+    "name": "時間加減問題",
+    "summary": "日、時、分、秒複名數的加減",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-4-1",
+    "domain": "空間與形狀",
+    "name": "角度：度",
+    "summary": "以度量角、畫角並理解角度大小",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-4-2",
+    "domain": "空間與形狀",
+    "name": "旋轉角",
+    "summary": "順逆時針、周角與旋轉角",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-4-3",
+    "domain": "空間與形狀",
+    "name": "正方形與長方形面積周長",
+    "summary": "公式理解與反求",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-4-4",
+    "domain": "空間與形狀",
+    "name": "體積與立方公分",
+    "summary": "以單位立方體堆疊理解體積",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-4-5",
+    "domain": "空間與形狀",
+    "name": "垂直與平行",
+    "summary": "垂直、平行線及作圖",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-4-6",
+    "domain": "空間與形狀",
+    "name": "平面圖形全等",
+    "summary": "全等圖形、對應邊角",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-4-7",
+    "domain": "空間與形狀",
+    "name": "三角形",
+    "summary": "依邊角分類與基本性質",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-4-8",
+    "domain": "空間與形狀",
+    "name": "四邊形",
+    "summary": "平行四邊形、梯形、菱形等分類",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "R-4-1",
+    "domain": "關係",
+    "name": "兩步驟問題併式",
+    "summary": "由分步算式過渡到單一併式",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "R-4-2",
+    "domain": "關係",
+    "name": "四則運算規律 I",
+    "summary": "括號、先乘除後加減與交換結合規律",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "R-4-3",
+    "domain": "關係",
+    "name": "正方形與長方形面積周長公式",
+    "summary": "用符號/公式表示面積周長",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "R-4-4",
+    "domain": "關係",
+    "name": "數量模式與推理 II",
+    "summary": "較複雜數形規律、週期、表格關係",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "D-4-1",
+    "domain": "資料與不確定性",
+    "name": "長條圖、折線圖與製圖",
+    "summary": "報讀與製作長條圖、折線圖，選擇合理刻度",
+    "verification_status": "official_verified"
+  }
+]

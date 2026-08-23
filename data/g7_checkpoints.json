@@ -1,0 +1,111 @@
+{
+  "schema_version": "1.0",
+  "display_name": "MathAI G7 Integrated Checkpoints",
+  "default_threshold": 0.80,
+  "notes": [
+    "Checkpoints integrate knowledge every 3-5 core topics.",
+    "Composition balances core, numeric-variation, medium application, novel, and cross-unit items.",
+    "Falling below threshold does NOT mean redoing a whole chapter; it routes back to knowledge/thinking-skill weaknesses for targeted remediation.",
+    "Threshold is configurable per checkpoint."
+  ],
+  "checkpoints": [
+    {
+      "id": "CP-G7-A1",
+      "semester": "七上",
+      "name": "整數的運算",
+      "core_ids": ["G7-C01", "G7-C02", "G7-C03", "G7-C04"],
+      "threshold": 0.80,
+      "composition": {
+        "基礎核心題": 3,
+        "數字變形題": 2,
+        "中等應用題": 2,
+        "陌生題": 1,
+        "跨單元題": 1
+      }
+    },
+    {
+      "id": "CP-G7-A2",
+      "semester": "七上",
+      "name": "因數倍數與分數",
+      "core_ids": ["G7-C05", "G7-C06", "G7-C07", "G7-C08"],
+      "threshold": 0.80,
+      "composition": {
+        "基礎核心題": 3,
+        "數字變形題": 2,
+        "中等應用題": 2,
+        "陌生題": 1,
+        "跨單元題": 1
+      }
+    },
+    {
+      "id": "CP-G7-A3",
+      "semester": "七上",
+      "name": "一元一次方程式",
+      "core_ids": ["G7-C09", "G7-C10", "G7-C11"],
+      "threshold": 0.80,
+      "composition": {
+        "基礎核心題": 3,
+        "數字變形題": 2,
+        "中等應用題": 2,
+        "陌生題": 1,
+        "跨單元題": 1
+      }
+    },
+    {
+      "id": "CP-G7-B1",
+      "semester": "七下",
+      "name": "二元一次聯立方程式",
+      "core_ids": ["G7-C12", "G7-C13", "G7-C14"],
+      "threshold": 0.80,
+      "composition": {
+        "基礎核心題": 3,
+        "數字變形題": 2,
+        "中等應用題": 2,
+        "陌生題": 1,
+        "跨單元題": 1
+      }
+    },
+    {
+      "id": "CP-G7-B2",
+      "semester": "七下",
+      "name": "坐標圖形與比例",
+      "core_ids": ["G7-C15", "G7-C16", "G7-C17", "G7-C18"],
+      "threshold": 0.80,
+      "composition": {
+        "基礎核心題": 3,
+        "數字變形題": 2,
+        "中等應用題": 2,
+        "陌生題": 1,
+        "跨單元題": 1
+      }
+    },
+    {
+      "id": "CP-G7-B3",
+      "semester": "七下",
+      "name": "一元一次不等式",
+      "core_ids": ["G7-C19", "G7-C20"],
+      "threshold": 0.80,
+      "composition": {
+        "基礎核心題": 3,
+        "數字變形題": 2,
+        "中等應用題": 2,
+        "陌生題": 1,
+        "跨單元題": 1
+      }
+    },
+    {
+      "id": "CP-G7-B4",
+      "semester": "七下",
+      "name": "統計與生活中的幾何",
+      "core_ids": ["G7-C21", "G7-C22", "G7-C23"],
+      "threshold": 0.80,
+      "composition": {
+        "基礎核心題": 3,
+        "數字變形題": 2,
+        "中等應用題": 2,
+        "陌生題": 1,
+        "跨單元題": 1
+      }
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+﻿track,official_codes,standard_skills,micro_skills,duplicate_ids,missing_parents,broken_refs,status
+TECH-A,21,34,187,0,0,0,PASS
+TECH-B,27,42,234,0,0,1,REVIEW
+TECH-C,24,42,246,0,0,2,REVIEW

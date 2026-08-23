@@ -1,7 +1,46 @@
--- MathAI Staging rollback: removes only objects created by 001-003.
--- Review dependencies and take a staging backup before running.
+-- MathAI Staging emergency rollback: removes objects created by 001-010.
+-- STAGING ONLY. DO NOT APPLY TO PRODUCTION.
+-- This is not the normal application rollback path. Prefer reverting the app
+-- deployment and preserving all learning data. Run this script only after a
+-- verified Staging backup and only when the guards below allow it.
 
 begin;
+
+do $$
+begin
+  if not exists (
+    select 1 from auth.users
+    where pg_catalog.lower(email) = 'student-a-staging@example.com'
+  ) or not exists (
+    select 1 from auth.users
+    where pg_catalog.lower(email) = 'student-b-staging@example.com'
+  ) then
+    raise exception 'STAGING ONLY: reserved synthetic Auth users are missing';
+  end if;
+
+  if exists (
+    select 1 from public.learning_students
+    where id not in (
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid,
+      'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid
+    )
+  ) then
+    raise exception 'REFUSED: non-synthetic students exist';
+  end if;
+
+  if exists (
+    select 1 from public.diagnostic_attempts where profile_id <> 'STAGING_SMOKE'
+  ) or exists (
+    select 1 from public.knowledge_mastery where profile_id <> 'STAGING_SMOKE'
+  ) or exists (
+    select 1 from public.thinking_skill_evidence where profile_id <> 'STAGING_SMOKE'
+  ) or exists (
+    select 1 from public.teacher_feedback where profile_id <> 'STAGING_SMOKE'
+  ) then
+    raise exception 'REFUSED: non-smoke learning data exists';
+  end if;
+end
+$$;
 
 drop table if exists public.teacher_feedback;
 drop table if exists public.teacher_access;

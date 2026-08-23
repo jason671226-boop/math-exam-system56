@@ -1,0 +1,4 @@
+﻿concept,Math_A,Math_B,decision
+週期模型,A: 三角函數圖形/疊合的數學深化,B: 潮汐/溫度/日照等生活週期建模,KEEP_SEPARATE_IDS
+機率,A: 條件機率/獨立/貝氏，可較代數化,B: 列聯表/文氏圖/樹狀圖與生活解讀,KEEP_SEPARATE_IDS
+矩陣,A: 方程組/線性變換/轉移矩陣,B: 資料表格/二元方程組/基本反方陣,KEEP_SEPARATE_IDS

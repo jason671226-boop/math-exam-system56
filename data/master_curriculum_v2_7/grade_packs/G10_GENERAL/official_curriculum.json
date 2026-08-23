@@ -1,0 +1,163 @@
+[
+  {
+    "code": "N-10-1",
+    "domain": "數與量",
+    "name": "實數",
+    "summary": "數線、十進制小數、有理/無理數、科學記號與有效位數",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-10-2",
+    "domain": "數與量",
+    "name": "絕對值",
+    "summary": "絕對值方程式、不等式、誤差範圍與區間表示",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-10-3",
+    "domain": "數與量",
+    "name": "指數",
+    "summary": "分數/小數次方、實數指數、幾何平均與算幾不等式",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-10-4",
+    "domain": "數與量",
+    "name": "常用對數",
+    "summary": "log意義、常用對數與科學記號、計算機操作",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-10-5",
+    "domain": "數與量",
+    "name": "數值計算的誤差",
+    "summary": "計算機有限性、誤差與有效位數取捨",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-10-6",
+    "domain": "數與量",
+    "name": "數列、級數與遞迴關係",
+    "summary": "有限遞迴、有限等比級數、常用求和、數學歸納法",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-10-7",
+    "domain": "數與量",
+    "name": "邏輯",
+    "summary": "命題否定、且或、推論、充分必要充要",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "G-10-1",
+    "domain": "坐標幾何",
+    "name": "坐標圖形的對稱性",
+    "summary": "對x軸、y軸、y=x與原點對稱",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "G-10-2",
+    "domain": "坐標幾何",
+    "name": "直線方程式",
+    "summary": "斜率、點斜式、平移、平行垂直、點線距離、二元一次不等式",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "G-10-3",
+    "domain": "坐標幾何",
+    "name": "圓方程式",
+    "summary": "圓的標準式",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "G-10-4",
+    "domain": "坐標幾何",
+    "name": "直線與圓",
+    "summary": "切線、直線圓關係的代數與幾何判定",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "G-10-5",
+    "domain": "坐標幾何",
+    "name": "廣義角和極坐標",
+    "summary": "廣義角終邊、極坐標與直角坐標轉換",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "G-10-6",
+    "domain": "坐標幾何",
+    "name": "三角比",
+    "summary": "銳角與廣義角sin/cos/tan、特殊角與計算機",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "G-10-7",
+    "domain": "坐標幾何",
+    "name": "三角比的性質",
+    "summary": "正弦定理、餘弦定理、正射影與斜角",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "A-10-1",
+    "domain": "代數",
+    "name": "式的運算",
+    "summary": "三次乘法公式、根式與分式運算",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "A-10-2",
+    "domain": "代數",
+    "name": "多項式之除法原理",
+    "summary": "因式定理、餘式定理、除以x-a與綜合除法",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "F-10-1",
+    "domain": "函數",
+    "name": "一次與二次函數",
+    "summary": "f(x)、分點公式、配方、圖形平移、閉區間應用",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "F-10-2",
+    "domain": "函數",
+    "name": "三次函數的圖形特徵",
+    "summary": "對稱、大域/局部特徵、一般三次函數平移",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "F-10-3",
+    "domain": "函數",
+    "name": "多項式不等式",
+    "summary": "一次、二次、已分解多項式不等式與圖形連結",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "D-10-1",
+    "domain": "資料與不確定性",
+    "name": "集合",
+    "summary": "表示、子集、交聯餘集、屬於/包含、文氏圖",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "D-10-2",
+    "domain": "資料與不確定性",
+    "name": "數據分析",
+    "summary": "標準差、散布圖、最適直線、相關係數、標準化、百分位數",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "D-10-3",
+    "domain": "資料與不確定性",
+    "name": "有系統的計數",
+    "summary": "樹狀圖、加乘原理、取捨原理、排列組合、二項式展開",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "D-10-4",
+    "domain": "資料與不確定性",
+    "name": "複合事件的古典機率",
+    "summary": "樣本空間、複合事件、機率性質、期望值",
+    "verification_status": "official_verified"
+  }
+]
