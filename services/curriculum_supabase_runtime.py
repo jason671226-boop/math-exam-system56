@@ -127,22 +127,31 @@ class SupabaseCurriculumRuntime:
             filters={"release_id": self.release_id, "profile_id": route.profile_id},
         )
         rows.sort(key=lambda r: (str(r.get("parent_skill_id") or ""), str(r.get("micro_skill_id") or "")))
-        return tuple(
-            MicroSkill(
-                str(r.get("micro_skill_id") or ""),
-                str(r.get("parent_skill_id") or ""),
-                str(r.get("official_code_raw") or ""),
-                str(r.get("main_unit") or ""),
-                str(r.get("subunit") or ""),
-                str(r.get("skill_name") or ""),
-                str(r.get("question_type") or ""),
-                str(r.get("focus") or ""),
-                str(r.get("item_pattern") or ""),
-                str(r.get("common_error") or ""),
-                self._int(r.get("difficulty")),
+        parents = {skill.skill_id: skill for skill in self.load_standard_skills(route)}
+        result = []
+        for r in rows:
+            parent_id = str(r.get("parent_skill_id") or "")
+            parent = parents.get(parent_id)
+            if parent is None:
+                raise CurriculumDataError(
+                    f"micro skill parent not found in route {route.profile_id}: {parent_id}"
+                )
+            result.append(
+                MicroSkill(
+                    str(r.get("micro_skill_id") or ""),
+                    parent_id,
+                    str(r.get("official_code_raw") or ""),
+                    parent.main_unit,
+                    parent.subunit,
+                    str(r.get("skill_name") or ""),
+                    str(r.get("question_type") or ""),
+                    str(r.get("focus") or ""),
+                    str(r.get("item_pattern") or ""),
+                    str(r.get("common_error") or ""),
+                    self._int(r.get("difficulty")),
+                )
             )
-            for r in rows
-        )
+        return tuple(result)
 
     def load_scope_rules(self, route: RouteContext) -> str:
         return str(self._profile(route.profile_id).get("scope_rules") or "")
