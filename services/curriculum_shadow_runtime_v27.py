@@ -18,6 +18,39 @@ CANARY_PROFILE_IDS = frozenset(
 )
 
 
+class _ShadowSupabaseCurriculumRuntime(SupabaseCurriculumRuntime):
+    """Route-scoped edge reads avoid the Data API's default 1,000-row cap."""
+
+    def load_skill_edges(self, route: RouteContext) -> tuple[tuple[str, str, str], ...]:
+        skill_ids = {x.skill_id for x in self.load_standard_skills(route)}
+        if not skill_ids:
+            return ()
+        query = (
+            self.client.table("curriculum_skill_edges")
+            .select("*")
+            .eq("release_id", self.release_id)
+        )
+        in_filter = getattr(query, "in_", None)
+        if callable(in_filter):
+            rows = in_filter("skill_id", sorted(skill_ids)).execute().data or []
+        else:
+            # Test/fallback clients without `in_` still preserve semantics.
+            rows = self._rows(
+                "curriculum_skill_edges",
+                filters={"release_id": self.release_id},
+            )
+        edges = {
+            (
+                str(r.get("skill_id") or ""),
+                str(r.get("related_skill_id") or ""),
+                str(r.get("edge_type") or ""),
+            )
+            for r in rows
+            if str(r.get("skill_id") or "") in skill_ids
+        }
+        return tuple(sorted(edges))
+
+
 @dataclass(frozen=True)
 class ShadowObservationV27:
     profile_id: str
@@ -50,7 +83,7 @@ class ShadowCurriculumRuntimeV27:
         self.release_id = str(release_id)
         self.profile_ids = frozenset(str(value) for value in profile_ids)
         self.report_sink = report_sink
-        self.db_runtime = SupabaseCurriculumRuntime(
+        self.db_runtime = _ShadowSupabaseCurriculumRuntime(
             supabase_client,
             release_id=self.release_id,
             allowed_statuses=("staged", "verified", "active"),
@@ -103,7 +136,6 @@ class ShadowCurriculumRuntimeV27:
             try:
                 self.report_sink(observation)
             except Exception:
-                # Observability must never take down ZIP-authoritative behavior.
                 pass
 
     def shadow_observation(self, profile_id: str) -> ShadowObservationV27 | None:
