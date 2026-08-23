@@ -34,36 +34,80 @@ class Client:
         return Query(self.tables.get(name, []))
 
 
-def fixture(status="staged", is_active=False):
+def fixture(status="staged", is_active=False, gate_status=None):
     profile = "CURRICULUM_V27:PREHIGH:G6:COMMON"
     release = "CURRICULUM_V27_EA0E6735"
-    return Client({
-        "curriculum_releases": [
-            {"release_id": release, "status": status, "is_active": is_active}
-        ],
-        "curriculum_profiles": [{
-            "release_id": release, "profile_id": profile, "grade": "G6",
-            "education_system": "PREHIGH", "track": None,
-            "pack_relpath": "grade_packs/G6", "scope_rules": "rules",
-        }],
-        "curriculum_skills": [{
-            "release_id": release, "profile_id": profile, "skill_id": "G06-A",
-            "official_code_raw": "N-6-1", "main_unit_id": "M1", "subunit_id": "S1",
-            "main_unit": "數", "subunit": "整數", "skill_name": "Skill",
-            "focus": "Focus", "difficulty": 2,
-        }],
-        "curriculum_micro_skills": [{
-            "release_id": release, "profile_id": profile, "micro_skill_id": "G06-A-M1",
-            "parent_skill_id": "G06-A", "official_code_raw": "N-6-1",
-            "main_unit_id": "M1", "subunit_id": "S1", "main_unit": "數",
-            "subunit": "整數", "skill_name": "Skill", "question_type": "概念",
-            "focus": "Micro", "item_pattern": "p", "common_error": "e", "difficulty": 1,
-        }],
-        "curriculum_skill_edges": [{
-            "release_id": release, "skill_id": "G06-A",
-            "related_skill_id": "G05-Z", "edge_type": "prerequisite",
-        }],
-    })
+    return Client(
+        {
+            "curriculum_releases": [
+                {"release_id": release, "status": status, "is_active": is_active}
+            ],
+            "curriculum_profiles": [
+                {
+                    "release_id": release,
+                    "profile_id": profile,
+                    "grade": "G6",
+                    "education_system": "PREHIGH",
+                    "track": None,
+                    "pack_relpath": "grade_packs/G6",
+                    "scope_rules": "rules",
+                }
+            ],
+            "curriculum_skills": [
+                {
+                    "release_id": release,
+                    "profile_id": profile,
+                    "skill_id": "G06-A",
+                    "official_code_raw": "N-6-1",
+                    "main_unit_id": "M1",
+                    "subunit_id": "S1",
+                    "main_unit": "數",
+                    "subunit": "整數",
+                    "skill_name": "Skill",
+                    "focus": "Focus",
+                    "difficulty": 2,
+                }
+            ],
+            "curriculum_micro_skills": [
+                {
+                    "release_id": release,
+                    "profile_id": profile,
+                    "micro_skill_id": "G06-A-M1",
+                    "parent_skill_id": "G06-A",
+                    "official_code_raw": "N-6-1",
+                    "main_unit_id": "M1",
+                    "subunit_id": "S1",
+                    "main_unit": "數",
+                    "subunit": "整數",
+                    "skill_name": "Skill",
+                    "question_type": "概念",
+                    "focus": "Micro",
+                    "item_pattern": "p",
+                    "common_error": "e",
+                    "difficulty": 1,
+                }
+            ],
+            "curriculum_skill_edges": [
+                {
+                    "release_id": release,
+                    "skill_id": "G06-A",
+                    "related_skill_id": "G05-Z",
+                    "edge_type": "prerequisite",
+                }
+            ],
+            "curriculum_release_checks": (
+                [
+                    {
+                        "release_id": release,
+                        "check_name": "activation_gate",
+                        "status": gate_status,
+                    }
+                ]
+                if gate_status is not None
+                else []
+            ),
+        }
+    )
 
 
 class ZipRuntime:
@@ -74,24 +118,46 @@ class ZipRuntime:
         return RouteContext("PREHIGH", "G6", None, "grade_packs/G6")
 
     def load_standard_skills(self, route):
-        return (StandardSkill(
-            "G06-A", "N-6-1", "數", "整數", "Skill",
-            "Changed" if self.mismatch else "Focus", 2,
-        ),)
+        return (
+            StandardSkill(
+                "G06-A",
+                "N-6-1",
+                "數",
+                "整數",
+                "Skill",
+                "Changed" if self.mismatch else "Focus",
+                2,
+            ),
+        )
 
     def load_micro_skills(self, route):
-        return (MicroSkill(
-            "G06-A-M1", "G06-A", "N-6-1", "數", "整數", "Skill",
-            "概念", "Micro", "p", "e", 1,
-        ),)
+        return (
+            MicroSkill(
+                "G06-A-M1",
+                "G06-A",
+                "N-6-1",
+                "數",
+                "整數",
+                "Skill",
+                "概念",
+                "Micro",
+                "p",
+                "e",
+                1,
+            ),
+        )
 
     def load_scope_rules(self, route):
         return "rules"
 
     def get_skill_context(self, route, skill_id):
         return SkillContext(
-            route, self.load_standard_skills(route)[0], self.load_micro_skills(route),
-            ("G05-Z",), (), self.load_scope_rules(route),
+            route,
+            self.load_standard_skills(route)[0],
+            self.load_micro_skills(route),
+            ("G05-Z",),
+            (),
+            self.load_scope_rules(route),
         )
 
 
@@ -108,7 +174,9 @@ class SupabaseRuntimeTests(unittest.TestCase):
 
     def test_live_rejects_staged(self):
         with self.assertRaises(Exception):
-            select_curriculum_runtime_v27(object(), fixture(), source="supabase")
+            select_curriculum_runtime_v27(
+                object(), fixture(), source="supabase"
+            )
 
     def test_live_rejects_verified_inactive(self):
         with self.assertRaises(Exception):
@@ -116,9 +184,21 @@ class SupabaseRuntimeTests(unittest.TestCase):
                 object(), fixture("verified"), source="supabase"
             )
 
-    def test_live_accepts_active(self):
+    def test_live_rejects_active_without_gate(self):
+        with self.assertRaises(Exception):
+            select_curriculum_runtime_v27(
+                object(), fixture("active", True), source="supabase"
+            )
+
+    def test_live_rejects_active_failed_gate(self):
+        with self.assertRaises(Exception):
+            select_curriculum_runtime_v27(
+                object(), fixture("active", True, "FAIL"), source="supabase"
+            )
+
+    def test_live_accepts_active_with_passed_gate(self):
         runtime = select_curriculum_runtime_v27(
-            object(), fixture("active", True), source="supabase"
+            object(), fixture("active", True, "PASS"), source="supabase"
         )
         self.assertEqual(runtime.validate()["release_status"], "active")
         self.assertTrue(runtime.validate()["is_active"])
