@@ -17,6 +17,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Install application dependencies
+        run: python -m pip install -r requirements.txt
       - name: Compile rewired modules
         run: |
           python -m py_compile \
@@ -25,6 +27,7 @@ jobs:
             services/curriculum_source_v27.py \
             services/curriculum_supabase_runtime.py \
             services/curriculum_master_feature.py \
+            services/curriculum_master_runtime.py \
             services/curriculum_catalog.py \
             services/diagnostic_service.py \
             services/master_curriculum_loader.py \
