@@ -1,0 +1,9 @@
+﻿Metric,Result,Status
+G10 ordinary official coverage,23/23,PASS
+G10 ordinary standard skills,81,PASS
+G10 ordinary layer-2 micro-skills,534,PASS
+Duplicate Skill IDs,0,PASS
+Missing micro parent refs,0,PASS
+Broken G9→G10/internal refs,0,PASS
+Technical A/B/C routing,created,PASS
+Ordinary vs technical separation,enforced,PASS

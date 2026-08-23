@@ -1,0 +1,9 @@
+﻿pack,status,scope_file
+G10_GENERAL,PASS,/mnt/data/mathai_master_skill_v2_6/grade_packs/G10_GENERAL/OUT_OF_SCOPE_RULES.md
+G11_A,PASS,/mnt/data/mathai_master_skill_v2_6/grade_packs/G11_A/OUT_OF_SCOPE_RULES.md
+G11_B,PASS,/mnt/data/mathai_master_skill_v2_6/grade_packs/G11_B/OUT_OF_SCOPE_RULES.md
+G12_A,PASS,/mnt/data/mathai_master_skill_v2_6/grade_packs/G12_A/OUT_OF_SCOPE_RULES.md
+G12_B,PASS,/mnt/data/mathai_master_skill_v2_6/grade_packs/G12_B/OUT_OF_SCOPE_RULES.md
+TECH_A_G10,PASS,/mnt/data/mathai_master_skill_v2_6/high_school_tracks/TECHNICAL/TECH_A/G10/OUT_OF_SCOPE_RULES.md
+TECH_B_G10,PASS,/mnt/data/mathai_master_skill_v2_6/high_school_tracks/TECHNICAL/TECH_B/G10/OUT_OF_SCOPE_RULES.md
+TECH_C_G10,PASS,/mnt/data/mathai_master_skill_v2_6/high_school_tracks/TECHNICAL/TECH_C/G10/OUT_OF_SCOPE_RULES.md

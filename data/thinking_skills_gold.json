@@ -1,0 +1,40 @@
+{
+  "schema_version": "2.0",
+  "display_name": "MathAI Thinking Skill Map Gold (G1-G9)",
+  "notes": [
+    "Thinking Skills are independent from curriculum Knowledge Points and are reusable across G1-G9.",
+    "A question may use multiple skills; a skill may appear across multiple grades and units.",
+    "Question-level mappings distinguish primary skills (what the item mainly assesses) from supporting skills (tools used during the solution).",
+    "Grade applicability is stored structurally with min_grade and max_grade rather than as a display string.",
+    "Stable IDs: the sixteen v1 IDs (TS-READ..TS-CHECK) are preserved unchanged; ten new cross-grade skills complete the taxonomy.",
+    "This taxonomy is shared infrastructure, not grade-specific content."
+  ],
+  "skills": [
+    {"id": "TS-READ", "name": "語意拆解", "category": "理解與讀題", "description": "把題目拆成已知、未知、限制、單位與關係，確認真正要回答的問題。", "min_grade": 1, "max_grade": 9, "active": true, "sort_order": 10},
+    {"id": "TS-TRANSLATE", "name": "文字轉數學", "category": "理解與讀題", "description": "把自然語言中的數量關係轉譯成算式、方程或不等式等數學表示。", "min_grade": 1, "max_grade": 9, "active": true, "sort_order": 15},
+    {"id": "TS-DEFINE", "name": "定義定位", "category": "理解與讀題", "description": "先找出題目涉及的定義、基本原則或條件，再判斷可使用的工具。", "min_grade": 1, "max_grade": 9, "active": true, "sort_order": 20},
+    {"id": "TS-DRAW", "name": "圖像轉換", "category": "表徵轉換", "description": "把文字條件轉成線段圖、數線、表格或示意圖，以呈現量與關係。", "min_grade": 1, "max_grade": 9, "active": true, "sort_order": 30},
+    {"id": "TS-SPATIAL", "name": "空間想像", "category": "表徵轉換", "description": "在腦中旋轉、翻轉、摺疊或展開形體，掌握點線面的空間位置關係。", "min_grade": 1, "max_grade": 9, "active": true, "sort_order": 35},
+    {"id": "TS-TABLE", "name": "表格整理", "category": "表徵轉換", "description": "將多組條件或可能情況整理成表格，降低遺漏與重複。", "min_grade": 1, "max_grade": 9, "active": true, "sort_order": 40},
+    {"id": "TS-GRAPH", "name": "圖表判讀", "category": "表徵轉換", "description": "從統計圖、折線圖、長條圖或坐標圖中讀出數據、趨勢與關鍵資訊。", "min_grade": 1, "max_grade": 9, "active": true, "sort_order": 45},
+    {"id": "TS-DIFF", "name": "差量比較", "category": "關係與結構", "description": "比較兩個方案、兩種情況或假設與實際之間的差，利用每單位差量反推數量。", "min_grade": 1, "max_grade": 9, "active": true, "sort_order": 50},
+    {"id": "TS-UNIT", "name": "單位量思考", "category": "關係與結構", "description": "先確定一份、一個或一單位代表多少，再由份數與總量建立關係。", "min_grade": 1, "max_grade": 9, "active": true, "sort_order": 60},
+    {"id": "TS-RELATE", "name": "數量關係建立", "category": "關係與結構", "description": "辨識題目中多個量之間的加減乘除、比例或函數關係，並以結構化方式建立連結。", "min_grade": 1, "max_grade": 9, "active": true, "sort_order": 65},
+    {"id": "TS-PATTERN", "name": "規律歸納", "category": "關係與結構", "description": "從多個例子找出重複、遞增、週期或結構關係，再用規律處理新情況。", "min_grade": 1, "max_grade": 9, "active": true, "sort_order": 70},
+    {"id": "TS-MODEL", "name": "模型建立", "category": "關係與結構", "description": "把情境抽象成可操作的數學模型（方程、函數、幾何或機率模型），並回饋驗證模型的合理性。", "min_grade": 1, "max_grade": 9, "active": true, "sort_order": 75},
+    {"id": "TS-ASSUME", "name": "假設法", "category": "解題策略", "description": "先把多種類別假設成同一情況，再利用與真實結果的差量推回未知數量。", "min_grade": 1, "max_grade": 9, "active": true, "sort_order": 80},
+    {"id": "TS-STRATEGY", "name": "策略選擇", "category": "解題策略", "description": "在多種可行方法中評估效率、風險與適用條件，選擇最合適的解題策略。", "min_grade": 1, "max_grade": 9, "active": true, "sort_order": 85},
+    {"id": "TS-BACKWARD", "name": "逆推", "category": "解題策略", "description": "從結果或目標往回還原前一步，逐層找回原始未知量。", "min_grade": 1, "max_grade": 9, "active": true, "sort_order": 90},
+    {"id": "TS-FORWARD", "name": "正向推理", "category": "解題策略", "description": "從已知條件出發，依定義與規則逐步向前推導出結論。", "min_grade": 1, "max_grade": 9, "active": true, "sort_order": 95},
+    {"id": "TS-ENUM", "name": "系統列舉", "category": "解題策略", "description": "依固定順序列出所有合理可能，並用條件逐一排除，避免漏解或重複。", "min_grade": 1, "max_grade": 9, "active": true, "sort_order": 100},
+    {"id": "TS-CASE", "name": "分類討論", "category": "解題策略", "description": "當條件會形成數種情況時，先分情況處理，再檢查是否涵蓋全部可能。", "min_grade": 1, "max_grade": 9, "active": true, "sort_order": 110},
+    {"id": "TS-LOGIC", "name": "條件推理", "category": "解題策略", "description": "根據已知條件逐步推出新的必然關係，辨別哪些結論可以成立、哪些不能成立。", "min_grade": 1, "max_grade": 9, "active": true, "sort_order": 120},
+    {"id": "TS-MULTI", "name": "多步驟推理", "category": "解題策略", "description": "把複雜問題拆成多個依序銜接的子步驟，逐步求得最終結果。", "min_grade": 1, "max_grade": 9, "active": true, "sort_order": 125},
+    {"id": "TS-SIMPLIFY", "name": "化繁為簡", "category": "計算與簡化", "description": "藉由拆數、配對、等量替換或選擇較簡單的等價情況降低計算與推理負荷。", "min_grade": 1, "max_grade": 9, "active": true, "sort_order": 130},
+    {"id": "TS-EQUIV", "name": "等價轉換", "category": "計算與簡化", "description": "在保持數量關係或問題本質不變的前提下，把原問題改寫成較容易處理的形式。", "min_grade": 1, "max_grade": 9, "active": true, "sort_order": 140},
+    {"id": "TS-INTEGRATE", "name": "跨單元整合", "category": "解題策略", "description": "把來自不同單元或不同知識領域的概念與方法串接，綜合解決單一問題。", "min_grade": 1, "max_grade": 9, "active": true, "sort_order": 135},
+    {"id": "TS-ESTIMATE", "name": "估算與界線", "category": "驗證與反思", "description": "先估計答案的合理範圍、上下界或量級，再用精算與條件驗證。", "min_grade": 1, "max_grade": 9, "active": true, "sort_order": 150},
+    {"id": "TS-ERROR", "name": "錯誤檢查", "category": "驗證與反思", "description": "主動回顧每一步的符號、單位、進退位與條件是否遺漏或誤用，定位並修正錯誤。", "min_grade": 1, "max_grade": 9, "active": true, "sort_order": 155},
+    {"id": "TS-CHECK", "name": "合理性檢核", "category": "驗證與反思", "description": "完成解題後以原條件、單位、逆算或替代方法檢查答案是否符合題意與數量關係。", "min_grade": 1, "max_grade": 9, "active": true, "sort_order": 160}
+  ]
+}

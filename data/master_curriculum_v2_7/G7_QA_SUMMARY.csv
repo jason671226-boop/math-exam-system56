@@ -1,0 +1,9 @@
+﻿Metric,Result,Status
+G7 official code coverage,25/25,PASS
+G7 standard skills,77,PASS
+G7 layer-2 micro-skills,463,PASS
+Duplicate G7 Skill IDs,0,PASS
+Missing micro parent refs,0,PASS
+Broken G6→G7/internal refs,0,PASS
+Publisher main-unit rows,27,PASS
+Publisher year status,school_year_pending,INFO

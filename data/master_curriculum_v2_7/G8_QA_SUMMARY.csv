@@ -1,0 +1,9 @@
+﻿Metric,Result,Status
+G8 official code coverage,29/29,PASS
+G8 standard skills,102,PASS
+G8 layer-2 micro-skills,660,PASS
+Duplicate G8 Skill IDs,0,PASS
+Missing micro parent refs,0,PASS
+Broken G7→G8/internal refs,0,PASS
+Publisher subunit rows,66,PASS
+Publisher school year,113 verified,PASS

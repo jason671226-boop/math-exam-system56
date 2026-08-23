@@ -1,0 +1,8 @@
+# Local Streamlit credentials must never be committed.
+app/.streamlit/secrets.toml
+.streamlit/secrets.toml
+
+# Python/runtime artifacts.
+__pycache__/
+*.py[cod]
+*.log

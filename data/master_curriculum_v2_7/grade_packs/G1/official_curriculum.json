@@ -1,0 +1,79 @@
+[
+  {
+    "code": "N-1-1",
+    "domain": "數與量",
+    "name": "一百以內的數",
+    "summary": "數的說、讀、聽、寫、做；數序與比較；十進位初步",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-1-2",
+    "domain": "數與量",
+    "name": "加法和減法",
+    "summary": "合成、分解、添加、拿走、比較等情境與算式記錄",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-1-3",
+    "domain": "數與量",
+    "name": "基本加減法",
+    "summary": "1到10之數與1到10之數加法及反向減法，以熟練為目標",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-1-4",
+    "domain": "數與量",
+    "name": "解題：一元錢幣",
+    "summary": "認識1、5、10、50、100元並在生活情境中使用",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-1-5",
+    "domain": "數與量",
+    "name": "長度",
+    "summary": "直接比較、間接比較與個別單位的初步經驗",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-1-6",
+    "domain": "數與量",
+    "name": "日常時間用語",
+    "summary": "事件先後、時間長短、簡單日期、整點與半點",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-1-1",
+    "domain": "空間與形狀",
+    "name": "長度",
+    "summary": "同N-1-5，以操作活動建立長度概念",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-1-2",
+    "domain": "空間與形狀",
+    "name": "形體的操作",
+    "summary": "描繪、複製、拼貼、堆疊平面與立體形體",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "R-1-1",
+    "domain": "關係",
+    "name": "算式與符號",
+    "summary": "理解加號、減號、等號與算式中數的意義",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "R-1-2",
+    "domain": "關係",
+    "name": "兩數相加順序不影響其和",
+    "summary": "以併加型情境理解交換順序結果不變",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "D-1-1",
+    "domain": "資料與不確定性",
+    "name": "簡單分類",
+    "summary": "蒐集、分類、記錄、呈現並說明生活物品；同資料可有不同分類方式",
+    "verification_status": "official_verified"
+  }
+]

@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0",
+  "display_name": "MathAI G9 Integrated Checkpoints",
+  "default_threshold": 0.80,
+  "notes": [
+    "Checkpoints integrate knowledge every 3 core topics.",
+    "Core knowledge is standardised from the existing G9 neutral baseline.",
+    "Threshold is configurable; failing routes back to knowledge/thinking-skill weakness."
+  ],
+  "checkpoints": [
+    {
+      "id": "CP-G9-A1",
+      "semester": "上學期",
+      "name": "根式與一元二次方程式",
+      "core_ids": ["G9-C01", "G9-C02", "G9-C03"],
+      "threshold": 0.80,
+      "composition": {"基礎核心題": 3, "數字變形題": 2, "中等應用題": 2, "陌生題": 1, "跨單元題": 1}
+    },
+    {
+      "id": "CP-G9-A2",
+      "semester": "上學期",
+      "name": "二次函數與相似",
+      "core_ids": ["G9-C04", "G9-C05", "G9-C06"],
+      "threshold": 0.80,
+      "composition": {"基礎核心題": 3, "數字變形題": 2, "中等應用題": 2, "陌生題": 1, "跨單元題": 1}
+    },
+    {
+      "id": "CP-G9-B1",
+      "semester": "下學期",
+      "name": "幾何推理與資料",
+      "core_ids": ["G9-C07", "G9-C08", "G9-C09"],
+      "threshold": 0.80,
+      "composition": {"基礎核心題": 3, "數字變形題": 2, "中等應用題": 2, "陌生題": 1, "跨單元題": 1}
+    },
+    {
+      "id": "CP-G9-B2",
+      "semester": "下學期",
+      "name": "數列與二次建模",
+      "core_ids": ["G9-C10", "G9-C11", "G9-C12"],
+      "threshold": 0.80,
+      "composition": {"基礎核心題": 3, "數字變形題": 2, "中等應用題": 2, "陌生題": 1, "跨單元題": 1}
+    }
+  ]
+}

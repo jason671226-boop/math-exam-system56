@@ -1,0 +1,177 @@
+[
+  {
+    "code": "N-7-1",
+    "domain": "數與量",
+    "name": "100以內的質數",
+    "summary": "質數、合數與質數篩法",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-7-2",
+    "domain": "數與量",
+    "name": "質因數分解的標準分解式",
+    "summary": "標準分解式以及因數、倍數應用",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-7-3",
+    "domain": "數與量",
+    "name": "負數與數的四則混合運算",
+    "summary": "正負數、相反數、分數小數的正負四則",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-7-4",
+    "domain": "數與量",
+    "name": "數的運算規律",
+    "summary": "交換、結合、分配與負號規則",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-7-5",
+    "domain": "數與量",
+    "name": "數線",
+    "summary": "負數數線、大小、絕對值與兩點距離",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-7-6",
+    "domain": "數與量",
+    "name": "指數的意義",
+    "summary": "非負整數次方、零次方、同底數大小比較",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-7-7",
+    "domain": "數與量",
+    "name": "指數律",
+    "summary": "同底數乘除、乘方的乘方與乘積乘方",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-7-8",
+    "domain": "數與量",
+    "name": "科學記號",
+    "summary": "大數與小數的科學記號表示及轉換",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-7-9",
+    "domain": "數與量",
+    "name": "比與比例式",
+    "summary": "比、比例式、正比、反比與基本應用",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "A-7-1",
+    "domain": "代數",
+    "name": "代數符號",
+    "summary": "以符號表徵運算律、一次式化簡、同類項與情境",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "A-7-2",
+    "domain": "代數",
+    "name": "一元一次方程式的意義",
+    "summary": "方程式與解、由情境列方程式",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "A-7-3",
+    "domain": "代數",
+    "name": "一元一次方程式的解法與應用",
+    "summary": "等量公理、移項、驗算與應用",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "A-7-4",
+    "domain": "代數",
+    "name": "二元一次聯立方程式的意義",
+    "summary": "二元一次方程式、聯立方程式與解",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "A-7-5",
+    "domain": "代數",
+    "name": "二元一次聯立方程式的解法與應用",
+    "summary": "代入消去、加減消去與應用",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "A-7-6",
+    "domain": "代數",
+    "name": "二元一次聯立方程式的幾何意義",
+    "summary": "二元一次方程式直線圖形與唯一交點",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "A-7-7",
+    "domain": "代數",
+    "name": "一元一次不等式的意義",
+    "summary": "不等式符號與由情境列不等式",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "A-7-8",
+    "domain": "代數",
+    "name": "一元一次不等式的解與應用",
+    "summary": "單一不等式求解、數線表示與應用",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "G-7-1",
+    "domain": "坐標幾何",
+    "name": "平面直角坐標系",
+    "summary": "坐標軸、象限、點的標示與距離",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-7-1",
+    "domain": "空間與形狀",
+    "name": "簡單圖形與幾何符號",
+    "summary": "點、線、線段、射線、角、三角形與符號",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-7-2",
+    "domain": "空間與形狀",
+    "name": "三視圖",
+    "summary": "前視圖、上視圖、左/右視圖",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-7-3",
+    "domain": "空間與形狀",
+    "name": "垂直",
+    "summary": "垂直符號、中垂線與點到直線距離",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-7-4",
+    "domain": "空間與形狀",
+    "name": "線對稱的性質",
+    "summary": "對稱線段、對稱角與垂直平分性質",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-7-5",
+    "domain": "空間與形狀",
+    "name": "線對稱的基本圖形",
+    "summary": "等腰三角形、正方形、菱形、箏形、正多邊形",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "D-7-1",
+    "domain": "資料與不確定性",
+    "name": "統計圖表",
+    "summary": "直方圖、長條圖、圓形圖、折線圖、列聯表",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "D-7-2",
+    "domain": "資料與不確定性",
+    "name": "統計數據",
+    "summary": "平均數、中位數、眾數描述資料特性",
+    "verification_status": "official_verified"
+  }
+]

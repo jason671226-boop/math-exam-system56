@@ -1,0 +1,3 @@
+﻿grade,skill_name,skill_ids,status
+G2,讀寫與做數,G02-N-200-01;G02-N-1000-01,review_label_only
+G4,大小比較,G04-N-FRAC-CMP-01;G04-N-DEC2-CMP-01,review_label_only

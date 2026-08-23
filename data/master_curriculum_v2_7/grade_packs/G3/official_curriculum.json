@@ -1,0 +1,170 @@
+[
+  {
+    "code": "N-3-1",
+    "domain": "數與量",
+    "name": "一萬以內的數",
+    "summary": "萬位、位值、數序、大小比較與錢幣表徵",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-3-2",
+    "domain": "數與量",
+    "name": "加減直式計算",
+    "summary": "四位數加減、進退位與生活應用",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-3-3",
+    "domain": "數與量",
+    "name": "乘以一位數",
+    "summary": "二/三位數乘一位數與乘法估算",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-3-4",
+    "domain": "數與量",
+    "name": "除法概念",
+    "summary": "分裝、平分、餘數與除法算式",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-3-5",
+    "domain": "數與量",
+    "name": "除以一位數",
+    "summary": "二/三位數除一位數與直式",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-3-6",
+    "domain": "數與量",
+    "name": "乘除應用問題",
+    "summary": "乘除互逆、倍數與生活題",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-3-7",
+    "domain": "數與量",
+    "name": "兩步驟應用問題",
+    "summary": "加減與乘除混合的兩步驟問題",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-3-8",
+    "domain": "數與量",
+    "name": "四則估算",
+    "summary": "用適當概數估計加減乘除結果",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-3-9",
+    "domain": "數與量",
+    "name": "簡單同分母分數",
+    "summary": "幾分之幾、分數與1、同分母比較與加減",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-3-10",
+    "domain": "數與量",
+    "name": "一位小數",
+    "summary": "十分位、0.1、一位小數比較與加減",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-3-11",
+    "domain": "數與量",
+    "name": "整數數線",
+    "summary": "在數線上定位、比較與觀察距離",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-3-12",
+    "domain": "數與量",
+    "name": "毫米",
+    "summary": "公分與毫米關係、測量、換算與計算",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-3-13",
+    "domain": "數與量",
+    "name": "角與角度",
+    "summary": "角的大小、直角、銳角、鈍角的操作辨識",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-3-14",
+    "domain": "數與量",
+    "name": "平方公分",
+    "summary": "1平方公分、鋪排、估測與簡單面積計數",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-3-15",
+    "domain": "數與量",
+    "name": "公升與毫升",
+    "summary": "1L=1000mL、容量比較、換算與加減",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-3-16",
+    "domain": "數與量",
+    "name": "公斤與公克",
+    "summary": "1kg=1000g、重量比較、換算與加減",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-3-17",
+    "domain": "數與量",
+    "name": "日、時、分、秒",
+    "summary": "24時制、時間單位關係、時刻與經過時間",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-3-1",
+    "domain": "空間與形狀",
+    "name": "角與角度",
+    "summary": "角的構成、大小比較與直角銳角鈍角",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-3-2",
+    "domain": "空間與形狀",
+    "name": "正方形與長方形",
+    "summary": "邊與角性質、簡單周長",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-3-3",
+    "domain": "空間與形狀",
+    "name": "圓",
+    "summary": "圓心、半徑、直徑與使用圓規作圓",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-3-4",
+    "domain": "空間與形狀",
+    "name": "幾何形體的操作",
+    "summary": "切割、拼湊、展開或重組形體的操作活動",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "R-3-1",
+    "domain": "關係",
+    "name": "乘法與除法的關係",
+    "summary": "乘除互逆、驗算與未知量",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "R-3-2",
+    "domain": "關係",
+    "name": "數量模式與推理 I",
+    "summary": "觀察數、圖形、顏色等規律並延伸",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "D-3-1",
+    "domain": "資料與不確定性",
+    "name": "一維與二維表格",
+    "summary": "讀表、填表、整理資料並回答問題",
+    "verification_status": "official_verified"
+  }
+]

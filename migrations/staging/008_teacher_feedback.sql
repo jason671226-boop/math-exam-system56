@@ -47,6 +47,8 @@ create table if not exists public.teacher_access (
   created_at timestamptz not null default pg_catalog.now(),
   primary key (teacher_id, student_id)
 );
+create index if not exists teacher_access_student_idx
+  on public.teacher_access (student_id, teacher_id);
 alter table public.teacher_access enable row level security;
 revoke all on public.teacher_access from anon, authenticated;
 grant select on public.teacher_access to authenticated;

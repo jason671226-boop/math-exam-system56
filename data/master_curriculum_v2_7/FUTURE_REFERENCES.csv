@@ -1,0 +1,5 @@
+﻿grade,skill_id,future_skill_id,status,canonical_id
+G5,G05-S-SYM-01,G07-G-TRANS,resolved,G07-S-SYM-PROP-01
+G5,G05-N-DISPLACE-01,G07-S-VOLUME,resolved,G06-S-PRISM-VOL-01
+G5,G05-R-LAW-01,G07-A-ALG,resolved,G07-A-SYMBOL-01
+G5,G05-R-SYMBOL-01,G07-A-EQ,resolved,G07-A-LINEQ-MEAN-01

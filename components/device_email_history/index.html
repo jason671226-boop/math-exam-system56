@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head><meta charset="utf-8" /></head>
+  <body style="margin:0;height:0;overflow:hidden">
+    <script>
+      const MAX_ITEMS = 10;
+      let lastSignature = "";
+
+      function normalizeEmail(value) {
+        const email = String(value || "").trim().toLowerCase();
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email !== "trial@example.com"
+          ? email : "";
+      }
+
+      function clean(values) {
+        const result = [];
+        for (const value of Array.isArray(values) ? values : []) {
+          const email = normalizeEmail(value);
+          if (email && !result.includes(email)) result.push(email);
+        }
+        return result.slice(0, MAX_ITEMS);
+      }
+
+      function read(storageKey) {
+        try {
+          return clean(JSON.parse(window.localStorage.getItem(storageKey) || "[]"));
+        } catch (_) {
+          return [];
+        }
+      }
+
+      function write(storageKey, values) {
+        const cleaned = clean(values);
+        try {
+          window.localStorage.setItem(storageKey, JSON.stringify(cleaned));
+        } catch (_) {
+          // Storage is a convenience layer; authentication must continue.
+        }
+        return cleaned;
+      }
+
+      function readCookie(name) {
+        const prefix = `${name}=`;
+        const item = document.cookie.split("; ").find(value => value.startsWith(prefix));
+        if (!item) return "";
+        try { return decodeURIComponent(item.slice(prefix.length)); } catch (_) { return ""; }
+      }
+
+      function syncCookie(name, history) {
+        const payload = JSON.stringify(history);
+        if (readCookie(name) === payload) return false;
+        if (history.length) {
+          document.cookie = `${name}=${encodeURIComponent(payload)}; Path=/; Max-Age=31536000; SameSite=Lax`;
+        } else {
+          document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=Lax`;
+        }
+        return true;
+      }
+
+      function setValue(value) {
+        window.parent.postMessage({
+          isStreamlitMessage: true,
+          type: "streamlit:setComponentValue",
+          dataType: "json",
+          value: value,
+        }, "*");
+      }
+
+      function handleRender(event) {
+        if (!event.data || event.data.type !== "streamlit:render") return;
+        const args = event.data.args || {};
+        const signature = JSON.stringify(args);
+        if (signature === lastSignature) return;
+        lastSignature = signature;
+        const storageKey = String(args.storage_key || "mathai_recent_emails_v2");
+        const cookieKey = String(args.cookie_key || "mathai_recent_emails_v1");
+        let history = read(storageKey);
+        if (!history.length && Array.isArray(args.seed) && args.seed.length) {
+          history = write(storageKey, args.seed);
+        }
+        if (args.command === "clear") {
+          try { window.localStorage.removeItem(storageKey); } catch (_) {}
+          history = [];
+        } else if (args.command === "remember") {
+          const email = normalizeEmail(args.email);
+          if (email) history = write(storageKey, [email, ...history.filter(item => item !== email)]);
+        }
+        setValue(history);
+        syncCookie(cookieKey, history);
+        window.parent.postMessage({
+          isStreamlitMessage: true,
+          type: "streamlit:setFrameHeight",
+          height: 0,
+        }, "*");
+      }
+
+      window.addEventListener("message", handleRender);
+      window.parent.postMessage({
+        isStreamlitMessage: true,
+        type: "streamlit:componentReady",
+        apiVersion: 1,
+      }, "*");
+      window.parent.postMessage({
+        isStreamlitMessage: true,
+        type: "streamlit:setFrameHeight",
+        height: 0,
+      }, "*");
+    </script>
+  </body>
+</html>

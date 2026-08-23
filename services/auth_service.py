@@ -119,8 +119,11 @@ def clear_authenticated_session(
     """Sign out and remove only the application keys tied to Supabase Auth."""
     sign_out_safely(client)
     for key in (
+        "authenticated",
         "private_beta_auth_client",
         "private_beta_auth_email",
+        "private_beta_auth_user_id",
+        "private_beta_student_id",
         "private_beta_otp_sent",
         "learning_persistence_warning",
     ):

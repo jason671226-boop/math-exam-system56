@@ -1,0 +1,135 @@
+[
+  {
+    "code": "N-9-1",
+    "domain": "數與量",
+    "name": "連比",
+    "summary": "連比記錄、連比推理、連比例式與應用",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-9-1",
+    "domain": "空間與形狀",
+    "name": "相似形",
+    "summary": "縮放、多邊形相似、對應角相等與對應邊成比例",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-9-2",
+    "domain": "空間與形狀",
+    "name": "三角形的相似性質",
+    "summary": "AA、SAS、SSS；高比與面積比；相似符號",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-9-3",
+    "domain": "空間與形狀",
+    "name": "平行線截比例線段",
+    "summary": "中點連線、截比例線段與逆向判平行",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-9-4",
+    "domain": "空間與形狀",
+    "name": "相似直角三角形邊長比值不變性",
+    "summary": "30-60-90、45-45-90 與三角比前置",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-9-5",
+    "domain": "空間與形狀",
+    "name": "圓弧長與扇形面積",
+    "summary": "弦、圓弧、弓形、弧長與扇形面積",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-9-6",
+    "domain": "空間與形狀",
+    "name": "圓的幾何性質",
+    "summary": "圓心角、圓周角、弧、內接四邊形與切線段",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-9-7",
+    "domain": "空間與形狀",
+    "name": "點、直線與圓的關係",
+    "summary": "點圓、線圓位置；切線；弦心距",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-9-8",
+    "domain": "空間與形狀",
+    "name": "三角形的外心",
+    "summary": "外接圓、等距性質、直角三角形外心",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-9-9",
+    "domain": "空間與形狀",
+    "name": "三角形的內心",
+    "summary": "內切圓、到三邊等距、面積與內切圓半徑",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-9-10",
+    "domain": "空間與形狀",
+    "name": "三角形的重心",
+    "summary": "中線、六等分面積、2:1 比與物理意義",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-9-11",
+    "domain": "空間與形狀",
+    "name": "證明的意義",
+    "summary": "幾何推理與代數推理，說明直接依據",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-9-12",
+    "domain": "空間與形狀",
+    "name": "空間中的線與平面",
+    "summary": "線線平行/垂直/歪斜，線面平行/垂直",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-9-13",
+    "domain": "空間與形狀",
+    "name": "表面積與體積",
+    "summary": "直角柱、直圓錐、正角錐展開圖與表面積；直角柱體積",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "F-9-1",
+    "domain": "函數",
+    "name": "二次函數的意義",
+    "summary": "二次函數意義；具體情境的二次函數關係",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "F-9-2",
+    "domain": "函數",
+    "name": "二次函數的圖形與極值",
+    "summary": "頂點、對稱軸、開口、平移、已配方形式最大最小值",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "D-9-1",
+    "domain": "資料與不確定性",
+    "name": "統計數據的分布",
+    "summary": "全距、四分位距、盒狀圖",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "D-9-2",
+    "domain": "資料與不確定性",
+    "name": "認識機率",
+    "summary": "機率意義；兩層為限之樹狀圖",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "D-9-3",
+    "domain": "資料與不確定性",
+    "name": "古典機率",
+    "summary": "對稱樣本空間與不對稱實驗的機率探究",
+    "verification_status": "official_verified"
+  }
+]

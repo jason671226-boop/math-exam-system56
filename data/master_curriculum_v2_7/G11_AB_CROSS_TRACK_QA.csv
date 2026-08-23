@@ -1,0 +1,6 @@
+﻿Metric,Result,Status
+Cross-track prerequisite leakage,0,PASS
+Canonical Skill ID overlap A/B,0,PASS
+Exclusive-topic leakage,0,PASS
+Shared-concept semantic separation,3,PASS
+A/B loader mutual exclusion,enforced,PASS

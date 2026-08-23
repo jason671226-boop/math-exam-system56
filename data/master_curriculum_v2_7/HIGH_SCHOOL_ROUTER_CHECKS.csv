@@ -1,0 +1,6 @@
+﻿check,status
+G10 ordinary common,PASS
+G11 A/B split,PASS
+G12 甲/乙 split,PASS
+Technical A/B/C split,PASS
+No technical/general prerequisite leakage,PASS

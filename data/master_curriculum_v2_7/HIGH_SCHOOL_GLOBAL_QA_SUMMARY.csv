@@ -1,0 +1,13 @@
+﻿Metric,Result,Status
+High-school standard skills,380,PASS
+High-school micro-skills,2423,PASS
+Duplicate Skill IDs,0,PASS
+Missing micro parent refs,0,PASS
+Broken prerequisite refs,0,PASS
+Track leakage refs,0,PASS
+Official coverage,100%,PASS
+Explicit handoff checks,14/14,PASS
+Scope guardrails,8/8,PASS
+Router checks,5/5,PASS
+Exact duplicate name groups,0,PASS
+Release gate,PASS,PASS

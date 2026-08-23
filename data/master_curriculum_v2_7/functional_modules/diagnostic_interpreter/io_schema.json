@@ -1,0 +1,17 @@
+{
+  "input": {
+    "route_context": "object",
+    "problem_text": "string",
+    "student_answer": "string",
+    "student_work": "string?",
+    "correct_answer": "string?"
+  },
+  "output": {
+    "skill_id": "string",
+    "micro_skill_id": "string?",
+    "error_type": "string",
+    "confidence": "number",
+    "prerequisite_gap_candidates": "string[]",
+    "next_action": "string"
+  }
+}

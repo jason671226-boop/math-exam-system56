@@ -1,0 +1,12 @@
+﻿module,source,use,load_policy
+diagnostic_interpreter,standard_skills.csv,candidate skill names/focus/common_errors,required
+diagnostic_interpreter,layer2_micro_skills.csv,question_type/item_pattern/common_error,required
+diagnostic_interpreter,prerequisite_graph.csv,prerequisite gap hypotheses,conditional
+diagnostic_interpreter,OUT_OF_SCOPE_RULES.md,reject scope leakage,required
+item_generator,standard_skills.csv,parent concept and difficulty,required
+item_generator,layer2_micro_skills.csv,variation axis and common error target,required
+item_generator,OUT_OF_SCOPE_RULES.md,generation boundary,required
+learning_map_recommender,prerequisite_graph.csv,ready/blocking graph,required
+learning_map_recommender,standard_skills.csv,node metadata,required
+assessment_blueprint_builder,layer2_micro_skills.csv,coverage allocation,required
+assessment_blueprint_builder,OUT_OF_SCOPE_RULES.md,assessment boundary,required

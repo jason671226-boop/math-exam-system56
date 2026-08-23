@@ -1,0 +1,12 @@
+{
+  "route_context": {
+    "education_system": "PREHIGH|GENERAL|TECHNICAL",
+    "grade": "G1..G12",
+    "track": "null|A|B|甲|乙|TECH_A|TECH_B|TECH_C",
+    "pack_key": "resolved canonical pack key"
+  },
+  "skill_ref": {
+    "skill_id": "canonical ID",
+    "micro_skill_id": "optional canonical micro ID"
+  }
+}

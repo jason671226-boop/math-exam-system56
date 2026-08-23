@@ -1,0 +1,11 @@
+# Ordinary Senior High G10 scope guardrails
+- G10 is the common ordinary-senior-high curriculum; do not label it Math A or Math B. The A/B split starts in G11.
+- N-10-2: interval notation is for expressing inequality solution sets; do not teach abstract interval-set algebra as a separate topic.
+- N-10-4: common logarithm only; do not teach arbitrary-base logarithm calculation as standard G10 content.
+- G-10-4: do not introduce relations between two circles as standard content.
+- G-10-5: generalized angles initially focus roughly -180° to 360° before contextual extension.
+- A-10-2: synthetic division divisor is x-a only; do not use ax-b as standard, and do not use separated-coefficient division.
+- F-10-1: general quadratic completion and closed-interval applications are in scope; this is deeper than G9.
+- F-10-3: interval notation may include unions and ±∞ only to express solutions; do not turn this into abstract set operations on intervals.
+- D-10-3: permutations/combinations are taught primarily to support classical probability, not as unrestricted olympiad counting.
+- Ordinary G10 must not load technical-high A/B/C content unless the learner is explicitly on that track.

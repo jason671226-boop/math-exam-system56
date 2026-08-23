@@ -1,0 +1,13 @@
+﻿case,grade,education_system,track,skill_id,resolved_pack,micro_count,prerequisite_count,status
+G2 carry addition,G2,PREHIGH,,G02-N-ADD-CARRY1-01,grade_packs/G2,5,2,PASS
+G5 fraction,G5,PREHIGH,,G05-N-FRAC-ADD-01,grade_packs/G5,7,1,PASS
+G7 algebra,G7,PREHIGH,,G07-A-LINEQ-MEAN-01,grade_packs/G7,5,2,PASS
+G9 geometry,G9,PREHIGH,,G09-S-INSCRIBED-01,grade_packs/G9,7,2,PASS
+G10 general,G10,GENERAL,,G10G-N-LOG-01,grade_packs/G10_GENERAL,6,2,PASS
+G11 Math A,G11,GENERAL,A,G11A-G-SPACEVEC-01,grade_packs/G11_A,7,2,PASS
+G11 Math B,G11,GENERAL,B,G11B-F-PERIODMODEL-01,grade_packs/G11_B,7,1,PASS
+G12 Math 甲,G12,GENERAL,甲,G12A-F-DERDEF-01,grade_packs/G12_A,7,2,PASS
+G12 Math 乙,G12,GENERAL,乙,G12B-A-LP-01,grade_packs/G12_B,7,1,PASS
+TECH-A,G10,TECHNICAL,A,G10TA-TRIG-ACUTE-01,high_school_tracks/TECHNICAL/TECH_A/G10,5,1,PASS
+TECH-B,G10,TECHNICAL,B,G10TB-VEC-COORD-01,high_school_tracks/TECHNICAL/TECH_B/G10,5,1,PASS
+TECH-C,G10,TECHNICAL,C,G10TC-COMPLEX-01,high_school_tracks/TECHNICAL/TECH_C/G10,6,1,PASS

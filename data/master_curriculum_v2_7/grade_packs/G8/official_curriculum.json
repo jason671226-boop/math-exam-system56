@@ -1,0 +1,205 @@
+[
+  {
+    "code": "N-8-1",
+    "domain": "數與量",
+    "name": "二次方根",
+    "summary": "二次方根的意義、根式化簡與四則運算",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-8-2",
+    "domain": "數與量",
+    "name": "二次方根的近似值",
+    "summary": "整數部分、十分逼近與計算機平方根鍵",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-8-3",
+    "domain": "數與量",
+    "name": "認識數列",
+    "summary": "生活與圖形中的數列及規律",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-8-4",
+    "domain": "數與量",
+    "name": "等差數列",
+    "summary": "首項、公差與一般項",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-8-5",
+    "domain": "數與量",
+    "name": "等差級數求和",
+    "summary": "等差級數求和公式與生活應用",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "N-8-6",
+    "domain": "數與量",
+    "name": "等比數列",
+    "summary": "首項、公比與一般項",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-8-1",
+    "domain": "空間與形狀",
+    "name": "角",
+    "summary": "互餘、互補、對頂角、同位角、內錯角、同側內角、角平分線",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-8-2",
+    "domain": "空間與形狀",
+    "name": "凸多邊形的內角和",
+    "summary": "凸多邊形、內外角、內角和與正n邊形內角",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-8-3",
+    "domain": "空間與形狀",
+    "name": "平行",
+    "summary": "平行符號、截角性質與平行線距離",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-8-4",
+    "domain": "空間與形狀",
+    "name": "全等圖形",
+    "summary": "平移旋轉翻轉可疊合與對應邊角",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-8-5",
+    "domain": "空間與形狀",
+    "name": "三角形的全等性質",
+    "summary": "SAS、SSS、ASA、AAS、RHS",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-8-6",
+    "domain": "空間與形狀",
+    "name": "畢氏定理",
+    "summary": "畢氏定理、逆定理與生活應用",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-8-7",
+    "domain": "空間與形狀",
+    "name": "平面圖形的面積",
+    "summary": "正三角形高與面積及複合圖形",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-8-8",
+    "domain": "空間與形狀",
+    "name": "三角形的基本性質",
+    "summary": "等腰三角形、邊角大小、三角不等式、外角",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-8-9",
+    "domain": "空間與形狀",
+    "name": "平行四邊形的基本性質",
+    "summary": "內角、邊與對角線性質",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-8-10",
+    "domain": "空間與形狀",
+    "name": "正方形、長方形、菱形、箏形的基本性質",
+    "summary": "特殊四邊形對角線性質",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-8-11",
+    "domain": "空間與形狀",
+    "name": "梯形的基本性質",
+    "summary": "等腰梯形與梯形中點連線",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "S-8-12",
+    "domain": "空間與形狀",
+    "name": "尺規作圖與幾何推理",
+    "summary": "複製線段圓角三角形、中垂線、角平分線、平行垂直與推理依據",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "G-8-1",
+    "domain": "坐標幾何",
+    "name": "直角坐標系上兩點距離公式",
+    "summary": "兩點距離公式及生活應用",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "A-8-1",
+    "domain": "代數",
+    "name": "二次式的乘法公式",
+    "summary": "平方和差、平方差與雙二項式乘法",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "A-8-2",
+    "domain": "代數",
+    "name": "多項式的意義",
+    "summary": "項數、係數、常數項、次數、升冪降冪",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "A-8-3",
+    "domain": "代數",
+    "name": "多項式的四則運算",
+    "summary": "多項式加減乘除；乘積最高至三次、被除式二次",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "A-8-4",
+    "domain": "代數",
+    "name": "因式分解",
+    "summary": "因式意義與二次多項式因式分解",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "A-8-5",
+    "domain": "代數",
+    "name": "因式分解的方法",
+    "summary": "提公因式、乘法公式與十字交乘",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "A-8-6",
+    "domain": "代數",
+    "name": "一元二次方程式的意義",
+    "summary": "方程式、解與由具體情境列式",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "A-8-7",
+    "domain": "代數",
+    "name": "一元二次方程式的解法與應用",
+    "summary": "因式分解、配方、公式解、應用與近似根",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "F-8-1",
+    "domain": "函數",
+    "name": "一次函數",
+    "summary": "對應關係、常數函數與y=ax+b；不使用抽象f(x)",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "F-8-2",
+    "domain": "函數",
+    "name": "一次函數的圖形",
+    "summary": "常數函數與一次函數圖形",
+    "verification_status": "official_verified"
+  },
+  {
+    "code": "D-8-1",
+    "domain": "資料與不確定性",
+    "name": "統計資料處理",
+    "summary": "累積次數、相對次數、累積相對次數折線圖",
+    "verification_status": "official_verified"
+  }
+]
