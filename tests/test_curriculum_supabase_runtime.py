@@ -77,8 +77,6 @@ def fixture(status="staged", is_active=False, gate_status=None):
                     "official_code_raw": "N-6-1",
                     "main_unit_id": "M1",
                     "subunit_id": "S1",
-                    "main_unit": "數",
-                    "subunit": "整數",
                     "skill_name": "Skill",
                     "question_type": "概念",
                     "focus": "Micro",
@@ -169,7 +167,9 @@ class SupabaseRuntimeTests(unittest.TestCase):
         route = runtime.resolve_route("G6")
         self.assertEqual(route.profile_id, "CURRICULUM_V27:PREHIGH:G6:COMMON")
         self.assertEqual(runtime.load_standard_skills(route)[0].skill_id, "G06-A")
-        self.assertEqual(runtime.load_micro_skills(route)[0].parent_skill_id, "G06-A")
+        micro = runtime.load_micro_skills(route)[0]
+        self.assertEqual(micro.parent_skill_id, "G06-A")
+        self.assertEqual((micro.main_unit, micro.subunit), ("數", "整數"))
         self.assertEqual(runtime.get_skill_context(route, "G06-A").prerequisite_ids, ("G05-Z",))
 
     def test_live_rejects_staged(self):
