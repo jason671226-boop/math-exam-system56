@@ -257,15 +257,15 @@ def _canonical_generation_context(spec: SelectedExamSpec) -> str:
     """
     try:
         from .curriculum_master_feature import (
-            curriculum_master_v27,
             curriculum_master_v27_enabled,
+            curriculum_master_v27_runtime,
         )
     except (ImportError, ModuleNotFoundError):
         return ""
     if not curriculum_master_v27_enabled():
         return ""
     try:
-        runtime = curriculum_master_v27()
+        runtime = curriculum_master_v27_runtime()
         route = runtime.resolve_route(spec.grade_label)
         selected_main = {str(x).strip() for x in spec.main_units if str(x).strip()}
         selected_sub = _selected_subunit_names(spec.subunits)
@@ -275,7 +275,6 @@ def _canonical_generation_context(spec: SelectedExamSpec) -> str:
         ]
         if not candidates:
             return ""
-        # Keep prompt size bounded while preserving selected canonical scope.
         candidates = candidates[:24]
         return "\n".join((
             "",
@@ -284,7 +283,6 @@ def _canonical_generation_context(spec: SelectedExamSpec) -> str:
             "每題必須回傳 canonical skill_id；若可判定，另回傳 micro_skill_id。",
         ))
     except Exception:
-        # Feature-flagged rollout must never break the legacy self-built exam.
         return ""
 
 
