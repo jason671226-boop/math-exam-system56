@@ -2,6 +2,7 @@ import unittest
 from types import SimpleNamespace
 
 from services.curriculum_master_runtime import MicroSkill, RouteContext, SkillContext, StandardSkill
+from services.curriculum_shadow_runtime_v27 import ShadowCurriculumRuntimeV27
 from services.curriculum_shadow_v27 import compare_curriculum_route_v27
 from services.curriculum_source_v27 import select_curriculum_runtime_v27
 from services.curriculum_supabase_runtime import SupabaseCurriculumRuntime
@@ -158,6 +159,14 @@ class ZipRuntime:
             self.load_scope_rules(route),
         )
 
+    def validate(self):
+        return {"release_gate": "PASS", "source": "zip"}
+
+
+class G7ZipRuntime(ZipRuntime):
+    def resolve_route(self, *args, **kwargs):
+        return RouteContext("PREHIGH", "G7", None, "grade_packs/G7")
+
 
 class SupabaseRuntimeTests(unittest.TestCase):
     def test_read_staged_for_shadow(self):
@@ -174,27 +183,19 @@ class SupabaseRuntimeTests(unittest.TestCase):
 
     def test_live_rejects_staged(self):
         with self.assertRaises(Exception):
-            select_curriculum_runtime_v27(
-                object(), fixture(), source="supabase"
-            )
+            select_curriculum_runtime_v27(object(), fixture(), source="supabase")
 
     def test_live_rejects_verified_inactive(self):
         with self.assertRaises(Exception):
-            select_curriculum_runtime_v27(
-                object(), fixture("verified"), source="supabase"
-            )
+            select_curriculum_runtime_v27(object(), fixture("verified"), source="supabase")
 
     def test_live_rejects_active_without_gate(self):
         with self.assertRaises(Exception):
-            select_curriculum_runtime_v27(
-                object(), fixture("active", True), source="supabase"
-            )
+            select_curriculum_runtime_v27(object(), fixture("active", True), source="supabase")
 
     def test_live_rejects_active_failed_gate(self):
         with self.assertRaises(Exception):
-            select_curriculum_runtime_v27(
-                object(), fixture("active", True, "FAIL"), source="supabase"
-            )
+            select_curriculum_runtime_v27(object(), fixture("active", True, "FAIL"), source="supabase")
 
     def test_live_accepts_active_with_passed_gate(self):
         runtime = select_curriculum_runtime_v27(
@@ -203,14 +204,63 @@ class SupabaseRuntimeTests(unittest.TestCase):
         self.assertEqual(runtime.validate()["release_status"], "active")
         self.assertTrue(runtime.validate()["is_active"])
 
-    def test_shadow_returns_zip(self):
-        zip_runtime = object()
+    def test_shadow_wraps_zip_and_observes_match(self):
+        zip_runtime = ZipRuntime()
+        runtime = select_curriculum_runtime_v27(
+            zip_runtime, fixture(), source="supabase_shadow"
+        )
+        self.assertIsInstance(runtime, ShadowCurriculumRuntimeV27)
+        route = runtime.resolve_route("G6")
+        self.assertEqual(route.profile_id, "CURRICULUM_V27:PREHIGH:G6:COMMON")
+        observation = runtime.shadow_observation(route.profile_id)
+        self.assertIsNotNone(observation)
+        self.assertTrue(observation.matched)
+        self.assertIs(runtime.zip_runtime, zip_runtime)
+
+    def test_shadow_without_client_returns_zip(self):
+        zip_runtime = ZipRuntime()
         self.assertIs(
-            select_curriculum_runtime_v27(
-                zip_runtime, fixture(), source="supabase_shadow"
-            ),
+            select_curriculum_runtime_v27(zip_runtime, None, source="supabase_shadow"),
             zip_runtime,
         )
+
+    def test_shadow_mismatch_never_changes_zip_visible_data(self):
+        zip_runtime = ZipRuntime(True)
+        runtime = select_curriculum_runtime_v27(
+            zip_runtime, fixture(), source="supabase_shadow"
+        )
+        route = runtime.resolve_route("G6")
+        observation = runtime.shadow_observation(route.profile_id)
+        self.assertIsNotNone(observation)
+        self.assertFalse(observation.matched)
+        self.assertEqual(runtime.load_standard_skills(route)[0].focus, "Changed")
+
+    def test_shadow_db_error_never_breaks_zip_route(self):
+        release = "CURRICULUM_V27_EA0E6735"
+        broken_client = Client(
+            {
+                "curriculum_releases": [
+                    {"release_id": release, "status": "staged", "is_active": False}
+                ]
+            }
+        )
+        runtime = select_curriculum_runtime_v27(
+            ZipRuntime(), broken_client, source="supabase_shadow"
+        )
+        route = runtime.resolve_route("G6")
+        observation = runtime.shadow_observation(route.profile_id)
+        self.assertEqual(route.grade, "G6")
+        self.assertIsNotNone(observation)
+        self.assertFalse(observation.matched)
+        self.assertIsNotNone(observation.error)
+
+    def test_shadow_skips_non_canary_route(self):
+        runtime = select_curriculum_runtime_v27(
+            G7ZipRuntime(), fixture(), source="supabase_shadow"
+        )
+        route = runtime.resolve_route("G7")
+        self.assertEqual(route.grade, "G7")
+        self.assertEqual(runtime.shadow_observations(), {})
 
 
 class ShadowTests(unittest.TestCase):
