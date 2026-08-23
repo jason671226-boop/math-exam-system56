@@ -15,6 +15,7 @@ SOURCE_ZIP = "zip"
 SOURCE_SHADOW = "supabase_shadow"
 SOURCE_SUPABASE = "supabase"
 VALID_SOURCES = frozenset({SOURCE_ZIP, SOURCE_SHADOW, SOURCE_SUPABASE})
+ACTIVATION_GATE = "activation_gate"
 
 
 def curriculum_source_v27() -> str:
@@ -22,6 +23,19 @@ def curriculum_source_v27() -> str:
     if value not in VALID_SOURCES:
         raise ValueError(f"invalid {SOURCE_ENV}: {value}")
     return value
+
+
+def _activation_gate_passed(client: Any, release_id: str) -> bool:
+    rows = (
+        client.table("curriculum_release_checks")
+        .select("check_name,status")
+        .eq("release_id", release_id)
+        .eq("check_name", ACTIVATION_GATE)
+        .execute()
+        .data
+        or []
+    )
+    return len(rows) == 1 and str(rows[0].get("status") or "") == "PASS"
 
 
 def select_curriculum_runtime_v27(
@@ -35,7 +49,7 @@ def select_curriculum_runtime_v27(
 
     `supabase_shadow` deliberately returns ZIP so shadow comparisons cannot
     alter user-visible curriculum. A true `supabase` cutover is fail-closed:
-    the release must be status=active AND is_active=true.
+    status=active, is_active=true, and activation_gate=PASS are all required.
     """
     mode = (source or curriculum_source_v27()).strip().lower()
     if mode not in VALID_SOURCES:
@@ -53,6 +67,10 @@ def select_curriculum_runtime_v27(
     if state.get("release_status") != "active" or not state.get("is_active"):
         raise CurriculumDataError(
             f"curriculum release {release_id} is not an active cutover release"
+        )
+    if not _activation_gate_passed(supabase_client, release_id):
+        raise CurriculumDataError(
+            f"curriculum release {release_id} activation gate is not PASS"
         )
     return runtime
 
