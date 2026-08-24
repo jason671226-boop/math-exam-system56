@@ -1,0 +1,52 @@
+name: Curriculum v2.7 Release CI
+
+on:
+  push:
+    branches:
+      - feature/curriculum-runtime-v0.9
+      - release/curriculum-v27-production-cutover
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  shadow-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install application dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Compile rewired modules
+        run: |
+          python -m py_compile \
+            services/curriculum_shadow_runtime_v27.py \
+            services/curriculum_shadow_v27.py \
+            services/curriculum_source_v27.py \
+            services/curriculum_supabase_runtime.py \
+            services/curriculum_master_feature.py \
+            services/curriculum_master_runtime.py \
+            services/curriculum_catalog.py \
+            services/diagnostic_service.py \
+            services/master_curriculum_loader.py \
+            learning_map/__init__.py
+      - name: Run focused integration tests
+        run: |
+          python -m unittest \
+            tests.test_curriculum_supabase_runtime \
+            tests.test_curriculum_shadow_runtime_v27 \
+            tests.test_curriculum_production_cutover \
+            tests.test_curriculum_master_feature \
+            tests.test_learning_map_entry_v27 \
+            tests.test_learning_map_provider_v27 \
+            tests.test_curriculum_catalog_v27 \
+            tests.test_curriculum_catalog_feature_bridge \
+            tests.test_diagnostic_mastery_bridge_v27 \
+            tests.test_practice_mastery_bridge_v27 \
+            tests.test_self_built_exam_curriculum \
+            tests.test_g8_master_curriculum
+
+# Production release gate. Main merge and DB activation are separate explicit steps.

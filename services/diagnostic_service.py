@@ -88,20 +88,16 @@ def _numeric_equal(left: Any, right: Any) -> bool:
 
 
 def normalize_ratio(value: Any) -> str:
-    """Normalize an integer ratio, e.g. 32:40 -> 4:5."""
-
     text = _clean_text(value).replace("：", ":")
     match = re.fullmatch(r"([+-]?\d+):([+-]?\d+)", text)
     if not match:
         raise ValueError(f"invalid ratio: {value!r}")
-
     first = int(match.group(1))
     second = int(match.group(2))
     if second == 0:
         raise ValueError("ratio second term cannot be zero")
     if first == 0:
         return "0:1"
-
     divisor = gcd(abs(first), abs(second))
     first //= divisor
     second //= divisor
@@ -114,19 +110,16 @@ def normalize_ratio(value: Any) -> str:
 def _ordered_list(value: Any) -> tuple[str, ...]:
     if isinstance(value, (list, tuple)):
         return tuple(_clean_text(item) for item in value)
-
     if isinstance(value, str):
         text = value.strip()
         parts = re.split(r"\s*(?:<|＜|,|，)\s*", text)
         return tuple(_clean_text(part) for part in parts if part.strip())
-
     return (_clean_text(value),)
 
 
 def _evaluate_scalar(answer_type: str, accepted_answers: Iterable[Any], student_answer: Any) -> bool:
     if answer_type == "numeric":
         return any(_numeric_equal(student_answer, accepted) for accepted in accepted_answers)
-
     if answer_type == "ratio":
         try:
             normalized = normalize_ratio(student_answer)
@@ -139,67 +132,43 @@ def _evaluate_scalar(answer_type: str, accepted_answers: Iterable[Any], student_
             except ValueError:
                 continue
         return False
-
     raise ValueError(f"unsupported scalar answer type: {answer_type}")
 
 
 def evaluate_answer(question: DiagnosticQuestion, student_answer: Any) -> AnswerEvaluation:
     spec = question.answer_spec
     answer_type = spec["type"]
-
     if answer_type in {"numeric", "ratio"}:
         is_correct = _evaluate_scalar(answer_type, spec["accepted_answers"], student_answer)
         return AnswerEvaluation(is_correct=is_correct, credit=1.0 if is_correct else 0.0)
-
     if answer_type == "ordered_list":
         submitted = _ordered_list(student_answer)
         accepted = [tuple(_clean_text(v) for v in order) for order in spec["accepted_answers"]]
         is_correct = submitted in accepted
         return AnswerEvaluation(is_correct=is_correct, credit=1.0 if is_correct else 0.0)
-
     if answer_type == "multipart":
         if not isinstance(student_answer, dict):
             part_results = tuple(
                 PartResult(part_id=part["part_id"], is_correct=False, student_answer=None)
                 for part in spec["parts"]
             )
-            return AnswerEvaluation(
-                is_correct=False,
-                credit=0.0,
-                part_results=part_results,
-            )
-
+            return AnswerEvaluation(is_correct=False, credit=0.0, part_results=part_results)
         results: list[PartResult] = []
         for part in spec["parts"]:
             part_id = part["part_id"]
             submitted = student_answer.get(part_id)
-            is_correct = _evaluate_scalar(
-                part["answer_type"], part["accepted_answers"], submitted
-            )
-            results.append(
-                PartResult(
-                    part_id=part_id,
-                    is_correct=is_correct,
-                    student_answer=submitted,
-                )
-            )
-
+            is_correct = _evaluate_scalar(part["answer_type"], part["accepted_answers"], submitted)
+            results.append(PartResult(part_id=part_id, is_correct=is_correct, student_answer=submitted))
         credit = sum(1 for result in results if result.is_correct) / len(results)
         return AnswerEvaluation(
             is_correct=all(result.is_correct for result in results),
             credit=round(credit, 4),
             part_results=tuple(results),
         )
-
     raise ValueError(f"unsupported answer type: {answer_type}")
 
 
-def detect_error_candidates(
-    question: DiagnosticQuestion,
-    student_answer: Any,
-) -> tuple[ErrorCandidate, ...]:
-    """Evaluate registered deterministic rules; unknown cases return empty."""
-
+def detect_error_candidates(question: DiagnosticQuestion, student_answer: Any) -> tuple[ErrorCandidate, ...]:
     candidates: list[ErrorCandidate] = []
     for rule in question.error_rules:
         handler = ERROR_RULE_HANDLERS.get(str(rule.get("type", "")))
@@ -218,8 +187,6 @@ ERROR_RULE_HANDLERS: dict[str, ErrorRuleHandler] = {}
 
 
 def register_error_rule_handler(rule_type: str, handler: ErrorRuleHandler) -> None:
-    """Register a deterministic error-rule matcher by schema rule type."""
-
     if not isinstance(rule_type, str) or not rule_type.strip():
         raise ValueError("rule_type must be a non-empty string")
     if not callable(handler):
@@ -227,11 +194,7 @@ def register_error_rule_handler(rule_type: str, handler: ErrorRuleHandler) -> No
     ERROR_RULE_HANDLERS[rule_type.strip()] = handler
 
 
-def _answer_equals_rule(
-    question: DiagnosticQuestion,
-    student_answer: Any,
-    rule: Mapping[str, Any],
-) -> bool:
+def _answer_equals_rule(question: DiagnosticQuestion, student_answer: Any, rule: Mapping[str, Any]) -> bool:
     expected = rule.get("answer")
     if isinstance(expected, dict):
         if not isinstance(student_answer, dict):
@@ -246,6 +209,34 @@ def _answer_equals_rule(
 
 
 register_error_rule_handler("answer_equals", _answer_equals_rule)
+
+
+def _observe_curriculum_shadow(question: DiagnosticQuestion) -> None:
+    """Trigger G6/G8 route parity without changing legacy diagnostic evidence."""
+    profiles = tuple(str(value) for value in getattr(question, "target_profiles", ()) or ())
+    grade = None
+    if any(value.startswith("G6_") for value in profiles):
+        grade = "G6"
+    elif any(value.startswith("G8_") for value in profiles):
+        grade = "G8"
+    if grade is None:
+        return
+    try:
+        try:
+            from services.curriculum_master_feature import (
+                curriculum_master_v27_enabled,
+                curriculum_master_v27_runtime,
+            )
+        except ModuleNotFoundError:
+            from app.services.curriculum_master_feature import (
+                curriculum_master_v27_enabled,
+                curriculum_master_v27_runtime,
+            )
+        if curriculum_master_v27_enabled():
+            curriculum_master_v27_runtime().resolve_route(grade)
+    except Exception:
+        # Shadow observability can never alter diagnostic scoring or persistence.
+        return
 
 
 def evaluate_diagnostic_response(
@@ -267,10 +258,9 @@ def evaluate_diagnostic_response(
     if not isinstance(attempts, int) or isinstance(attempts, bool) or attempts < 1:
         raise ValueError("attempts must be an integer >= 1")
 
+    _observe_curriculum_shadow(question)
     evaluation = evaluate_answer(question, student_answer)
-    candidates = () if evaluation.is_correct else detect_error_candidates(
-        question, student_answer
-    )
+    candidates = () if evaluation.is_correct else detect_error_candidates(question, student_answer)
     return DiagnosticResponseResult(
         question_id=question.question_id,
         is_correct=evaluation.is_correct,
@@ -305,12 +295,6 @@ def build_mastery_evidence(
     question: DiagnosticQuestion,
     result: DiagnosticResponseResult,
 ) -> tuple[TargetedEvidence, ...]:
-    """Adapt a diagnostic response into conservative mastery evidence.
-
-    Supporting skills receive low-weight positive evidence when correct, but no
-    negative evidence when an item/part is wrong.
-    """
-
     if result.question_id != question.question_id:
         raise ValueError("result.question_id does not match question.question_id")
 
@@ -333,12 +317,8 @@ def build_mastery_evidence(
             {},
         )
         knowledge_points = tuple(part_spec.get("knowledge_points", question.knowledge_points))
-        primary_skills = tuple(
-            part_spec.get("primary_thinking_skills", question.primary_thinking_skills)
-        )
-        supporting_skills = tuple(
-            part_spec.get("supporting_thinking_skills", question.supporting_thinking_skills)
-        )
+        primary_skills = tuple(part_spec.get("primary_thinking_skills", question.primary_thinking_skills))
+        supporting_skills = tuple(part_spec.get("supporting_thinking_skills", question.supporting_thinking_skills))
 
         for knowledge_id in knowledge_points:
             outputs.append(
