@@ -12,6 +12,7 @@ class Query:
     def __init__(self, rows):
         self.rows = list(rows)
         self.filters = []
+        self.in_filters = []
 
     def select(self, *args, **kwargs):
         return self
@@ -20,10 +21,16 @@ class Query:
         self.filters.append((key, value))
         return self
 
+    def in_(self, key, values):
+        self.in_filters.append((key, set(values)))
+        return self
+
     def execute(self):
         rows = self.rows
         for key, value in self.filters:
             rows = [row for row in rows if row.get(key) == value]
+        for key, values in self.in_filters:
+            rows = [row for row in rows if row.get(key) in values]
         return SimpleNamespace(data=rows)
 
 
@@ -67,6 +74,7 @@ def fixture(status="staged", is_active=False, gate_status=None):
                     "skill_name": "Skill",
                     "focus": "Focus",
                     "difficulty": 2,
+                    "source_order": 1,
                 }
             ],
             "curriculum_micro_skills": [
@@ -84,6 +92,7 @@ def fixture(status="staged", is_active=False, gate_status=None):
                     "item_pattern": "p",
                     "common_error": "e",
                     "difficulty": 1,
+                    "source_order": 1,
                 }
             ],
             "curriculum_skill_edges": [
@@ -168,6 +177,35 @@ class G7ZipRuntime(ZipRuntime):
         return RouteContext("PREHIGH", "G7", None, "grade_packs/G7")
 
 
+class TwoSkillZipRuntime:
+    def resolve_route(self, *args, **kwargs):
+        return RouteContext("PREHIGH", "G6", None, "grade_packs/G6")
+
+    def load_standard_skills(self, route):
+        return (
+            StandardSkill("G06-Z", "N-6-1", "數", "整數", "First", "F1", 1),
+            StandardSkill("G06-A", "N-6-1", "數", "整數", "Second", "F2", 1),
+        )
+
+    def load_micro_skills(self, route):
+        return ()
+
+    def load_scope_rules(self, route):
+        return "rules"
+
+    def get_skill_context(self, route, skill_id):
+        skill = next(item for item in self.load_standard_skills(route) if item.skill_id == skill_id)
+        return SkillContext(route, skill, (), (), (), "rules")
+
+
+class ReverseTwoSkillDbRuntime(TwoSkillZipRuntime):
+    def load_standard_skills(self, route):
+        return tuple(reversed(super().load_standard_skills(route)))
+
+    def load_skill_edges(self, route):
+        return ()
+
+
 class SupabaseRuntimeTests(unittest.TestCase):
     def test_read_staged_for_shadow(self):
         runtime = SupabaseCurriculumRuntime(
@@ -180,6 +218,46 @@ class SupabaseRuntimeTests(unittest.TestCase):
         self.assertEqual(micro.parent_skill_id, "G06-A")
         self.assertEqual((micro.main_unit, micro.subunit), ("數", "整數"))
         self.assertEqual(runtime.get_skill_context(route, "G06-A").prerequisite_ids, ("G05-Z",))
+
+    def test_source_order_wins_over_identifier_sort(self):
+        client = fixture()
+        first = dict(client.tables["curriculum_skills"][0])
+        first.update(
+            {
+                "skill_id": "G06-Z",
+                "skill_name": "First",
+                "focus": "F1",
+                "source_order": 1,
+            }
+        )
+        second = dict(client.tables["curriculum_skills"][0])
+        second.update(
+            {
+                "skill_id": "G06-A",
+                "skill_name": "Second",
+                "focus": "F2",
+                "source_order": 2,
+            }
+        )
+        client.tables["curriculum_skills"] = [second, first]
+        runtime = SupabaseCurriculumRuntime(
+            client, allowed_statuses=("staged", "verified", "active")
+        )
+        route = runtime.resolve_route("G6")
+        self.assertEqual(
+            tuple(item.skill_id for item in runtime.load_standard_skills(route)),
+            ("G06-Z", "G06-A"),
+        )
+
+    def test_missing_source_order_fails_closed(self):
+        client = fixture()
+        client.tables["curriculum_skills"][0].pop("source_order")
+        runtime = SupabaseCurriculumRuntime(
+            client, allowed_statuses=("staged", "verified", "active")
+        )
+        route = runtime.resolve_route("G6")
+        with self.assertRaises(Exception):
+            runtime.load_standard_skills(route)
 
     def test_live_rejects_staged(self):
         with self.assertRaises(Exception):
@@ -280,6 +358,13 @@ class ShadowTests(unittest.TestCase):
         report = compare_curriculum_route_v27(ZipRuntime(True), db, "G6")
         self.assertFalse(report.matched)
         self.assertTrue(any("field mismatch" in item for item in report.differences))
+
+    def test_shadow_detects_skill_order_mismatch(self):
+        report = compare_curriculum_route_v27(
+            TwoSkillZipRuntime(), ReverseTwoSkillDbRuntime(), "G6"
+        )
+        self.assertFalse(report.matched)
+        self.assertIn("skill order mismatch", report.differences)
 
 
 if __name__ == "__main__":
