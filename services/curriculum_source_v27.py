@@ -12,15 +12,24 @@ from .curriculum_shadow_v27 import (
 from .curriculum_supabase_runtime import DEFAULT_RELEASE_ID, SupabaseCurriculumRuntime
 
 SOURCE_ENV = "CURRICULUM_MASTER_V27_SOURCE"
+SOURCE_AUTO = "auto"
 SOURCE_ZIP = "zip"
 SOURCE_SHADOW = "supabase_shadow"
 SOURCE_SUPABASE = "supabase"
-VALID_SOURCES = frozenset({SOURCE_ZIP, SOURCE_SHADOW, SOURCE_SUPABASE})
+VALID_SOURCES = frozenset({SOURCE_AUTO, SOURCE_ZIP, SOURCE_SHADOW, SOURCE_SUPABASE})
 ACTIVATION_GATE = "activation_gate"
 
 
 def curriculum_source_v27() -> str:
-    value = os.getenv(SOURCE_ENV, SOURCE_ZIP).strip().lower() or SOURCE_ZIP
+    """Return the requested curriculum source mode.
+
+    Production defaults to ``auto``.  Auto mode is deliberately conservative:
+    it uses Supabase only when an authenticated client is available *and* the
+    release is active with ``activation_gate=PASS``.  Otherwise it returns the
+    already-validated local v2.7 runtime.  Explicit ``supabase`` remains
+    fail-closed for diagnostics and administrative verification.
+    """
+    value = os.getenv(SOURCE_ENV, SOURCE_AUTO).strip().lower() or SOURCE_AUTO
     if value not in VALID_SOURCES:
         raise ValueError(f"invalid {SOURCE_ENV}: {value}")
     return value
@@ -39,6 +48,24 @@ def _activation_gate_passed(client: Any, release_id: str) -> bool:
     return len(rows) == 1 and str(rows[0].get("status") or "") == "PASS"
 
 
+def _active_supabase_runtime(client: Any, release_id: str) -> SupabaseCurriculumRuntime:
+    runtime = SupabaseCurriculumRuntime(
+        client,
+        release_id=release_id,
+        allowed_statuses=("active",),
+    )
+    state = runtime.validate()
+    if state.get("release_status") != "active" or not state.get("is_active"):
+        raise CurriculumDataError(
+            f"curriculum release {release_id} is not an active cutover release"
+        )
+    if not _activation_gate_passed(client, release_id):
+        raise CurriculumDataError(
+            f"curriculum release {release_id} activation gate is not PASS"
+        )
+    return runtime
+
+
 def select_curriculum_runtime_v27(
     zip_runtime: CurriculumMasterRuntime,
     supabase_client: Any | None,
@@ -49,17 +76,30 @@ def select_curriculum_runtime_v27(
 ) -> Any:
     """Return the user-visible runtime for the selected source mode.
 
-    ZIP mode is the baseline. `supabase_shadow` remains ZIP-authoritative but,
-    when a client is available, wraps it with a read-only parity observer for
-    canary routes. A missing/broken shadow client never changes user-visible
-    curriculum. A true `supabase` cutover is fail-closed: status=active,
-    is_active=true, and activation_gate=PASS are all required.
+    ``auto`` is the production default and is rollback-safe: an authenticated
+    active release with a passing activation gate uses Supabase; otherwise ZIP
+    stays user-visible.  ``supabase_shadow`` is ZIP-authoritative with read-only
+    parity observation.  Explicit ``supabase`` is fail-closed and raises if any
+    live-cutover requirement is missing.
     """
     mode = (source or curriculum_source_v27()).strip().lower()
     if mode not in VALID_SOURCES:
         raise ValueError(f"invalid curriculum source: {mode}")
+
     if mode == SOURCE_ZIP:
         return zip_runtime
+
+    if mode == SOURCE_AUTO:
+        if supabase_client is None:
+            return zip_runtime
+        try:
+            return _active_supabase_runtime(supabase_client, release_id)
+        except Exception:
+            # Automatic production rollback: a DB/auth/network/gate problem must
+            # not take down curriculum reads while the validated local release is
+            # still bundled with the application.
+            return zip_runtime
+
     if mode == SOURCE_SHADOW:
         if supabase_client is None:
             return zip_runtime
@@ -73,23 +113,10 @@ def select_curriculum_runtime_v27(
         except Exception:
             # Shadow observability must never take down ZIP-authoritative reads.
             return zip_runtime
+
     if supabase_client is None:
         raise ValueError("Supabase curriculum source requires an authenticated client")
-    runtime = SupabaseCurriculumRuntime(
-        supabase_client,
-        release_id=release_id,
-        allowed_statuses=("active",),
-    )
-    state = runtime.validate()
-    if state.get("release_status") != "active" or not state.get("is_active"):
-        raise CurriculumDataError(
-            f"curriculum release {release_id} is not an active cutover release"
-        )
-    if not _activation_gate_passed(supabase_client, release_id):
-        raise CurriculumDataError(
-            f"curriculum release {release_id} activation gate is not PASS"
-        )
-    return runtime
+    return _active_supabase_runtime(supabase_client, release_id)
 
 
 def shadow_compare_route_v27(
