@@ -1,0 +1,49 @@
+name: Enable Trial Self-Built on Shadow
+
+on:
+  push:
+    branches:
+      - test/curriculum-supabase-shadow-v0.9
+    paths:
+      - .github/workflows/enable-trial-self-built-shadow.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-shadow-trial:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: test/curriculum-supabase-shadow-v0.9
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Patch trial self-built gate only on shadow branch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('app.py')
+          text = path.read_text(encoding='utf-8')
+          needle = '''        if is_trial:\n            show_trial_conversion_notice()\n        else:\n            user_profile = st.session_state["user_profile"]\n            profile_grade_match = re.search(r"(\\d+)", str(user_profile.get("grade", "")))\n'''
+          replacement = '''        # Shadow E2E: trial users may exercise the self-built exam UI.\n        # This branch-only switch does not alter production main or auth rules.\n        trial_self_built_enabled = True\n        if is_trial and not trial_self_built_enabled:\n            show_trial_conversion_notice()\n        else:\n            if is_trial:\n                st.info("🧪 試用模式已開放自組試卷，供 Shadow 驗收使用。")\n            user_profile = st.session_state["user_profile"]\n            profile_grade_match = re.search(r"(\\d+)", str(user_profile.get("grade", "")))\n'''
+          count = text.count(needle)
+          if count != 1:
+              raise SystemExit(f'expected exactly one self-built trial gate, found {count}')
+          text = text.replace(needle, replacement, 1)
+          text = text.replace('st.subheader("⚙️ 自組試卷系統 🔒")', 'st.subheader("⚙️ 自組試卷系統")', 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+      - name: Compile app
+        run: python -m py_compile app.py
+      - name: Commit tested patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.py
+          git diff --cached --quiet && exit 0
+          git commit -m "test: open self-built exam to trial on shadow branch"
+          git push origin HEAD:test/curriculum-supabase-shadow-v0.9
