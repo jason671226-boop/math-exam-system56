@@ -1,7 +1,9 @@
 """Read-only adapter for the imported MathAI Master Curriculum grade packs.
 
-The master CSV files remain the source of truth.  This module only builds an
-in-memory publisher-to-canonical crosswalk; it never writes back to the pack.
+The local v2.7 pack remains the deterministic rollback source. Production
+callers are source-aware: when Curriculum Master v2.7 is enabled, canonical
+skills and micro-skills come through ``curriculum_master_v27_runtime()`` so
+``CURRICULUM_MASTER_V27_SOURCE=supabase`` reaches the guarded Supabase runtime.
 """
 from __future__ import annotations
 
@@ -109,40 +111,40 @@ def _family_candidates(title: str, skills: Iterable[MasterSkill]) -> list[Master
         ("作圖", ("COMPASS",)),
     )
     canonical_keywords = (
-        ("\u4e58\u6cd5\u516c\u5f0f", ("MULFORM", "FACTOR")),
-        ("\u591a\u9805\u5f0f", ("POLY",)),
-        ("\u5e73\u65b9\u6839", ("SQRT", "RAD")),
-        ("\u6839\u5f0f", ("SQRT", "RAD")),
-        ("\u56e0\u5f0f\u5206\u89e3", ("FACTOR",)),
-        ("\u65b9\u7a0b\u5f0f", ("QUAD",)),
-        ("\u51fd\u6578", ("FUNC",)),
-        ("\u6578\u5217", ("SEQ", "ARITH", "GEO")),
-        ("\u7b49\u5dee", ("ARITH",)),
-        ("\u7b49\u6bd4", ("GEO",)),
-        ("\u7d71\u8a08", ("D-",)),
-        ("\u8cc7\u6599", ("D-",)),
-        ("\u7562\u6c0f", ("PYTH", "DIST")),
-        ("\u8ddd\u96e2", ("PYTH", "DIST")),
-        ("\u4e09\u89d2\u5f62", ("PYTH", "TRI", "ISO", "ANGLE", "CONG")),
-        ("\u5168\u7b49", ("CONG", "TRI")),
-        ("\u5e73\u884c", ("PARA", "PARALLEL", "TRANSVERSAL")),
-        ("\u56db\u908a\u5f62", ("PARA", "RECT", "RHOM", "KITE", "TRAP")),
-        ("\u5c3a\u898f", ("COMPASS", "PROOF")),
-        ("\u4f5c\u5716", ("COMPASS", "PROOF")),
+        ("乘法公式", ("MULFORM", "FACTOR")),
+        ("多項式", ("POLY",)),
+        ("平方根", ("SQRT", "RAD")),
+        ("根式", ("SQRT", "RAD")),
+        ("因式分解", ("FACTOR",)),
+        ("方程式", ("QUAD",)),
+        ("函數", ("FUNC",)),
+        ("數列", ("SEQ", "ARITH", "GEO")),
+        ("等差", ("ARITH",)),
+        ("等比", ("GEO",)),
+        ("統計", ("D-",)),
+        ("資料", ("D-",)),
+        ("畢氏", ("PYTH", "DIST")),
+        ("距離", ("PYTH", "DIST")),
+        ("三角形", ("PYTH", "TRI", "ISO", "ANGLE", "CONG")),
+        ("全等", ("CONG", "TRI")),
+        ("平行", ("PARA", "PARALLEL", "TRANSVERSAL")),
+        ("四邊形", ("PARA", "RECT", "RHOM", "KITE", "TRAP")),
+        ("尺規", ("COMPASS", "PROOF")),
+        ("作圖", ("COMPASS", "PROOF")),
     )
-    families = tuple(f for marker, f in keywords + canonical_keywords if marker in text for f in f)
+    families = tuple(f for marker, fs in keywords + canonical_keywords if marker in text for f in fs)
     # Canonical family prefixes are explicit in standard_skills.skill_id and
     # avoid losing valid skills when a publisher uses a broader unit title.
     prefix_rules = (
-        ("\u51fd\u6578", ("G08-F-",)),
-        ("\u591a\u908a\u5f62", ("G08-S-",)),
-        ("\u5168\u7b49", ("G08-S-",)),
-        ("\u9762\u7a4d", ("G08-S-",)),
-        ("\u5e73\u884c", ("G08-S-",)),
-        ("\u7562\u6c0f", ("G08-S-", "G08-G-")),
-        ("\u8ddd\u96e2", ("G08-G-",)),
-        ("\u591a\u9805\u5f0f", ("G08-A-POLY-",)),
-        ("\u56e0\u5f0f\u5206\u89e3", ("G08-A-FACTOR-",)),
+        ("函數", ("G08-F-",)),
+        ("多邊形", ("G08-S-",)),
+        ("全等", ("G08-S-",)),
+        ("面積", ("G08-S-",)),
+        ("平行", ("G08-S-",)),
+        ("畢氏", ("G08-S-", "G08-G-")),
+        ("距離", ("G08-G-",)),
+        ("多項式", ("G08-A-POLY-",)),
+        ("因式分解", ("G08-A-FACTOR-",)),
     )
     families += tuple(prefix for marker, prefixes in prefix_rules if marker in text for prefix in prefixes)
     if not families:
@@ -167,18 +169,18 @@ def _semantic_candidates(title: str, skills: Iterable[MasterSkill]) -> list[Mast
 
 
 SHARED_ROUTE_RULES = {
-    "G08-A-FACTOR-CHECK-01": ("\u56e0\u5f0f\u5206\u89e3", "\u4e58\u6cd5\u516c\u5f0f"),
-    "G08-A-POLY-ORDER-01": ("\u591a\u9805\u5f0f",),
-    "G08-S-CONGRUENT-01": ("\u5168\u7b49", "\u4e09\u89d2\u5f62\u5168\u7b49"),
-    "G08-S-CONG-PROOF-01": ("\u5168\u7b49", "\u4e09\u89d2\u5f62\u5168\u7b49"),
-    "G08-S-PARALLEL-REV-01": ("\u5e73\u884c",),
-    "G08-S-PYTH-APP-01": ("\u7562\u6c0f", "\u61c9\u7528\u554f\u984c"),
-    "G08-S-PYTH-LEN-01": ("\u7562\u6c0f", "\u76f4\u89d2\u4e09\u89d2\u5f62"),
-    "G08-S-TRI-SSS-01": ("\u5168\u7b49", "\u4e09\u89d2\u5f62"),
-    "G08-S-TRI-SAS-01": ("\u5168\u7b49", "\u4e09\u89d2\u5f62"),
-    "G08-S-TRI-RHS-01": ("\u5168\u7b49", "\u76f4\u89d2\u4e09\u89d2\u5f62"),
-    "G08-S-TRI-ASA-01": ("\u5168\u7b49", "\u4e09\u89d2\u5f62"),
-    "G08-S-POLY-INNER-01": ("\u591a\u908a\u5f62", "\u5167\u89d2"),
+    "G08-A-FACTOR-CHECK-01": ("因式分解", "乘法公式"),
+    "G08-A-POLY-ORDER-01": ("多項式",),
+    "G08-S-CONGRUENT-01": ("全等", "三角形全等"),
+    "G08-S-CONG-PROOF-01": ("全等", "三角形全等"),
+    "G08-S-PARALLEL-REV-01": ("平行",),
+    "G08-S-PYTH-APP-01": ("畢氏", "應用問題"),
+    "G08-S-PYTH-LEN-01": ("畢氏", "直角三角形"),
+    "G08-S-TRI-SSS-01": ("全等", "三角形"),
+    "G08-S-TRI-SAS-01": ("全等", "三角形"),
+    "G08-S-TRI-RHS-01": ("全等", "直角三角形"),
+    "G08-S-TRI-ASA-01": ("全等", "三角形"),
+    "G08-S-POLY-INNER-01": ("多邊形", "內角"),
 }
 
 
@@ -203,7 +205,7 @@ def _build_mappings(units: list[dict[str, str]], skills: tuple[MasterSkill, ...]
             candidates = shared_ids
             if not candidates:
                 continue
-        # Keep a bounded, domain-relevant set.  Never attach the entire pool.
+        # Keep a bounded, domain-relevant set. Never attach the entire pool.
         ordered_candidates = list(dict.fromkeys(shared_candidates + candidates))
         for skill in ordered_candidates[:12]:
             status = "VERIFIED" if exact else "HIGH_CONFIDENCE"
@@ -224,30 +226,6 @@ def _build_mappings(units: list[dict[str, str]], skills: tuple[MasterSkill, ...]
                 mapping_status=status,
             ))
     return tuple(result)
-
-
-def load_g8_master_catalog() -> MasterCatalog:
-    units = _rows("publisher_units.csv")
-    skill_rows = _rows("standard_skills.csv")
-    micro_rows = _rows("layer2_micro_skills.csv")
-    micro_by_skill: dict[str, list[MasterMicroSkill]] = {}
-    for row in micro_rows:
-        micro_by_skill.setdefault(row["parent_skill_id"], []).append(MasterMicroSkill(
-            micro_skill_id=row["micro_skill_id"],
-            parent_skill_id=row["parent_skill_id"],
-            question_type=row["question_type"],
-            focus=row["focus"],
-            difficulty=row["difficulty"],
-        ))
-    skills = tuple(MasterSkill(
-        skill_id=row["skill_id"], official_code=row["official_code"],
-        main_unit=row.get("main_unit", row.get("mathai_main_unit", "")),
-        subunit=row.get("subunit", row.get("mathai_subunit", "")),
-        skill_name=row["skill_name"], focus=row["focus"],
-        difficulty=row["difficulty"],
-        micro_skills=tuple(micro_by_skill.get(row["skill_id"], ())),
-    ) for row in skill_rows)
-    return MasterCatalog(tuple(units), skills, _build_mappings(units, skills))
 
 
 GRADE_PACK_ROUTES = {
@@ -273,11 +251,7 @@ def curriculum_versions(grade: int) -> tuple[str, ...]:
     return versions
 
 
-def load_master_catalog(grade: int, version: str) -> MasterCatalog:
-    """Load exactly one selected pack, following the Master load policy."""
-    root = GRADE_PACK_ROUTES.get((grade, version))
-    if root is None or not root.is_dir():
-        raise ValueError(f"unsupported Master Curriculum route: G{grade} {version}")
+def _local_master_catalog(root: Path) -> MasterCatalog:
     units_path = root / "publisher_units.csv"
     units = _rows("publisher_units.csv", root) if units_path.exists() else []
     skill_rows = _rows("standard_skills.csv", root)
@@ -300,6 +274,95 @@ def load_master_catalog(grade: int, version: str) -> MasterCatalog:
         micro_skills=tuple(micro_by_skill.get(row["skill_id"], ())),
     ) for row in skill_rows)
     return MasterCatalog(tuple(units), skills, ())
+
+
+def _runtime_route_kwargs(grade: int, version: str) -> dict[str, str]:
+    if grade <= 9:
+        return {}
+    if grade == 10 and version == "普通高中":
+        return {"education_system": "GENERAL"}
+    if grade == 10 and version in {"數學 A", "數學 B", "數學 C"}:
+        return {"education_system": "TECHNICAL", "track": version[-1]}
+    if grade == 11 and version in {"數學 A", "數學 B"}:
+        return {"education_system": "GENERAL", "track": version[-1]}
+    if grade == 12 and version in {"數學甲", "數學乙"}:
+        return {"education_system": "GENERAL", "track": version[-1]}
+    raise ValueError(f"unsupported Master Curriculum route: G{grade} {version}")
+
+
+def _runtime_master_catalog(grade: int, version: str, *, root: Path) -> MasterCatalog | None:
+    """Return a source-selected catalog, or None only when v2.7 is disabled.
+
+    Runtime errors intentionally propagate. In explicit ``supabase`` mode this
+    preserves the production fail-closed contract instead of silently reading
+    local CSV data.
+    """
+    try:
+        from services.curriculum_master_feature import (
+            curriculum_master_v27_enabled,
+            curriculum_master_v27_runtime,
+        )
+    except ModuleNotFoundError:  # pragma: no cover - package import root
+        from app.services.curriculum_master_feature import (
+            curriculum_master_v27_enabled,
+            curriculum_master_v27_runtime,
+        )
+
+    if not curriculum_master_v27_enabled():
+        return None
+
+    runtime = curriculum_master_v27_runtime()
+    route = runtime.resolve_route(f"G{grade}", **_runtime_route_kwargs(grade, version))
+    standard_skills = runtime.load_standard_skills(route)
+    micro_skills = runtime.load_micro_skills(route)
+
+    micro_by_skill: dict[str, list[MasterMicroSkill]] = {}
+    for micro in micro_skills:
+        micro_by_skill.setdefault(micro.parent_skill_id, []).append(MasterMicroSkill(
+            micro_skill_id=micro.micro_skill_id,
+            parent_skill_id=micro.parent_skill_id,
+            question_type=micro.question_type,
+            focus=micro.focus,
+            difficulty=str(micro.difficulty),
+        ))
+
+    skills = tuple(MasterSkill(
+        skill_id=skill.skill_id,
+        official_code=skill.official_code,
+        main_unit=skill.main_unit,
+        subunit=skill.subunit,
+        skill_name=skill.skill_name,
+        focus=skill.focus,
+        difficulty=str(skill.difficulty),
+        micro_skills=tuple(micro_by_skill.get(skill.skill_id, ())),
+    ) for skill in standard_skills)
+
+    units_path = root / "publisher_units.csv"
+    units = _rows("publisher_units.csv", root) if units_path.exists() else []
+    return MasterCatalog(tuple(units), skills, ())
+
+
+def load_g8_master_catalog() -> MasterCatalog:
+    """Load G8 publisher crosswalk with canonical data from selected runtime."""
+    selected = _runtime_master_catalog(8, "康軒", root=ROOT)
+    if selected is None:
+        selected = _local_master_catalog(ROOT)
+    units = list(selected.publisher_units)
+    return MasterCatalog(selected.publisher_units, selected.skills, _build_mappings(units, selected.skills))
+
+
+def load_master_catalog(grade: int, version: str) -> MasterCatalog:
+    """Load one route through the production source selector.
+
+    The local pack remains available for rollback; while v2.7 is enabled,
+    canonical skills/micro-skills always enter through
+    ``curriculum_master_v27_runtime()``.
+    """
+    root = GRADE_PACK_ROUTES.get((grade, version))
+    if root is None or not root.is_dir():
+        raise ValueError(f"unsupported Master Curriculum route: G{grade} {version}")
+    selected = _runtime_master_catalog(grade, version, root=root)
+    return selected if selected is not None else _local_master_catalog(root)
 
 
 __all__ = ["MasterCatalog", "MasterMicroSkill", "MasterSkill", "PublisherSkillMapping",
