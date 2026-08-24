@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/curriculum-runtime-v0.9
+      - test/curriculum-supabase-shadow-v0.9
   pull_request:
     branches:
       - main
@@ -46,4 +47,4 @@ jobs:
             tests.test_self_built_exam_curriculum \
             tests.test_g8_master_curriculum
 
-# Feature-branch integration gate. Draft PR is CI-only and must not be merged.
+# Release-candidate integration gate. CI-only until activation is explicitly approved.
