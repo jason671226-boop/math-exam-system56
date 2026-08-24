@@ -20,7 +20,6 @@ from stage5_g8_scope_mapping import (
     _prompt,
     _read_json,
     _read_jsonl,
-    _response_json,
     _scope_catalog,
     _scope_review_status,
     _validate_scope_result,
@@ -38,6 +37,77 @@ def _existing_results(path: Path) -> list[dict[str, Any]]:
     return _read_jsonl(path)
 
 
+def _strip_json_fence(text: str) -> str:
+    value = str(text or "").strip()
+    if value.startswith("```"):
+        value = value.split("\n", 1)[1] if "\n" in value else value
+        if value.endswith("```"):
+            value = value[:-3]
+        value = value.strip()
+        if value.lower().startswith("json"):
+            value = value[4:].lstrip("\n ")
+    return value
+
+
+def _repair_invalid_json_backslashes(value: str) -> str:
+    """Escape only backslashes that are illegal in JSON strings.
+
+    Gemini may emit math text such as \sqrt directly inside a JSON string. JSON
+    interprets \s as an invalid escape. Preserve valid JSON escapes, including
+    proper \uXXXX sequences, and double only invalid math-style backslashes.
+    """
+    out: list[str] = []
+    i = 0
+    hexchars = set("0123456789abcdefABCDEF")
+    while i < len(value):
+        ch = value[i]
+        if ch != "\\":
+            out.append(ch)
+            i += 1
+            continue
+
+        if i + 1 >= len(value):
+            out.append("\\\\")
+            i += 1
+            continue
+
+        nxt = value[i + 1]
+        if nxt in '"\\/bfnrt':
+            out.append("\\")
+            out.append(nxt)
+            i += 2
+            continue
+
+        if nxt == "u" and i + 5 < len(value) and all(c in hexchars for c in value[i + 2 : i + 6]):
+            out.append(value[i : i + 6])
+            i += 6
+            continue
+
+        out.append("\\\\")
+        i += 1
+
+    return "".join(out)
+
+
+def _response_json_resilient(text: str) -> Any:
+    value = _strip_json_fence(text)
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError as first_error:
+        repaired = _repair_invalid_json_backslashes(value)
+        if repaired == value:
+            raise
+        try:
+            parsed = json.loads(repaired)
+            print(
+                "JSON_REPAIR: repaired invalid math backslash escape from Gemini "
+                f"({first_error.msg} at line {first_error.lineno} column {first_error.colno})"
+            )
+            return parsed
+        except json.JSONDecodeError:
+            raise first_error
+
+
 def run_mapping(output: Path, model: str) -> dict[str, Any]:
     packets = _read_jsonl(output / "g8_mapping_input.jsonl")
     skills = _read_json(output / "g8_curriculum_skills.json")
@@ -52,13 +122,14 @@ def run_mapping(output: Path, model: str) -> dict[str, Any]:
     packet_fps = [str(row.get("fingerprint") or "") for row in packets]
     if not all(packet_fps) or len(packet_fps) != len(set(packet_fps)):
         raise RuntimeError("Input packets contain blank or duplicate fingerprints")
+    packet_fp_set = set(packet_fps)
 
     results_path = output / "g8_scope_mapping_results.jsonl"
     existing_rows = _existing_results(results_path)
     existing: dict[str, dict[str, Any]] = {}
     for row in existing_rows:
         fp = str(row.get("fingerprint") or "")
-        if not fp or fp not in set(packet_fps):
+        if not fp or fp not in packet_fp_set:
             raise RuntimeError("Existing checkpoint contains an unknown/blank fingerprint")
         if fp in existing:
             raise RuntimeError("Existing checkpoint contains duplicate fingerprints")
@@ -76,7 +147,7 @@ def run_mapping(output: Path, model: str) -> dict[str, Any]:
                 continue
 
             response = client.models.generate_content(model=model, contents=_prompt(packet, scope_catalog))
-            parsed = _response_json(getattr(response, "text", ""))
+            parsed = _response_json_resilient(getattr(response, "text", ""))
             parsed["fingerprint"] = fp
             parsed["model"] = model
             parsed["review_status"] = _scope_review_status(parsed)
