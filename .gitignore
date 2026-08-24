@@ -2,6 +2,9 @@
 app/.streamlit/secrets.toml
 .streamlit/secrets.toml
 
+# Local backup destination configuration must never be committed.
+.mathai_backup_target.txt
+
 # Python/runtime artifacts.
 __pycache__/
 *.py[cod]
