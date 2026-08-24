@@ -38,6 +38,7 @@ jobs:
         run: |
           python -m unittest \
             tests.test_curriculum_supabase_runtime \
+            tests.test_curriculum_supabase_runtime_cache \
             tests.test_curriculum_shadow_runtime_v27 \
             tests.test_curriculum_production_cutover \
             tests.test_curriculum_production_wiring \
