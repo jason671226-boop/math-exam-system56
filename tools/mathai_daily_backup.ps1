@@ -19,10 +19,19 @@ function Get-RepoRoot {
     Push-Location $here
     try {
         $root = (& git rev-parse --show-toplevel 2>$null).Trim()
-        if (-not $root) { throw "C:\MathAI 目前不是可辨識的 Git repository。" }
+        if (-not $root) { throw "C:\MathAI is not a recognized Git repository." }
         return (Resolve-Path $root).Path
     }
     finally { Pop-Location }
+}
+
+function Get-RelativePathCompat([string]$Root, [string]$FullName) {
+    $rootPath = (Resolve-Path -LiteralPath $Root).Path.TrimEnd('\') + '\'
+    $fullPath = (Resolve-Path -LiteralPath $FullName).Path
+    if ($fullPath.StartsWith($rootPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $fullPath.Substring($rootPath.Length)
+    }
+    return (Split-Path -Leaf $fullPath)
 }
 
 function Test-ExcludedPath([string]$RelativePath) {
@@ -38,7 +47,6 @@ function Test-ExcludedPath([string]$RelativePath) {
     }
     if ($p -match '(^|\\)backup(s)?(\\|$)') { return $true }
     if ($p -match '(^|\\)\.streamlit\\secrets\.toml$') { return $true }
-    if ($p -match '(^|\\)app\\\.streamlit\\secrets\.toml$') { return $true }
     if ($p -match '(^|\\)\.env($|\.)') { return $true }
     if ($p -match '(^|\\)(credentials|token)(\.json)?$') { return $true }
     if ($p -match 'service[-_]?account.*\.json$') { return $true }
@@ -52,7 +60,7 @@ function Get-BackupFiles([string]$Root) {
     $included = New-Object System.Collections.Generic.List[object]
     $excluded = New-Object System.Collections.Generic.List[object]
     foreach ($file in $files) {
-        $rel = [IO.Path]::GetRelativePath($Root, $file.FullName)
+        $rel = Get-RelativePathCompat $Root $file.FullName
         if (Test-ExcludedPath $rel) { $excluded.Add($file) } else { $included.Add($file) }
     }
     return [pscustomobject]@{ Included = $included; Excluded = $excluded }
@@ -69,7 +77,7 @@ function Find-GoogleDriveTarget([string]$Root, [string]$ExplicitTarget) {
 
     if ($env:MATHAI_BACKUP_DIR) { return $env:MATHAI_BACKUP_DIR }
 
-    $names = @('My Drive', '我的雲端硬碟', 'Google Drive', 'Google 雲端硬碟')
+    $names = @('My Drive', 'Google Drive')
     $candidates = New-Object System.Collections.Generic.List[string]
     foreach ($name in $names) {
         $candidates.Add((Join-Path $env:USERPROFILE $name))
@@ -120,9 +128,10 @@ if (-not $includedBytes) { $includedBytes = 0 }
 $excludedBytes = [long](($fileSets.Excluded | Measure-Object -Property Length -Sum).Sum)
 if (-not $excludedBytes) { $excludedBytes = 0 }
 $targetRoot = Find-GoogleDriveTarget $repoRoot $BackupTarget
-$looksCloud = ($targetRoot -notlike (Join-Path $env:USERPROFILE 'MathAI_Backups_Local*'))
+$fallbackRoot = Join-Path $env:USERPROFILE 'MathAI_Backups_Local'
+$looksCloud = (-not $targetRoot.StartsWith($fallbackRoot, [System.StringComparison]::OrdinalIgnoreCase))
 
-Write-Section 'MathAI 每日備份盤點'
+Write-Section 'MathAI Daily Backup Audit'
 Write-Host "Repo          : $repoRoot"
 Write-Host "Branch        : $($git.branch)"
 Write-Host "Commit        : $($git.commit)"
@@ -133,13 +142,13 @@ Write-Host "Excluded files: $($fileSets.Excluded.Count)"
 Write-Host "Excluded size : $(Format-Bytes $excludedBytes)"
 Write-Host "Backup target : $targetRoot"
 Write-Host "Cloud detected: $looksCloud"
-Write-Host "14份粗估上限 : $(Format-Bytes ($includedBytes * [long]$MaxBackups))"
+Write-Host "Max raw x $MaxBackups : $(Format-Bytes ($includedBytes * [long]$MaxBackups))"
 
 if ($AuditOnly) {
     Write-Host ""
-    Write-Host 'AUDIT ONLY：沒有建立 ZIP，也沒有修改任何專案檔案。' -ForegroundColor Yellow
+    Write-Host 'AUDIT ONLY: no ZIP created and no project data modified.' -ForegroundColor Yellow
     if (-not $looksCloud) {
-        Write-Host '尚未偵測到 Google Drive 同步路徑；正式備份前可用 .mathai_backup_target.txt 指定。' -ForegroundColor Yellow
+        Write-Host 'Google Drive sync path not detected yet. This is OK for the audit.' -ForegroundColor Yellow
     }
     exit 0
 }
@@ -160,10 +169,10 @@ if (Test-Path $tempRoot) { Remove-Item -Recurse -Force $tempRoot }
 New-Item -ItemType Directory -Force -Path $payload | Out-Null
 
 try {
-    Write-Section '建立換機備份包'
+    Write-Section 'Creating MathAI restore package'
     $n = 0
     foreach ($file in $fileSets.Included) {
-        $rel = [IO.Path]::GetRelativePath($repoRoot, $file.FullName)
+        $rel = Get-RelativePathCompat $repoRoot $file.FullName
         $dest = Join-Path $payload $rel
         $parent = Split-Path -Parent $dest
         if ($parent) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
@@ -184,20 +193,20 @@ try {
         backup_target = $targetRoot
         cloud_target_detected = $looksCloud
         secrets_included = $false
-        note = 'Local secrets/API keys are intentionally excluded. Restore them from Streamlit Cloud/password manager, not from this ZIP.'
+        note = 'Local secrets and API keys are intentionally excluded.'
     }
     $manifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
 
     @"
-MathAI 換機備份
+MathAI restore package
 
-1. 正式程式碼優先從 GitHub clone：$($git.remote)
-2. 此 ZIP 用來補回未追蹤資料、文件、資料包與本機工作成果。
-3. .venv / cache / .git 未收錄；新電腦請重新建立虛擬環境。
-4. secrets.toml / .env / credentials / token 未收錄，避免 API Key 明文進雲端。
-5. 目前備份 branch：$($git.branch)
-6. 目前 commit：$($git.commit)
-7. 還原後先執行 requirements 安裝與 smoke tests，再開始開發。
+1. Clone official source code from GitHub: $($git.remote)
+2. Use this ZIP to restore local work files, documents, data packages and untracked work.
+3. .venv, cache and .git are intentionally excluded.
+4. secrets.toml, .env, credentials and tokens are intentionally excluded.
+5. Backup branch: $($git.branch)
+6. Backup commit: $($git.commit)
+7. Reinstall requirements and run smoke tests before resuming development.
 "@ | Set-Content -LiteralPath $restorePath -Encoding UTF8
 
     if (Test-Path $zipPath) { Remove-Item -Force $zipPath }
@@ -205,7 +214,6 @@ MathAI 換機備份
     $hash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash
     "$hash  $(Split-Path -Leaf $zipPath)" | Set-Content -LiteralPath $shaPath -Encoding ASCII
 
-    # Simple capacity-safe retention: keep the newest N backup ZIPs and matching checksums.
     $backups = @(Get-ChildItem -LiteralPath $targetRoot -Filter 'MathAI_Backup_*.zip' -File | Sort-Object LastWriteTime -Descending)
     if ($backups.Count -gt $MaxBackups) {
         foreach ($old in $backups[$MaxBackups..($backups.Count - 1)]) {
@@ -216,15 +224,18 @@ MathAI 換機備份
     }
 
     $zipBytes = (Get-Item -LiteralPath $zipPath).Length
-    $allZipBytes = [long]((Get-ChildItem -LiteralPath $targetRoot -Filter 'MathAI_Backup_*.zip' -File | Measure-Object Length -Sum).Sum)
+    $retained = @(Get-ChildItem -LiteralPath $targetRoot -Filter 'MathAI_Backup_*.zip' -File)
+    $allZipBytes = [long](($retained | Measure-Object Length -Sum).Sum)
+    if (-not $allZipBytes) { $allZipBytes = 0 }
+
     Write-Host ""
     Write-Host 'BACKUP PASS' -ForegroundColor Green
     Write-Host "ZIP           : $zipPath"
     Write-Host "ZIP size      : $(Format-Bytes $zipBytes)"
-    Write-Host "Retained ZIPs : $((Get-ChildItem -LiteralPath $targetRoot -Filter 'MathAI_Backup_*.zip' -File).Count) / $MaxBackups"
+    Write-Host "Retained ZIPs : $($retained.Count) / $MaxBackups"
     Write-Host "Backup usage  : $(Format-Bytes $allZipBytes)"
     if (-not $looksCloud) {
-        Write-Host '注意：這次只備份到本機 fallback，尚未確認 Google Drive 同步。' -ForegroundColor Yellow
+        Write-Host 'WARNING: backup target is local fallback, not a detected Google Drive path.' -ForegroundColor Yellow
     }
 }
 finally {
