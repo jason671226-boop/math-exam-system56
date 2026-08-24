@@ -88,14 +88,14 @@ def client_fixture():
             "release_id": release, "profile_id": profile, "skill_id": "G06-A",
             "official_code_raw": "N-6-1", "main_unit_id": "M1", "subunit_id": "S1",
             "main_unit": "數", "subunit": "整數", "skill_name": "Skill",
-            "focus": "Focus", "difficulty": 2,
+            "focus": "Focus", "difficulty": 2, "source_order": 1,
         }],
         "curriculum_micro_skills": [{
             "release_id": release, "profile_id": profile, "micro_skill_id": "G06-A-M1",
             "parent_skill_id": "G06-A", "official_code_raw": "N-6-1",
             "main_unit_id": "M1", "subunit_id": "S1", "skill_name": "Skill",
             "question_type": "概念", "focus": "Micro", "item_pattern": "p",
-            "common_error": "e", "difficulty": 1,
+            "common_error": "e", "difficulty": 1, "source_order": 1,
         }],
         "curriculum_skill_edges": [
             {"release_id": release, "skill_id": "G06-A", "related_skill_id": "G05-Z", "edge_type": "prerequisite"},
