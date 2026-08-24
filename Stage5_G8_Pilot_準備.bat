@@ -11,6 +11,8 @@ if exist ".venv\Scripts\python.exe" (
   set "PY=.venv\Scripts\python.exe"
 ) else if exist "..\.venv\Scripts\python.exe" (
   set "PY=..\.venv\Scripts\python.exe"
+) else if exist "C:\MathAI\.venv\Scripts\python.exe" (
+  set "PY=C:\MathAI\.venv\Scripts\python.exe"
 ) else (
   set "PY=python"
 )
