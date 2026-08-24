@@ -7,12 +7,13 @@ Selection policy:
 
 Safety:
 - Reads local Stage 5B pilot artifacts only.
-- Writes only under .local/stage5_g8_mapping_pilot/diverse20.
+- Writes only under .local/stage5_g8_mapping_pilot/<target-name>.
 - No Supabase/network/database access.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import shutil
 from collections import defaultdict
@@ -21,7 +22,6 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / ".local" / "stage5_g8_mapping_pilot"
-TARGET = SOURCE / "diverse20"
 
 
 def _read_json(path: Path) -> Any:
@@ -82,7 +82,8 @@ def _pick_other_diverse(rows: list[dict[str, Any]], count: int) -> list[dict[str
     return selected
 
 
-def main() -> int:
+def build(target_name: str) -> dict[str, Any]:
+    target = SOURCE / target_name
     packets = _read_jsonl(SOURCE / "g8_mapping_input.jsonl")
     sample = _read_json(SOURCE / "g8_pilot_sample.json")
     if len(packets) != 200 or len(sample) != 200:
@@ -114,18 +115,18 @@ def main() -> int:
     sample_by_fp = {str(row.get("fingerprint") or ""): row for row in sample}
     selected_sample = [sample_by_fp[fp] for fp in fingerprints]
 
-    if TARGET.exists():
-        shutil.rmtree(TARGET)
-    TARGET.mkdir(parents=True, exist_ok=True)
+    if target.exists():
+        shutil.rmtree(target)
+    target.mkdir(parents=True, exist_ok=True)
 
     for name in ("g8_curriculum_skills.json", "g8_curriculum_micro_skills.json"):
         src = SOURCE / name
         if not src.exists():
             raise RuntimeError(f"Missing required local pilot artifact: {src}")
-        shutil.copy2(src, TARGET / name)
+        shutil.copy2(src, target / name)
 
-    _write_json(TARGET / "g8_pilot_sample.json", selected_sample)
-    _write_jsonl(TARGET / "g8_mapping_input.jsonl", selected)
+    _write_json(target / "g8_pilot_sample.json", selected_sample)
+    _write_jsonl(target / "g8_mapping_input.jsonl", selected)
 
     other_strata = [
         {
@@ -137,6 +138,7 @@ def main() -> int:
     ]
     manifest = {
         "stage": "5B-2A-diverse20",
+        "target_name": target_name,
         "selection": {
             "平方差公式應用": len(selected_square),
             "化簡根式": len(selected_radical),
@@ -147,10 +149,18 @@ def main() -> int:
         "production_reads": 0,
         "production_writes": 0,
     }
-    _write_json(TARGET / "diverse_smoke_manifest.json", manifest)
+    _write_json(target / "diverse_smoke_manifest.json", manifest)
+    return manifest
 
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Build diversified local-only G8 smoke set")
+    parser.add_argument("--target-name", default="diverse20")
+    args = parser.parse_args()
+    manifest = build(args.target_name)
+    target = SOURCE / args.target_name
     print("DIVERSE20:", json.dumps(manifest, ensure_ascii=False))
-    print(f"Output: {TARGET}")
+    print(f"Output: {target}")
     return 0
 
 
