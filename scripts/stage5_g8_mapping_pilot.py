@@ -1,8 +1,10 @@
 """Stage 5B-2A: local-only G8 question mapping pilot.
 
 Safety guarantees:
-- The Supabase client is used for SELECT only.
+- The Supabase client is used for SELECT-only reads from item_bank.
 - Production project ref is hard-checked before any live read.
+- Curriculum Skills/Micro Skills are loaded from the locally versioned,
+  Stage-4-validated Curriculum Master v2.7 G8 CSV snapshot.
 - No insert/update/delete/upsert/RPC/DDL calls exist in this script.
 - All generated files stay local under .local/stage5_g8_mapping_pilot by default.
 """
@@ -33,12 +35,16 @@ from services.stage5_question_mapping import (
 PRODUCTION_PROJECT_REF = "igttuijrtwbtefhyeokp"
 RELEASE_ID = "CURRICULUM_V27_EA0E6735"
 G8_PROFILE_ID = "CURRICULUM_V27:PREHIGH:G8:COMMON"
+G8_MASTER = ROOT / "data" / "master_curriculum_v2_7" / "grade_packs" / "G8"
 DEFAULT_OUTPUT = ROOT / ".local" / "stage5_g8_mapping_pilot"
 DEFAULT_MODEL = os.getenv("G8_MAPPING_MODEL", "gemini-2.5-flash")
 
 
 def _load_toml_secrets() -> dict[str, Any]:
-    for path in (ROOT / ".streamlit" / "secrets.toml", ROOT / "app" / ".streamlit" / "secrets.toml"):
+    for path in (
+        ROOT / ".streamlit" / "secrets.toml",
+        ROOT / "app" / ".streamlit" / "secrets.toml",
+    ):
         if path.exists():
             with path.open("rb") as handle:
                 data = tomllib.load(handle)
@@ -65,7 +71,7 @@ def _production_supabase_client():
     from supabase import create_client
 
     url = _secret("SUPABASE_URL")
-    key = _secret("SUPABASE_KEY", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY")
+    key = _secret("SUPABASE_KEY", "SUPABASE_ANON_KEY")
     if not url or not key:
         raise RuntimeError("Missing SUPABASE_URL/SUPABASE_KEY in env or .streamlit/secrets.toml")
     if PRODUCTION_PROJECT_REF not in url:
@@ -88,6 +94,73 @@ def _fetch_all(page_factory, page_size: int = 1000) -> list[dict[str, Any]]:
         start += page_size
 
 
+def _read_csv(name: str) -> list[dict[str, Any]]:
+    path = G8_MASTER / name
+    if not path.exists():
+        raise RuntimeError(f"Missing verified local curriculum snapshot: {path}")
+    with path.open(encoding="utf-8-sig", newline="") as handle:
+        return [dict(row) for row in csv.DictReader(handle)]
+
+
+def _read_local_curriculum() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    raw_skills = _read_csv("standard_skills.csv")
+    raw_micros = _read_csv("layer2_micro_skills.csv")
+
+    skills: list[dict[str, Any]] = []
+    for source_order, row in enumerate(raw_skills, 1):
+        skills.append({
+            "release_id": RELEASE_ID,
+            "profile_id": G8_PROFILE_ID,
+            "skill_id": row.get("skill_id", ""),
+            "official_code_raw": row.get("official_code", ""),
+            "main_unit_id": "",
+            "subunit_id": "",
+            "main_unit": row.get("main_unit", ""),
+            "subunit": row.get("subunit", ""),
+            "skill_name": row.get("skill_name", ""),
+            "focus": row.get("focus", ""),
+            "difficulty": int(row.get("difficulty") or 0),
+            "source_order": source_order,
+        })
+
+    micros: list[dict[str, Any]] = []
+    for source_order, row in enumerate(raw_micros, 1):
+        micros.append({
+            "release_id": RELEASE_ID,
+            "profile_id": G8_PROFILE_ID,
+            "micro_skill_id": row.get("micro_skill_id", ""),
+            "parent_skill_id": row.get("parent_skill_id", ""),
+            "official_code_raw": row.get("official_code", ""),
+            "main_unit_id": "",
+            "subunit_id": "",
+            "skill_name": row.get("skill_name", ""),
+            "question_type": row.get("question_type", ""),
+            "focus": row.get("focus", ""),
+            "item_pattern": row.get("item_pattern", ""),
+            "common_error": row.get("common_error", ""),
+            "difficulty": int(row.get("difficulty") or 0),
+            "source_order": source_order,
+        })
+
+    skill_ids = {str(row["skill_id"]) for row in skills}
+    broken_parents = [
+        str(row["micro_skill_id"])
+        for row in micros
+        if str(row.get("parent_skill_id") or "") not in skill_ids
+    ]
+    if broken_parents:
+        raise RuntimeError(
+            "Verified local curriculum snapshot has broken micro-skill parents: "
+            + ", ".join(broken_parents[:10])
+        )
+    if len(skills) != 102 or len(micros) != 660:
+        raise RuntimeError(
+            "G8 curriculum snapshot count mismatch: "
+            f"skills={len(skills)} micros={len(micros)} expected=102/660"
+        )
+    return skills, micros
+
+
 def _read_only_extract() -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     client = _production_supabase_client()
 
@@ -100,27 +173,9 @@ def _read_only_extract() -> tuple[list[dict[str, Any]], list[dict[str, Any]], li
             .range(start, end)
         )
 
-    def skills_page(start: int, end: int):
-        return (
-            client.table("curriculum_skills")
-            .select("release_id,profile_id,skill_id,official_code_raw,main_unit_id,subunit_id,main_unit,subunit,skill_name,focus,difficulty,source_order")
-            .eq("release_id", RELEASE_ID)
-            .eq("profile_id", G8_PROFILE_ID)
-            .order("source_order")
-            .range(start, end)
-        )
-
-    def micros_page(start: int, end: int):
-        return (
-            client.table("curriculum_micro_skills")
-            .select("release_id,profile_id,micro_skill_id,parent_skill_id,official_code_raw,main_unit_id,subunit_id,skill_name,question_type,focus,item_pattern,common_error,difficulty,source_order")
-            .eq("release_id", RELEASE_ID)
-            .eq("profile_id", G8_PROFILE_ID)
-            .order("source_order")
-            .range(start, end)
-        )
-
-    return _fetch_all(item_page), _fetch_all(skills_page), _fetch_all(micros_page)
+    item_rows = _fetch_all(item_page)
+    skills, micros = _read_local_curriculum()
+    return item_rows, skills, micros
 
 
 def _write_json(path: Path, value: Any) -> None:
@@ -178,10 +233,11 @@ def prepare(output: Path, sample_size: int) -> dict[str, Any]:
     _write_csv(output / "g8_pilot_sample.csv", sample, sample_fields)
     manifest = {
         "stage": "5B-2A",
-        "mode": "LOCAL_ONLY_READ_FROM_PRODUCTION",
+        "mode": "PRODUCTION_ITEM_BANK_READ_ONLY_LOCAL_CURRICULUM",
         "production_project_ref": PRODUCTION_PROJECT_REF,
         "release_id": RELEASE_ID,
         "profile_id": G8_PROFILE_ID,
+        "curriculum_source": "LOCAL_STAGE4_VALIDATED_MASTER_V27_G8",
         "raw_rows": len(item_rows),
         "unique_questions": len(unique),
         "sample_size": len(sample),
@@ -249,7 +305,12 @@ def run_mapping(output: Path, model: str, limit: int | None = None) -> dict[str,
             handle.flush()
             written += 1
             print(f"Mapped {index}/{len(packets)} {fingerprint[:10]} {parsed['review_status']}")
-    return {"requested": len(packets), "newly_mapped": written, "total_results": len(_read_jsonl(results_path)), "model": model}
+    return {
+        "requested": len(packets),
+        "newly_mapped": written,
+        "total_results": len(_read_jsonl(results_path)),
+        "model": model,
+    }
 
 
 def validate(output: Path) -> dict[str, Any]:
