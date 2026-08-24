@@ -2,6 +2,9 @@
 setlocal
 cd /d "%~dp0"
 
+rem Gemini 2.5 Flash is no longer available to new users; pin the current Flash model for this pilot.
+set "G8_MAPPING_MODEL=gemini-3.6-flash"
+
 if exist ".venv\Scripts\python.exe" (
   set "PY=.venv\Scripts\python.exe"
 ) else if exist "..\.venv\Scripts\python.exe" (
