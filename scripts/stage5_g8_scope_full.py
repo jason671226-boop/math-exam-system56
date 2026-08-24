@@ -50,7 +50,7 @@ def _strip_json_fence(text: str) -> str:
 
 
 def _repair_invalid_json_backslashes(value: str) -> str:
-    """Escape only backslashes that are illegal in JSON strings.
+    r"""Escape only backslashes that are illegal in JSON strings.
 
     Gemini may emit math text such as \sqrt directly inside a JSON string. JSON
     interprets \s as an invalid escape. Preserve valid JSON escapes, including
