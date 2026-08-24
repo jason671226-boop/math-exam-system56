@@ -88,8 +88,15 @@ def compare_curriculum_route_v27(
             f"profile mismatch ZIP={zip_route.profile_id} DB={db_route.profile_id}"
         )
 
-    zip_skills = _object_map(zip_runtime.load_standard_skills(zip_route), "skill_id")
-    db_skills = _object_map(db_runtime.load_standard_skills(db_route), "skill_id")
+    zip_skill_items = zip_runtime.load_standard_skills(zip_route)
+    db_skill_items = db_runtime.load_standard_skills(db_route)
+    zip_skill_ids = tuple(item.skill_id for item in zip_skill_items)
+    db_skill_ids = tuple(item.skill_id for item in db_skill_items)
+    if zip_skill_ids != db_skill_ids and len(differences) < difference_limit:
+        differences.append("skill order mismatch")
+
+    zip_skills = _object_map(zip_skill_items, "skill_id")
+    db_skills = _object_map(db_skill_items, "skill_id")
     differences.extend(
         _diff_maps(
             "skill",
@@ -99,10 +106,15 @@ def compare_curriculum_route_v27(
         )
     )
 
-    zip_micros = _object_map(
-        zip_runtime.load_micro_skills(zip_route), "micro_skill_id"
-    )
-    db_micros = _object_map(db_runtime.load_micro_skills(db_route), "micro_skill_id")
+    zip_micro_items = zip_runtime.load_micro_skills(zip_route)
+    db_micro_items = db_runtime.load_micro_skills(db_route)
+    zip_micro_ids = tuple(item.micro_skill_id for item in zip_micro_items)
+    db_micro_ids = tuple(item.micro_skill_id for item in db_micro_items)
+    if zip_micro_ids != db_micro_ids and len(differences) < difference_limit:
+        differences.append("micro order mismatch")
+
+    zip_micros = _object_map(zip_micro_items, "micro_skill_id")
+    db_micros = _object_map(db_micro_items, "micro_skill_id")
     differences.extend(
         _diff_maps(
             "micro",
@@ -133,10 +145,10 @@ def compare_curriculum_route_v27(
     return CurriculumShadowReportV27(
         profile_id=zip_route.profile_id,
         matched=not differences,
-        zip_skill_count=len(zip_skills),
-        db_skill_count=len(db_skills),
-        zip_micro_count=len(zip_micros),
-        db_micro_count=len(db_micros),
+        zip_skill_count=len(zip_skill_items),
+        db_skill_count=len(db_skill_items),
+        zip_micro_count=len(zip_micro_items),
+        db_micro_count=len(db_micro_items),
         zip_edge_count=len(zip_edges),
         db_edge_count=len(db_edges),
         scope_rules_match=scope_match,
