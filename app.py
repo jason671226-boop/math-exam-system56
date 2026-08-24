@@ -5328,7 +5328,7 @@ elif st.session_state["setup_complete"]:
                 render_share_buttons(st.session_state["variation_content"], "var_res")
 
     with tab_custom:
-        st.subheader("⚙️ 自組試卷系統 🔒")
+        st.subheader("⚙️ 自組試卷系統")
         st.caption("依學生年級、教材版本、主單元、次單元與題型產生專屬試卷。")
 
         st.info(
@@ -5338,9 +5338,14 @@ elif st.session_state["setup_complete"]:
             "不必每次重新選單元與題型。"
         )
 
-        if is_trial:
+        # Shadow E2E: trial users may exercise the self-built exam UI.
+        # This branch-only switch does not alter production main or auth rules.
+        trial_self_built_enabled = True
+        if is_trial and not trial_self_built_enabled:
             show_trial_conversion_notice()
         else:
+            if is_trial:
+                st.info("🧪 試用模式已開放自組試卷，供 Shadow 驗收使用。")
             user_profile = st.session_state["user_profile"]
             profile_grade_match = re.search(r"(\d+)", str(user_profile.get("grade", "")))
             profile_grade = int(profile_grade_match.group(1)) if profile_grade_match else 8
