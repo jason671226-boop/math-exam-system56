@@ -1,0 +1,44 @@
+name: Refine Shadow auth status
+
+on:
+  push:
+    branches:
+      - test/curriculum-supabase-shadow-v0.9
+    paths:
+      - .github/workflows/refine-shadow-auth-status.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: test/curriculum-supabase-shadow-v0.9
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Patch authenticated Shadow status
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app.py')
+          s = p.read_text(encoding='utf-8')
+          old = '''            # Shadow E2E is observation-only: user-visible curriculum remains local.\n            if exam_grade in (6, 8):\n                try:\n                    _shadow_runtime = curriculum_master_v27_runtime(\n                        supabase_client=supabase_client\n                    )\n                    _shadow_route = _shadow_runtime.resolve_route(\n                        exam_grade, education_system="PREHIGH"\n                    )\n                    _shadow_observation = getattr(\n                        _shadow_runtime, "shadow_observation", lambda _profile_id: None\n                    )(_shadow_route.profile_id)\n                    if _shadow_observation is None:\n                        st.caption(\n                            f"🧪 Shadow G{exam_grade}: 尚未取得旁路觀察結果；畫面仍使用本地課程。"\n                        )\n                    elif _shadow_observation.matched:\n                        st.success(\n                            f"🧪 Shadow G{exam_grade}: ZIP ↔ Supabase parity PASS"\n                        )\n                    else:\n                        st.warning(\n                            f"🧪 Shadow G{exam_grade}: parity 未通過；畫面仍使用本地課程資料。"\n                        )\n                except Exception:\n                    st.warning(\n                        f"🧪 Shadow G{exam_grade}: 無法比對；畫面仍使用本地課程資料。"\n                    )\n\n'''
+          new = '''            # Shadow E2E is observation-only: user-visible curriculum remains local.\n            if exam_grade in (6, 8):\n                _shadow_client = get_private_beta_auth_client(create_if_missing=False)\n                if _shadow_client is None:\n                    st.caption(\n                        f"🧪 Shadow G{exam_grade}: DB 比對需登入；目前試用模式只驗本地課程 UI。"\n                    )\n                else:\n                    try:\n                        _shadow_runtime = curriculum_master_v27_runtime(\n                            supabase_client=_shadow_client\n                        )\n                        _shadow_route = _shadow_runtime.resolve_route(\n                            exam_grade, education_system="PREHIGH"\n                        )\n                        _shadow_observation = getattr(\n                            _shadow_runtime, "shadow_observation", lambda _profile_id: None\n                        )(_shadow_route.profile_id)\n                        if _shadow_observation is None:\n                            st.caption(\n                                f"🧪 Shadow G{exam_grade}: 尚未取得旁路觀察結果；畫面仍使用本地課程。"\n                            )\n                        elif _shadow_observation.matched:\n                            st.success(\n                                f"🧪 Shadow G{exam_grade}: ZIP ↔ Supabase parity PASS"\n                            )\n                        else:\n                            st.warning(\n                                f"🧪 Shadow G{exam_grade}: parity 未通過；畫面仍使用本地課程資料。"\n                            )\n                    except Exception:\n                        st.warning(\n                            f"🧪 Shadow G{exam_grade}: 無法比對；畫面仍使用本地課程資料。"\n                        )\n\n'''
+          if old not in s:
+              raise SystemExit('shadow hook not found')
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+          PY
+      - name: Compile
+        run: python -m py_compile app.py
+      - name: Commit
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.py
+          git commit -m "test: require authenticated client for live Shadow status"
+          git push origin HEAD:test/curriculum-supabase-shadow-v0.9
