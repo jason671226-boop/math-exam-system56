@@ -194,6 +194,12 @@ from ai_service import (
     get_ai_error_message,
 )
 
+# Shadow 測試站：自組試卷 G6/G8 即時旁路比對。
+try:
+    from services.curriculum_master_feature import curriculum_master_v27_runtime
+except ModuleNotFoundError:
+    from app.services.curriculum_master_feature import curriculum_master_v27_runtime
+
 # 嘗試載入 Supabase 套件
 try:
     from supabase import Client, create_client
@@ -5362,6 +5368,35 @@ elif st.session_state["setup_complete"]:
                     format_func=lambda value: f"G{value}",
                     key="custom_exam_grade",
                 )
+            # Shadow E2E is observation-only: user-visible curriculum remains local.
+            if exam_grade in (6, 8):
+                try:
+                    _shadow_runtime = curriculum_master_v27_runtime(
+                        supabase_client=supabase_client
+                    )
+                    _shadow_route = _shadow_runtime.resolve_route(
+                        exam_grade, education_system="PREHIGH"
+                    )
+                    _shadow_observation = getattr(
+                        _shadow_runtime, "shadow_observation", lambda _profile_id: None
+                    )(_shadow_route.profile_id)
+                    if _shadow_observation is None:
+                        st.caption(
+                            f"🧪 Shadow G{exam_grade}: 尚未取得旁路觀察結果；畫面仍使用本地課程。"
+                        )
+                    elif _shadow_observation.matched:
+                        st.success(
+                            f"🧪 Shadow G{exam_grade}: ZIP ↔ Supabase parity PASS"
+                        )
+                    else:
+                        st.warning(
+                            f"🧪 Shadow G{exam_grade}: parity 未通過；畫面仍使用本地課程資料。"
+                        )
+                except Exception:
+                    st.warning(
+                        f"🧪 Shadow G{exam_grade}: 無法比對；畫面仍使用本地課程資料。"
+                    )
+
             version_options = curriculum_versions(exam_grade)
             if profile_publisher not in version_options:
                 profile_publisher = version_options[0]
