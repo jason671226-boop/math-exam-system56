@@ -23,13 +23,13 @@ ACTIVATION_GATE = "activation_gate"
 def curriculum_source_v27() -> str:
     """Return the requested curriculum source mode.
 
-    Production defaults to ``auto``.  Auto mode is deliberately conservative:
-    it uses Supabase only when an authenticated client is available *and* the
-    release is active with ``activation_gate=PASS``.  Otherwise it returns the
-    already-validated local v2.7 runtime.  Explicit ``supabase`` remains
-    fail-closed for diagnostics and administrative verification.
+    Production defaults explicitly to ``zip`` so database activation and the
+    user-visible source switch remain two separate, reversible cutover steps.
+    ``auto`` remains available for controlled environments and uses Supabase
+    only when an authenticated client is available, the release is active, and
+    ``activation_gate=PASS``. Explicit ``supabase`` remains fail-closed.
     """
-    value = os.getenv(SOURCE_ENV, SOURCE_AUTO).strip().lower() or SOURCE_AUTO
+    value = os.getenv(SOURCE_ENV, SOURCE_ZIP).strip().lower() or SOURCE_ZIP
     if value not in VALID_SOURCES:
         raise ValueError(f"invalid {SOURCE_ENV}: {value}")
     return value
@@ -76,11 +76,12 @@ def select_curriculum_runtime_v27(
 ) -> Any:
     """Return the user-visible runtime for the selected source mode.
 
-    ``auto`` is the production default and is rollback-safe: an authenticated
-    active release with a passing activation gate uses Supabase; otherwise ZIP
-    stays user-visible.  ``supabase_shadow`` is ZIP-authoritative with read-only
-    parity observation.  Explicit ``supabase`` is fail-closed and raises if any
-    live-cutover requirement is missing.
+    ``zip`` is the production default and keeps DB activation separate from the
+    final source switch. ``auto`` remains rollback-safe: an authenticated active
+    release with a passing activation gate uses Supabase; otherwise ZIP stays
+    user-visible. ``supabase_shadow`` is ZIP-authoritative with read-only parity
+    observation. Explicit ``supabase`` is fail-closed and raises if any live
+    cutover requirement is missing.
     """
     mode = (source or curriculum_source_v27()).strip().lower()
     if mode not in VALID_SOURCES:
