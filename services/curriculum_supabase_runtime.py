@@ -102,12 +102,42 @@ class SupabaseCurriculumRuntime:
         except (TypeError, ValueError):
             return 0
 
+    @classmethod
+    def _ordered_rows(
+        cls,
+        rows: Iterable[Mapping[str, Any]],
+        *,
+        label: str,
+        id_field: str,
+    ) -> list[dict[str, Any]]:
+        decorated: list[tuple[int, str, dict[str, Any]]] = []
+        seen_orders: set[int] = set()
+        for item in rows:
+            row = dict(item)
+            row_id = str(row.get(id_field) or "")
+            order = cls._int(row.get("source_order"))
+            if order <= 0:
+                raise CurriculumDataError(
+                    f"{label} source_order missing/invalid: {row_id or '<unknown>'}"
+                )
+            if order in seen_orders:
+                raise CurriculumDataError(
+                    f"duplicate {label} source_order {order}: {row_id or '<unknown>'}"
+                )
+            seen_orders.add(order)
+            decorated.append((order, row_id, row))
+        decorated.sort(key=lambda value: (value[0], value[1]))
+        return [row for _, _, row in decorated]
+
     def load_standard_skills(self, route: RouteContext) -> tuple[StandardSkill, ...]:
-        rows = self._rows(
-            "curriculum_skills",
-            filters={"release_id": self.release_id, "profile_id": route.profile_id},
+        rows = self._ordered_rows(
+            self._rows(
+                "curriculum_skills",
+                filters={"release_id": self.release_id, "profile_id": route.profile_id},
+            ),
+            label="skill",
+            id_field="skill_id",
         )
-        rows.sort(key=lambda r: (str(r.get("main_unit_id") or ""), str(r.get("subunit_id") or ""), str(r.get("skill_id") or "")))
         return tuple(
             StandardSkill(
                 str(r.get("skill_id") or ""),
@@ -122,11 +152,14 @@ class SupabaseCurriculumRuntime:
         )
 
     def load_micro_skills(self, route: RouteContext) -> tuple[MicroSkill, ...]:
-        rows = self._rows(
-            "curriculum_micro_skills",
-            filters={"release_id": self.release_id, "profile_id": route.profile_id},
+        rows = self._ordered_rows(
+            self._rows(
+                "curriculum_micro_skills",
+                filters={"release_id": self.release_id, "profile_id": route.profile_id},
+            ),
+            label="micro skill",
+            id_field="micro_skill_id",
         )
-        rows.sort(key=lambda r: (str(r.get("parent_skill_id") or ""), str(r.get("micro_skill_id") or "")))
         parents = {skill.skill_id: skill for skill in self.load_standard_skills(route)}
         result = []
         for r in rows:
@@ -190,7 +223,22 @@ class SupabaseCurriculumRuntime:
 
     def load_skill_edges(self, route: RouteContext) -> tuple[tuple[str, str, str], ...]:
         skill_ids = {x.skill_id for x in self.load_standard_skills(route)}
-        rows = self._rows("curriculum_skill_edges", filters={"release_id": self.release_id})
+        if not skill_ids:
+            return ()
+        query = (
+            self.client.table("curriculum_skill_edges")
+            .select("*")
+            .eq("release_id", self.release_id)
+        )
+        in_filter = getattr(query, "in_", None)
+        if callable(in_filter):
+            response = in_filter("skill_id", sorted(skill_ids)).execute()
+            rows = [dict(row) for row in (getattr(response, "data", None) or [])]
+        else:
+            rows = self._rows(
+                "curriculum_skill_edges",
+                filters={"release_id": self.release_id},
+            )
         edges = {
             (
                 str(r.get("skill_id") or ""),
