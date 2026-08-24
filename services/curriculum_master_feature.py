@@ -17,12 +17,19 @@ _SHADOW_RUNTIME_CACHE: dict[int, tuple[Any, Any]] = {}
 
 
 def curriculum_master_v27_enabled() -> bool:
-    return os.getenv(ENV_FLAG, "").strip().lower() in {"1", "true", "yes", "on"}
+    """Whether the v2.7 curriculum layer is enabled.
+
+    Production cutover defaults this feature on.  Rollback remains explicit and
+    deterministic: setting ``CURRICULUM_MASTER_V27_ENABLED=0`` returns the
+    legacy learning-map path, while the source selector itself can independently
+    fall back to the validated local v2.7 runtime.
+    """
+    return os.getenv(ENV_FLAG, "1").strip().lower() in {"1", "true", "yes", "on"}
 
 
 @lru_cache(maxsize=1)
 def curriculum_master_v27() -> CurriculumMasterRuntime:
-    """Return the validated ZIP runtime. Existing callers keep this behavior."""
+    """Return the validated local runtime used as the production fallback."""
     runtime = CurriculumMasterRuntime()
     if runtime.validate().get("release_gate") != "PASS":
         raise RuntimeError("Curriculum Master v2.7 release gate is not PASS")
@@ -44,11 +51,12 @@ def curriculum_master_v27_runtime(
     *,
     shadow_report_sink: Callable[[ShadowObservationV27], None] | None = None,
 ) -> Any:
-    """Return the user-visible runtime selected by CURRICULUM_MASTER_V27_SOURCE.
+    """Return the user-visible v2.7 runtime.
 
-    Default is ZIP. Shadow mode remains ZIP-authoritative while optionally
-    running read-only Supabase parity checks. Supabase becomes user-visible only
-    after the explicit active + activation-gate cutover.
+    Default source mode is ``auto``: signed-in sessions use Supabase only after
+    the release is active and the activation gate passes; trial/anonymous or
+    degraded sessions keep using the validated local v2.7 release.  Explicit
+    shadow mode stays ZIP-authoritative and is cached per authenticated client.
     """
     source = curriculum_source_v27()
     client = supabase_client if supabase_client is not None else _session_supabase_client()
