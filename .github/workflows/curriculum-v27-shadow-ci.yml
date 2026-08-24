@@ -5,6 +5,7 @@ on:
     branches:
       - feature/curriculum-runtime-v0.9
       - release/curriculum-v27-production-cutover
+      - fix/curriculum-v27-production-wiring
   pull_request:
     branches:
       - main
@@ -39,6 +40,7 @@ jobs:
             tests.test_curriculum_supabase_runtime \
             tests.test_curriculum_shadow_runtime_v27 \
             tests.test_curriculum_production_cutover \
+            tests.test_curriculum_production_wiring \
             tests.test_curriculum_master_feature \
             tests.test_learning_map_entry_v27 \
             tests.test_learning_map_provider_v27 \
