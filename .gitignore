@@ -6,3 +6,6 @@ app/.streamlit/secrets.toml
 __pycache__/
 *.py[cod]
 *.log
+
+# Stage 5 local-only pilot snapshots and AI mapping outputs.
+.local/
