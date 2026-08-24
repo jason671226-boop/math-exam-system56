@@ -5370,32 +5370,38 @@ elif st.session_state["setup_complete"]:
                 )
             # Shadow E2E is observation-only: user-visible curriculum remains local.
             if exam_grade in (6, 8):
-                try:
-                    _shadow_runtime = curriculum_master_v27_runtime(
-                        supabase_client=supabase_client
+                _shadow_client = get_private_beta_auth_client(create_if_missing=False)
+                if _shadow_client is None:
+                    st.caption(
+                        f"🧪 Shadow G{exam_grade}: DB 比對需登入；目前試用模式只驗本地課程 UI。"
                     )
-                    _shadow_route = _shadow_runtime.resolve_route(
-                        exam_grade, education_system="PREHIGH"
-                    )
-                    _shadow_observation = getattr(
-                        _shadow_runtime, "shadow_observation", lambda _profile_id: None
-                    )(_shadow_route.profile_id)
-                    if _shadow_observation is None:
-                        st.caption(
-                            f"🧪 Shadow G{exam_grade}: 尚未取得旁路觀察結果；畫面仍使用本地課程。"
+                else:
+                    try:
+                        _shadow_runtime = curriculum_master_v27_runtime(
+                            supabase_client=_shadow_client
                         )
-                    elif _shadow_observation.matched:
-                        st.success(
-                            f"🧪 Shadow G{exam_grade}: ZIP ↔ Supabase parity PASS"
+                        _shadow_route = _shadow_runtime.resolve_route(
+                            exam_grade, education_system="PREHIGH"
                         )
-                    else:
+                        _shadow_observation = getattr(
+                            _shadow_runtime, "shadow_observation", lambda _profile_id: None
+                        )(_shadow_route.profile_id)
+                        if _shadow_observation is None:
+                            st.caption(
+                                f"🧪 Shadow G{exam_grade}: 尚未取得旁路觀察結果；畫面仍使用本地課程。"
+                            )
+                        elif _shadow_observation.matched:
+                            st.success(
+                                f"🧪 Shadow G{exam_grade}: ZIP ↔ Supabase parity PASS"
+                            )
+                        else:
+                            st.warning(
+                                f"🧪 Shadow G{exam_grade}: parity 未通過；畫面仍使用本地課程資料。"
+                            )
+                    except Exception:
                         st.warning(
-                            f"🧪 Shadow G{exam_grade}: parity 未通過；畫面仍使用本地課程資料。"
+                            f"🧪 Shadow G{exam_grade}: 無法比對；畫面仍使用本地課程資料。"
                         )
-                except Exception:
-                    st.warning(
-                        f"🧪 Shadow G{exam_grade}: 無法比對；畫面仍使用本地課程資料。"
-                    )
 
             version_options = curriculum_versions(exam_grade)
             if profile_publisher not in version_options:
