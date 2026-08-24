@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from services.curriculum_source_v27 import (
     SOURCE_AUTO,
+    SOURCE_ZIP,
     curriculum_source_v27,
     select_curriculum_runtime_v27,
 )
@@ -14,16 +15,16 @@ from tests.test_curriculum_supabase_runtime import ZipRuntime, fixture
 
 
 class CurriculumProductionCutoverTests(unittest.TestCase):
-    def test_default_source_is_auto(self):
+    def test_default_source_is_zip_until_explicit_cutover(self):
         with patch.dict(os.environ, {}, clear=True):
-            self.assertEqual(curriculum_source_v27(), SOURCE_AUTO)
+            self.assertEqual(curriculum_source_v27(), SOURCE_ZIP)
 
     def test_auto_inactive_release_keeps_zip(self):
         zip_runtime = ZipRuntime()
         selected = select_curriculum_runtime_v27(
             zip_runtime,
             fixture("verified", False, "FAIL"),
-            source="auto",
+            source=SOURCE_AUTO,
         )
         self.assertIs(selected, zip_runtime)
 
@@ -32,7 +33,7 @@ class CurriculumProductionCutoverTests(unittest.TestCase):
         selected = select_curriculum_runtime_v27(
             zip_runtime,
             fixture("active", True, "PASS"),
-            source="auto",
+            source=SOURCE_AUTO,
         )
         self.assertIsInstance(selected, SupabaseCurriculumRuntime)
         self.assertEqual(selected.validate()["source"], "supabase")
@@ -41,7 +42,7 @@ class CurriculumProductionCutoverTests(unittest.TestCase):
     def test_auto_missing_client_keeps_zip(self):
         zip_runtime = ZipRuntime()
         self.assertIs(
-            select_curriculum_runtime_v27(zip_runtime, None, source="auto"),
+            select_curriculum_runtime_v27(zip_runtime, None, source=SOURCE_AUTO),
             zip_runtime,
         )
 
@@ -52,7 +53,7 @@ class CurriculumProductionCutoverTests(unittest.TestCase):
 
         zip_runtime = ZipRuntime()
         self.assertIs(
-            select_curriculum_runtime_v27(zip_runtime, BrokenClient(), source="auto"),
+            select_curriculum_runtime_v27(zip_runtime, BrokenClient(), source=SOURCE_AUTO),
             zip_runtime,
         )
 
