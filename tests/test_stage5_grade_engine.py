@@ -14,6 +14,8 @@ from scripts import stage5_grade_foundation as engine
 def test_config_load_and_dynamic_statuses(grade):
     config = load_grade_config(grade)
     assert config.grade == grade
+    assert config.target_id == grade
+    assert config.profile is None
     assert config.curriculum_dir.is_dir()
     assert config.in_scope_status == f"IN_SCOPE_{grade}"
     assert config.out_scope_status == f"OUT_OF_SCOPE_{grade}"
@@ -22,6 +24,60 @@ def test_config_load_and_dynamic_statuses(grade):
 def test_unknown_grade_fails_closed():
     with pytest.raises(ValueError, match="UNKNOWN_GRADE"):
         load_grade_config("G13")
+
+
+@pytest.mark.parametrize("target,grade,profile", [
+    ("G11_A", "G11", "A"), ("G11_B", "G11", "B"),
+    ("G12_A", "G12", "A"), ("G12_B", "G12", "B")])
+def test_profile_target_load_and_path_isolation(target, grade, profile):
+    config = load_grade_config(target)
+    assert config.target_id == target
+    assert config.grade == grade and config.profile == profile
+    assert config.curriculum_dir.name == target
+    assert config.local_output_dir.name == f"stage5_{target.lower()}_mapping_pilot"
+    assert config.in_scope_status.endswith(target)
+
+
+def test_profile_catalogs_are_isolated():
+    for grade in ("G11", "G12"):
+        a = load_grade_config(f"{grade}_A")
+        b = load_grade_config(f"{grade}_B")
+        assert a.curriculum_dir != b.curriculum_dir
+        assert a.local_output_dir != b.local_output_dir
+        assert a.in_scope_status != b.in_scope_status
+
+
+@pytest.mark.parametrize("aggregate", ["G11", "G12"])
+def test_aggregate_mapping_target_forbidden(aggregate):
+    with pytest.raises(ValueError, match="PROFILE_REQUIRED"):
+        load_grade_config(aggregate)
+
+
+def test_g10_backward_compatibility():
+    alias = load_grade_config("G10")
+    canonical = load_grade_config("G10_GENERAL")
+    assert alias == canonical
+    assert alias.grade == "G10" and alias.profile == "GENERAL"
+
+
+@pytest.mark.parametrize("target", ["G11_C", "G12_GENERAL", "G10_A"])
+def test_invalid_profile_fails_closed(target):
+    with pytest.raises(ValueError, match="UNKNOWN_GRADE"):
+        load_grade_config(target)
+
+
+@pytest.mark.parametrize("target", ["G10_GENERAL", "G11_A", "G11_B", "G12_A", "G12_B"])
+def test_profile_offline_audit_uses_no_gemini_and_zero_production(target, tmp_path, monkeypatch):
+    config = replace(load_grade_config(target), local_output_dir=tmp_path / target)
+    monkeypatch.setattr(engine, "gemini_api_key",
+                        lambda unused: pytest.fail("offline command attempted Gemini key access"))
+    audit = engine.curriculum_audit(config)
+    inventory = engine.inventory(config)
+    coverage = engine.coverage(config)
+    assert audit["curriculum_integrity"] == "PASS"
+    assert audit["target_id"] == target
+    for result in (audit, inventory, coverage):
+        assert result["production_reads"] == result["production_writes"] == 0
 
 
 def test_missing_curriculum_fails_closed(tmp_path):

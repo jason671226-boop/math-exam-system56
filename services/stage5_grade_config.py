@@ -12,7 +12,9 @@ PACK_ROOT = ROOT / "data/master_curriculum_v2_7/grade_packs"
 
 @dataclass(frozen=True)
 class GradeConfig:
+    target_id: str
     grade: str
+    profile: str | None
     grade_label: str
     curriculum_dir: Path
     local_output_dir: Path
@@ -27,23 +29,21 @@ class GradeConfig:
     upper_scope_hint: str = "clearly above the configured grade curriculum"
 
 
-def _pack_dir(grade: str) -> Path:
-    direct = PACK_ROOT / grade
-    if direct.is_dir():
-        return direct
-    alternatives = sorted(PACK_ROOT.glob(f"{grade}_*"))
-    if len(alternatives) == 1:
-        return alternatives[0]
-    return direct
+TARGET_PATTERN = re.compile(r"G(?:[1-9]|10_GENERAL|11_[AB]|12_[AB])")
 
 
 def load_grade_config(grade: str) -> GradeConfig:
     normalized = str(grade or "").strip().upper()
-    if not re.fullmatch(r"G(?:[1-9]|1[0-2])", normalized):
+    if normalized == "G10":
+        normalized = "G10_GENERAL"
+    if normalized in {"G11", "G12"}:
+        raise ValueError(f"PROFILE_REQUIRED:{normalized}")
+    if not TARGET_PATTERN.fullmatch(normalized):
         raise ValueError(f"UNKNOWN_GRADE:{normalized or '<blank>'}")
-    curriculum = _pack_dir(normalized)
+    curriculum = PACK_ROOT / normalized
     if not curriculum.is_dir():
         raise FileNotFoundError(f"CURRICULUM_PACK_NOT_FOUND:{normalized}")
+    grade_id, _, profile = normalized.partition("_")
     lower = normalized.lower()
     sources = tuple(sorted((ROOT / "data").glob(f"diagnostic_questions_{lower}_*.json")))
     secret_paths = (
@@ -53,7 +53,9 @@ def load_grade_config(grade: str) -> GradeConfig:
         Path(r"C:\MathAI\app\.streamlit\secrets.toml"),
     )
     return GradeConfig(
-        grade=normalized,
+        target_id=normalized,
+        grade=grade_id,
+        profile=profile or None,
         grade_label=f"Taiwan {normalized} mathematics",
         curriculum_dir=curriculum,
         local_output_dir=ROOT / f".local/stage5_{lower}_mapping_pilot",

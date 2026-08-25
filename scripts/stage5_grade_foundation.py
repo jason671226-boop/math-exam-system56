@@ -77,7 +77,7 @@ def environment_audit(config: GradeConfig) -> dict[str, Any]:
                             capture_output=True, text=True).stdout.strip()
     result = {"workspace": str(cwd), "branch": branch,
               "workspace_pass": cwd == ROOT.resolve(),
-              "branch_pass": branch in {"stage5/generic-grade-engine", f"stage5/{config.grade.lower()}-mapping-pilot"},
+              "branch_pass": branch in {"stage5/generic-grade-engine", f"stage5/{config.target_id.lower()}-mapping-pilot"},
               "production_reads": 0, "production_writes": 0}
     result["environment_integrity"] = "PASS" if result["workspace_pass"] and result["branch_pass"] else "FAIL"
     write_json(config.local_output_dir / "environment_audit.json", result)
@@ -118,7 +118,8 @@ def curriculum_audit(config: GradeConfig) -> dict[str, Any]:
     unit_keys = {(r.get("publisher", ""), r.get("semester", ""), r.get("unit_no", ""), r.get("unit_title", "")) for r in units}
     passed = not any((errors, dup_skills, dup_micros, orphans, invalid_parent, invalid_refs,
                       graph_errors["invalid_nodes"], graph_errors["missing_nodes"], graph_errors["duplicate_nodes"]))
-    result = {"grade": config.grade, "skills": len(skills), "micro_skills": len(micros),
+    result = {"grade": config.grade, "target_id": config.target_id, "profile": config.profile,
+              "skills": len(skills), "micro_skills": len(micros),
               "prerequisite_edges": edges, "publisher_unit_rows": len(units),
               "publisher_units": len(unit_keys),
               "official_curriculum_entries": len(official) if isinstance(official, list) else 0,
@@ -127,7 +128,7 @@ def curriculum_audit(config: GradeConfig) -> dict[str, Any]:
               "invalid_prerequisite_nodes": invalid_refs, "graph_errors": graph_errors,
               "curriculum_parse_errors": errors, "curriculum_integrity": "PASS" if passed else "FAIL",
               "production_reads": 0, "production_writes": 0}
-    write_json(config.local_output_dir / f"{config.grade.lower()}_curriculum_audit.json", result)
+    write_json(config.local_output_dir / f"{config.target_id.lower()}_curriculum_audit.json", result)
     return result
 
 
@@ -148,7 +149,7 @@ def _question_rows(path: Path) -> list[dict[str, Any]]:
 
 def _real_sources(config: GradeConfig) -> tuple[Path, ...]:
     allowed = {p.resolve(): p for p in config.real_question_source_candidates if p.is_file()}
-    for path in (ROOT / "data").glob(f"*{config.grade.lower()}*.json"):
+    for path in (ROOT / "data").glob(f"*{config.target_id.lower()}*.json"):
         if "question" in path.name.lower():
             allowed[path.resolve()] = path
     local_grade = config.local_output_dir / "imports"
@@ -177,13 +178,13 @@ def inventory(config: GradeConfig) -> dict[str, Any]:
                 unique.setdefault(fp, {"fingerprint": fp, "source": path.name})
         sources.append({"path": path.relative_to(ROOT).as_posix(), "question_rows": count})
     total = sum(x["question_rows"] for x in sources)
-    result = {f"REAL_{config.grade}_LOCAL_QUESTION_SOURCE": "AVAILABLE" if unique else "NOT_AVAILABLE",
+    result = {f"REAL_{config.target_id}_LOCAL_QUESTION_SOURCE": "AVAILABLE" if unique else "NOT_AVAILABLE",
               "source_files": sources, "source_question_rows": total, "unique_questions": len(unique),
               "duplicate_questions": total - len(unique), "stage5_skill_mappings_available": False,
               "real_skills_covered": 0, "real_micros_covered": 0,
               "production_reads": 0, "production_writes": 0}
-    write_json(config.local_output_dir / f"{config.grade.lower()}_local_inventory.json", result)
-    write_json(config.local_output_dir / "inventory" / f"{config.grade.lower()}_question_fingerprints.json", list(unique.values()))
+    write_json(config.local_output_dir / f"{config.target_id.lower()}_local_inventory.json", result)
+    write_json(config.local_output_dir / "inventory" / f"{config.target_id.lower()}_question_fingerprints.json", list(unique.values()))
     return result
 
 
@@ -209,12 +210,12 @@ def coverage(config: GradeConfig) -> dict[str, Any]:
                            "micro_covered_count": 0, "skill_coverage_percent": 0.0,
                            "micro_coverage_percent": 0.0,
                            "coverage_status": coverage_status(0, count, 0), "priority": "HIGH",
-                           "recommended_next_action": f"Human-validate local {config.grade} mappings"})
+                           "recommended_next_action": f"Human-validate local {config.target_id} mappings"})
     micro_rows = [{"micro_skill_id": row["micro_skill_id"], "parent_skill_id": row["parent_skill_id"],
                    "skill_name": row["skill_name"], "main_unit": row.get("main_unit", ""),
                    "real_question_count": 0, "coverage_status": "ZERO_COVERAGE", "priority": "HIGH"}
                   for row in micros]
-    out = config.local_output_dir / "coverage"; prefix = config.grade.lower()
+    out = config.local_output_dir / "coverage"; prefix = config.target_id.lower()
     write_csv(out / f"{prefix}_skill_coverage_matrix.csv", skill_rows, list(skill_rows[0]))
     write_json(out / f"{prefix}_skill_coverage_matrix.json", skill_rows)
     write_csv(out / f"{prefix}_micro_coverage_matrix.csv", micro_rows, list(micro_rows[0]))
@@ -439,7 +440,8 @@ def map_set(config: GradeConfig, name: str, generate: Callable[[str, str], str] 
                     break
                 except GeminiQuotaBlocked:
                     quota_result = {
-                        "grade": config.grade, "set": name, "model": MODEL,
+                        "grade": config.grade, "target_id": config.target_id, "profile": config.profile,
+                        "set": name, "model": MODEL,
                         "status": "GEMINI_QUOTA_BLOCKED", "technical_pipeline": "PASS",
                         "external_api_availability": "BLOCKED",
                         "total_questions": len(questions), "completed": len(completed),
@@ -455,7 +457,8 @@ def map_set(config: GradeConfig, name: str, generate: Callable[[str, str], str] 
                         time.sleep(2 ** attempt)
             else:
                 raise RuntimeError(f"MAPPING_FAILED:{type(last_error).__name__}")
-    result = {"grade": config.grade, "set": name, "model": MODEL, "total_questions": len(questions),
+    result = {"grade": config.grade, "target_id": config.target_id, "profile": config.profile,
+              "set": name, "model": MODEL, "total_questions": len(questions),
               "completed": len(completed), "resumed": len(existing), "checkpoint_skipped": len(existing),
               "production_reads": 0, "production_writes": 0}
     write_json(base / "mapping_run_summary.json", result)
@@ -480,11 +483,11 @@ def validate_result(config: GradeConfig, row: dict[str, Any], skills: dict[str, 
 def validate_set(config: GradeConfig, name: str) -> dict[str, Any]:
     base = _base(config, name)
     if not (base / "questions.jsonl").is_file() or not (base / "mapping_checkpoint.jsonl").is_file():
-        raise FileNotFoundError(f"VALIDATION_INPUT_NOT_FOUND:{config.grade}:{name}")
+        raise FileNotFoundError(f"VALIDATION_INPUT_NOT_FOUND:{config.target_id}:{name}")
     expected = {x["fingerprint"]: x for x in read_jsonl(base / "questions.jsonl")}
     results = read_jsonl(base / "mapping_checkpoint.jsonl")
     if not expected or not results:
-        raise RuntimeError(f"EMPTY_VALIDATION_INPUT:{config.grade}:{name}")
+        raise RuntimeError(f"EMPTY_VALIDATION_INPUT:{config.target_id}:{name}")
     skill_rows, micro_rows = _catalog(config); skills = {x["skill_id"]: x for x in skill_rows}; micros = {x["micro_skill_id"]: x for x in micro_rows}
     seen = set(); comparisons = []
     for row in results:
@@ -508,7 +511,8 @@ def validate_set(config: GradeConfig, name: str) -> dict[str, Any]:
         per_skill.append({"skill_id": sid, "questions": len(rows),
                           "skill_accuracy": round(100 * sum(x["skill_match"] for x in rows) / len(rows), 2),
                           "micro_accuracy": round(100 * sum(x["micro_match"] for x in rows) / len(rows), 2)})
-    result = {"grade": config.grade, "set": name, "model": MODEL, "total_questions": total,
+    result = {"grade": config.grade, "target_id": config.target_id, "profile": config.profile,
+              "set": name, "model": MODEL, "total_questions": total,
               "completed": len(comparisons), "scope_accuracy": pct("scope_match"),
               "exact_skill_accuracy": pct("skill_match"), "exact_micro_accuracy": pct("micro_match"),
               "invalid": invalid, "mismatch_count": sum(not (x["scope_match"] and x["skill_match"] and x["micro_match"]) for x in comparisons),
@@ -523,7 +527,7 @@ def quality(config: GradeConfig, name: str) -> dict[str, Any]:
     base = _base(config, name)
     comparisons_path = base / "comparisons.json"
     if not comparisons_path.is_file():
-        raise FileNotFoundError(f"VALIDATED_COMPARISONS_NOT_FOUND:{config.grade}:{name}")
+        raise FileNotFoundError(f"VALIDATED_COMPARISONS_NOT_FOUND:{config.target_id}:{name}")
     rows = json.loads(comparisons_path.read_text(encoding="utf-8")); flags = []
     for row in rows:
         reasons = list(row.get("validation_errors") or [])
@@ -539,7 +543,8 @@ def quality(config: GradeConfig, name: str) -> dict[str, Any]:
     write_csv(out / "scope_out_of_scope.csv", [x for x in rows if x["expected_scope_status"] == config.out_scope_status], fields)
     write_csv(out / "skill_distribution.csv", [{"skill_id": k, "count": v} for k, v in Counter(str(x.get("predicted_skill_id") or "") for x in rows if x.get("predicted_skill_id")).items()], ["skill_id", "count"])
     write_csv(out / "micro_distribution.csv", [{"micro_skill_id": k, "count": v} for k, v in Counter(str(x.get("predicted_micro_skill_id") or "") for x in rows if x.get("predicted_micro_skill_id")).items()], ["micro_skill_id", "count"])
-    result = {"grade": config.grade, "questions": len(rows), "invalid": sum(bool(x.get("validation_errors")) for x in rows),
+    result = {"grade": config.grade, "target_id": config.target_id, "profile": config.profile,
+              "questions": len(rows), "invalid": sum(bool(x.get("validation_errors")) for x in rows),
               "quality_flags": len(flags), "mismatches": len(mismatches),
               "duplicate_fingerprints": len(rows) - len({x["fingerprint"] for x in rows}),
               "technical_pass": all(not x.get("validation_errors") for x in rows),
@@ -589,7 +594,7 @@ def validate_real(config: GradeConfig) -> dict[str, Any]:
 
 
 def handoff(config: GradeConfig, regression_pass: bool = False) -> dict[str, Any]:
-    prefix = config.grade.lower(); local = config.local_output_dir
+    prefix = config.target_id.lower(); local = config.local_output_dir
     audit = json.loads((local / f"{prefix}_curriculum_audit.json").read_text(encoding="utf-8"))
     inv = json.loads((local / f"{prefix}_local_inventory.json").read_text(encoding="utf-8"))
     cov = json.loads((local / "coverage" / f"{prefix}_coverage_summary.json").read_text(encoding="utf-8"))
@@ -601,18 +606,18 @@ def handoff(config: GradeConfig, regression_pass: bool = False) -> dict[str, Any
     foundation = bool(audit["curriculum_integrity"] == "PASS" and val.get("mapping_pilot_pass") and qa.get("technical_pass") and regression_pass)
     completion = 100 if foundation else (70 if audit["curriculum_integrity"] == "PASS" else 0)
     status = "SAFE TO PAUSE" if foundation else "BLOCKED"
-    text = f"""# {config.grade} Pilot Freeze / Handoff
+    text = f"""# {config.target_id} Pilot Freeze / Handoff
 
 ## Status
 
-**{config.grade} PILOT FOUNDATION: {status}**
+**{config.target_id} PILOT FOUNDATION: {status}**
 
 Foundation completion: **{completion}%**. Validated real Skill/Micro coverage: **{cov['real_skill_coverage_percent']}% / {cov['real_micro_coverage_percent']}%**.
 
 ## Sanitized evidence
 
 - Curriculum integrity: {audit['curriculum_integrity']}; Skills {audit['skills']}; Micro Skills {audit['micro_skills']}.
-- Local real source: {inv[f'REAL_{config.grade}_LOCAL_QUESTION_SOURCE']}; unique questions {inv['unique_questions']}.
+- Local real source: {inv[f'REAL_{config.target_id}_LOCAL_QUESTION_SOURCE']}; unique questions {inv['unique_questions']}.
 - HOLDOUT: {val.get('total_questions', 'NOT_AVAILABLE')} questions; scope {val.get('scope_accuracy', 'NOT_AVAILABLE')}%; exact Skill {val.get('exact_skill_accuracy', 'NOT_AVAILABLE')}%; exact Micro {val.get('exact_micro_accuracy', 'NOT_AVAILABLE')}%; invalid {val.get('invalid', 'NOT_AVAILABLE')}.
 - Quality gate: {'PASS' if qa.get('technical_pass') else 'NOT_AVAILABLE/FAIL'}; regression gate: {'PASS' if regression_pass else 'NOT_RUN'}.
 - Technical pipeline: {mapping.get('technical_pipeline', 'PASS')}; external API availability: {mapping.get('external_api_availability', 'AVAILABLE' if mapping.get('completed') else 'NOT_RUN')}.
@@ -623,8 +628,9 @@ Foundation completion: **{completion}%**. Validated real Skill/Micro coverage: *
 
 Human validation is required before provisional mappings increase real coverage. If the HOLDOUT artifacts are unavailable in this workspace, restore the local checkpoint or run the grade pilot without committing private artifacts.
 """
-    path = ROOT / "docs/stage5" / f"{config.grade}_PILOT_FREEZE_HANDOFF.md"; path.parent.mkdir(parents=True, exist_ok=True); path.write_text(text, encoding="utf-8")
-    result = {"grade": config.grade, "foundation": status, "foundation_completion": completion,
+    path = ROOT / "docs/stage5" / f"{config.target_id}_PILOT_FREEZE_HANDOFF.md"; path.parent.mkdir(parents=True, exist_ok=True); path.write_text(text, encoding="utf-8")
+    result = {"grade": config.grade, "target_id": config.target_id, "profile": config.profile,
+              "foundation": status, "foundation_completion": completion,
               "real_skill_coverage_percent": cov["real_skill_coverage_percent"],
               "real_micro_coverage_percent": cov["real_micro_coverage_percent"],
               "production_reads": 0, "production_writes": 0}
@@ -633,8 +639,9 @@ Human validation is required before provisional mappings increase real coverage.
 
 def readiness_matrix() -> dict[str, Any]:
     rows = []
-    for number in range(1, 13):
-        grade = f"G{number}"
+    target_ids = [f"G{number}" for number in range(1, 10)] + [
+        "G10_GENERAL", "G11_A", "G11_B", "G12_A", "G12_B"]
+    for grade in target_ids:
         try:
             config = load_grade_config(grade); pack = config.curriculum_dir
         except (ValueError, FileNotFoundError):
@@ -658,7 +665,9 @@ def readiness_matrix() -> dict[str, Any]:
         lines.append(f"| {x['grade']} | {x['curriculum_pack_available']} | {x['standard_skills_available']} | {x['micro_skills_available']} | {x['out_of_scope_rules_available']} | {x['generic_engine_compatible']} | {x['real_local_question_source_detected']} | {x['ready_for_pilot']} |")
     doc = ROOT / "docs/stage5/GRADE_PILOT_READINESS_MATRIX.md"; doc.parent.mkdir(parents=True, exist_ok=True); doc.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return {"grades": rows, "curriculum_compatible": compatible, "ready_for_pilot": ready,
-            "blocked": 12 - ready, "production_reads": 0, "production_writes": 0}
+            "blocked": len(rows) - ready,
+            "aggregates": {"G11": "MULTI_PROFILE", "G12": "MULTI_PROFILE"},
+            "production_reads": 0, "production_writes": 0}
 
 
 def run_all(config: GradeConfig, selected_set: str, regression_pass: bool) -> dict[str, Any]:

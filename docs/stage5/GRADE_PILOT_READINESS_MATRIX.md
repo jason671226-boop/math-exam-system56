@@ -13,6 +13,8 @@ Sanitized local metadata only; no question content or mapping output is included
 | G7 | YES | YES | YES | YES | YES | YES | YES |
 | G8 | YES | YES | YES | YES | YES | YES | YES |
 | G9 | YES | YES | YES | YES | YES | YES | YES |
-| G10 | YES | YES | YES | YES | YES | NO | YES |
-| G11 | NO | NO | NO | NO | NO | NO | NO |
-| G12 | NO | NO | NO | NO | NO | NO | NO |
+| G10_GENERAL | YES | YES | YES | YES | YES | NO | YES |
+| G11_A | YES | YES | YES | YES | YES | NO | YES |
+| G11_B | YES | YES | YES | YES | YES | NO | YES |
+| G12_A | YES | YES | YES | YES | YES | NO | YES |
+| G12_B | YES | YES | YES | YES | YES | NO | YES |
