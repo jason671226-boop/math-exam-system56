@@ -380,8 +380,9 @@ def test_resume_bat_defaults_to_holdout_first_and_supports_explicit_modes():
     assert 'set "RESUME_COMMAND=holdout-first"' in source
     assert '"--full" set "RESUME_COMMAND=full-validation"' in source
     assert '"--fallback" set "RESUME_COMMAND=fallback"' in source
-    assert 'set "TMP=%CD%\\.local\\pytest_tmp"' in source
+    assert 'set "TMP=%CD%\\.local\\pytest_tmp_%~1_%RANDOM%_%RANDOM%"' in source
     assert 'set "TEMP=%TMP%"' in source
+    assert '--basetemp "%TMP%"' in source
 
 
 def test_quota_probe_makes_exactly_one_request_and_has_two_sanitized_results():

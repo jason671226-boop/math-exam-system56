@@ -13,7 +13,7 @@ Foundation completion is independent of validated real-question coverage. Synthe
 | G7 | PASS | PASS | YES | YES | PASS / SAFE TO PAUSE | YES | 0% | AVAILABLE | Foundation complete; keep real coverage separate |
 | G8 | PASS | REFERENCE | YES | YES | PASS | YES | 0% | VALIDATED_PREVIOUSLY | No API work required |
 | G9 | PASS | PASS | YES | YES | PASS / SAFE TO PAUSE | YES | 0% | AVAILABLE | Foundation complete; keep real coverage separate |
-| G10_GENERAL | PASS | PASS | YES | NO | PENDING | NO | 0% | NOT_PROBED | Resume HOLDOUT-first after G4 |
+| G10_GENERAL | PASS | PASS | YES | YES | PASS / SAFE TO PAUSE | NO | 0% | AVAILABLE | Foundation complete; no real source detected |
 | G11_A | PASS | PASS | YES | NO | PENDING | NO | 0% | NOT_PROBED | Resume profile-specific HOLDOUT |
 | G11_B | PASS | PASS | YES | NO | PENDING | NO | 0% | NOT_PROBED | Resume profile-specific HOLDOUT |
 | G12_A | PASS | PASS | YES | NO | PENDING | NO | 0% | NOT_PROBED | Resume profile-specific HOLDOUT |

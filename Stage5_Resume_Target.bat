@@ -13,9 +13,9 @@ if /I "%~2"=="--fallback" set "RESUME_COMMAND=fallback"
 if not "%~2"=="" if /I not "%~2"=="--full" if /I not "%~2"=="--fallback" exit /b 23
 
 python scripts\stage5_grade_foundation.py --grade %~1 %RESUME_COMMAND% || exit /b %ERRORLEVEL%
-set "TMP=%CD%\.local\pytest_tmp"
+set "TMP=%CD%\.local\pytest_tmp_%~1_%RANDOM%_%RANDOM%"
 set "TEMP=%TMP%"
 if not exist "%TMP%" mkdir "%TMP%" || exit /b 29
-python -m pytest -q tests\test_stage5_grade_engine.py tests\test_stage5_g5_foundation.py tests\test_stage5_g6_foundation.py tests\test_stage5_g8_freeze.py tests\test_stage5_question_mapping.py || exit /b 30
+python -m pytest -q --basetemp "%TMP%" tests\test_stage5_grade_engine.py tests\test_stage5_g5_foundation.py tests\test_stage5_g6_foundation.py tests\test_stage5_g8_freeze.py tests\test_stage5_question_mapping.py || exit /b 30
 python scripts\stage5_grade_foundation.py --grade %~1 handoff --regression-pass
 exit /b %ERRORLEVEL%
