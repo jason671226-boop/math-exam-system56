@@ -10,9 +10,9 @@ G1 through G9, G10_GENERAL (with G10 alias), G11_A, G11_B, G12_A, and G12_B. Pro
 
 ## Foundation state
 
-- Completed: G5, G6, G8.
-- Pending: G1, G2, G3, G4, G7, G9, G10_GENERAL, G11_A, G11_B, G12_A, G12_B.
-- G7 is technically ready and externally API-blocked; its 34-item HOLDOUT and checkpoints are preserved.
+- Completed and SAFE TO PAUSE: G1, G2, G3, G4, G5, G6, G7, G8, G9, G10_GENERAL, G11_A, G11_B, G12_A, G12_B.
+- Pending Foundation targets: none.
+- G11 and G12 A/B profile-isolation audits PASS; aggregate profile mapping remains forbidden.
 - Foundation completion is not validated real coverage. Current validated real coverage remains 0% in generic summaries.
 
 ## API and checkpoint strategy
@@ -29,4 +29,4 @@ New targets use HOLDOUT-first validation. Passing HOLDOUTs skip tuning. Failed H
 
 ## Known limitations and recovery
 
-Foundation validation for pending targets requires external API availability. Real local sources are absent for most pending targets, so validated real coverage will remain zero until safe sources are available and human-reviewed. Follow `STAGE5_QUOTA_RESUME_RUNBOOK.md`, beginning with G7, and process one target at a time.
+Foundation validation is complete. Validated real coverage remains zero until safe local sources are mapped and human-reviewed; synthetic HOLDOUTs never count as real coverage.

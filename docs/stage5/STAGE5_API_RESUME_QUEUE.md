@@ -24,4 +24,4 @@ Sanitized metadata only. No question content, mapping output, or credentials are
 - Optional real mapping calls: 36
 - Total estimated calls: 36
 - Estimated savings: 0 (0.0%)
-- Recommended order: 
+- Recommended order: none (all Foundation targets complete)
