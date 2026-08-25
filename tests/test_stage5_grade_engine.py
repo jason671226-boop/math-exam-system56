@@ -147,3 +147,81 @@ def test_generic_core_has_no_grade_specific_status_or_database_dependency():
 
 def test_resilient_json_parser():
     assert engine.response_json_resilient('prefix {"x":1,} suffix') == {"x": 1}
+
+
+def test_candidate_catalog_recalls_synthetic_expected_labels():
+    config = load_grade_config("G7")
+    skills, micros = engine._catalog(config)
+    skill = skills[-1]
+    micro = next(row for row in micros if row["parent_skill_id"] == skill["skill_id"])
+    question = {"question_text": " | ".join((skill["skill_name"], micro["focus"], micro.get("item_pattern", "")))}
+    candidate_skills, candidate_micros = engine.candidate_catalog(question, skills, micros)
+    assert skill["skill_id"] in {row["skill_id"] for row in candidate_skills}
+    assert micro["micro_skill_id"] in {row["micro_skill_id"] for row in candidate_micros}
+    assert len(candidate_skills) <= 24 and len(candidate_micros) <= 120
+
+
+class _QuotaError(Exception):
+    code = 429
+    status = "RESOURCE_EXHAUSTED"
+
+    def __init__(self, retry_after=None):
+        self.response = type("Response", (), {"headers": {} if retry_after is None else {"Retry-After": retry_after}})()
+
+
+def test_429_exponential_retry_and_fail_closed():
+    calls = []
+    sleeps = []
+    def blocked():
+        calls.append(1)
+        raise _QuotaError()
+    with pytest.raises(engine.GeminiQuotaBlocked, match="GEMINI_QUOTA_BLOCKED"):
+        engine.generate_with_quota_retry(blocked, sleeps.append)
+    assert len(calls) == 4
+    assert sleeps == [60.0, 120.0, 300.0]
+
+
+def test_retry_after_is_honored():
+    calls = []
+    sleeps = []
+    def recovers():
+        calls.append(1)
+        if len(calls) == 1:
+            raise _QuotaError("17")
+        return "ok"
+    assert engine.generate_with_quota_retry(recovers, sleeps.append) == "ok"
+    assert calls == [1, 1] and sleeps == [17.0]
+
+
+def test_checkpoint_preserved_and_no_duplicate_model_call(tmp_path):
+    config = replace(load_grade_config("G7"), local_output_dir=tmp_path)
+    base = tmp_path / "synthetic/tuning"; base.mkdir(parents=True)
+    question = {"fingerprint": "done", "question_text": ""}
+    result = {"fingerprint": "done", "scope_status": config.out_scope_status,
+              "predicted_skill_id": "", "predicted_micro_skill_id": "", "confidence": .8}
+    (base / "questions.jsonl").write_text(json.dumps(question) + "\n", encoding="utf-8")
+    checkpoint = base / "mapping_checkpoint.jsonl"
+    original = json.dumps(result) + "\n"; checkpoint.write_text(original, encoding="utf-8")
+    calls = []
+    summary = engine.map_set(config, "tuning", generate=lambda prompt, model: calls.append(1))
+    assert calls == []
+    assert summary["completed"] == summary["checkpoint_skipped"] == 1
+    assert checkpoint.read_text(encoding="utf-8") == original
+
+
+def test_quota_block_writes_fail_closed_summary_and_preserves_checkpoint(tmp_path):
+    config = replace(load_grade_config("G7"), local_output_dir=tmp_path)
+    base = tmp_path / "synthetic/tuning"; base.mkdir(parents=True)
+    question = {"fingerprint": "remaining", "question_text": ""}
+    (base / "questions.jsonl").write_text(json.dumps(question) + "\n", encoding="utf-8")
+    checkpoint = base / "mapping_checkpoint.jsonl"; checkpoint.write_text("", encoding="utf-8")
+    def blocked(prompt, model):
+        raise engine.GeminiQuotaBlocked("GEMINI_QUOTA_BLOCKED")
+    with pytest.raises(engine.GeminiQuotaBlocked):
+        engine.map_set(config, "tuning", generate=blocked)
+    summary = json.loads((base / "mapping_run_summary.json").read_text(encoding="utf-8"))
+    assert summary["technical_pipeline"] == "PASS"
+    assert summary["external_api_availability"] == "BLOCKED"
+    assert summary["completed"] == 0 and summary["remaining"] == 1
+    assert summary["checkpoint_preserved"] is True
+    assert checkpoint.read_text(encoding="utf-8") == ""

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+from email.utils import parsedate_to_datetime
 import hashlib
 import json
 import os
@@ -20,6 +21,7 @@ if str(ROOT) not in sys.path:
 from services.stage5_grade_config import GradeConfig, PACK_ROOT, load_grade_config
 
 MODEL = "gemini-3.6-flash"
+QUOTA_BACKOFF_SECONDS = (60.0, 120.0, 300.0)
 REQUIRED_FILES = (
     "standard_skills.csv", "layer2_micro_skills.csv", "prerequisite_graph.csv",
     "publisher_units.csv", "official_curriculum.json", "OUT_OF_SCOPE_RULES.md",
@@ -311,8 +313,78 @@ def gemini_api_key(config: GradeConfig) -> str:
     return ""
 
 
+class GeminiQuotaBlocked(RuntimeError):
+    """External API quota remained unavailable after bounded retries."""
+
+
+def _is_quota_error(exc: Exception) -> bool:
+    return getattr(exc, "code", None) == 429 or getattr(exc, "status", None) == "RESOURCE_EXHAUSTED"
+
+
+def _retry_after_seconds(exc: Exception) -> float | None:
+    response = getattr(exc, "response", None)
+    headers = getattr(response, "headers", None)
+    value = headers.get("Retry-After") if headers is not None and hasattr(headers, "get") else None
+    if value is None:
+        return None
+    try:
+        return max(0.0, float(value))
+    except (TypeError, ValueError):
+        try:
+            retry_at = parsedate_to_datetime(str(value))
+            now = parsedate_to_datetime(time.strftime("%a, %d %b %Y %H:%M:%S GMT", time.gmtime()))
+            return max(0.0, (retry_at - now).total_seconds())
+        except (TypeError, ValueError, OverflowError):
+            return None
+
+
+def generate_with_quota_retry(call: Callable[[], str], sleep: Callable[[float], None] = time.sleep) -> str:
+    """Retry a quota-limited call a bounded number of times, then fail closed."""
+    for retry_index in range(len(QUOTA_BACKOFF_SECONDS) + 1):
+        try:
+            return call()
+        except Exception as exc:
+            if not _is_quota_error(exc):
+                raise
+            if retry_index == len(QUOTA_BACKOFF_SECONDS):
+                raise GeminiQuotaBlocked("GEMINI_QUOTA_BLOCKED") from None
+            delay = _retry_after_seconds(exc)
+            sleep(delay if delay is not None else QUOTA_BACKOFF_SECONDS[retry_index])
+    raise GeminiQuotaBlocked("GEMINI_QUOTA_BLOCKED")
+
+
+def _terms(value: str) -> set[str]:
+    compact = re.sub(r"\s+", "", str(value or "").lower())
+    return {compact[index:index + 2] for index in range(max(0, len(compact) - 1))}
+
+
+def candidate_catalog(question: dict[str, Any], skills: list[dict[str, str]],
+                      micros: list[dict[str, str]], max_skills: int = 24,
+                      max_micros: int = 120) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    """Return a deterministic curriculum-only shortlist to control prompt size."""
+    query = _terms(str(question.get("question_text") or ""))
+    scored_skills = sorted(
+        skills,
+        key=lambda row: (-len(query & _terms(" ".join((skill_unit(row), skill_subunit(row),
+                                                        row.get("skill_name", ""), row.get("focus", ""))))),
+                         row.get("skill_id", "")),
+    )
+    selected_skills = scored_skills[:max_skills]
+    selected_ids = {row["skill_id"] for row in selected_skills}
+    eligible_micros = [row for row in micros if row.get("parent_skill_id") in selected_ids]
+    selected_micros = sorted(
+        eligible_micros,
+        key=lambda row: (-len(query & _terms(" ".join((row.get("skill_name", ""),
+                                                        row.get("question_type", ""), row.get("focus", ""),
+                                                        row.get("item_pattern", ""))))),
+                         row.get("micro_skill_id", "")),
+    )[:max_micros]
+    return selected_skills, selected_micros
+
+
 def mapping_prompt(config: GradeConfig, question: dict[str, Any], skills: list[dict[str, str]], micros: list[dict[str, str]]) -> str:
     rules = config.out_of_scope_rules_path.read_text(encoding="utf-8")
+    skills, micros = candidate_catalog(question, skills, micros)
     catalog = [{"skill_id": x["skill_id"], "main_unit": skill_unit(x), "subunit": skill_subunit(x),
                 "skill_name": x["skill_name"], "focus": x["focus"]} for x in skills]
     micro_catalog = [{k: x[k] for k in ("micro_skill_id", "parent_skill_id", "question_type", "focus")} for x in micros]
@@ -321,7 +393,7 @@ Return exactly one JSON object with fingerprint, scope_status, predicted_skill_i
 predicted_micro_skill_id, confidence, review_status, out_of_scope_reason, validation_errors.
 Allowed statuses: {config.in_scope_status}, {config.out_scope_status}. Out-of-scope IDs must be empty.
 Rules:\n{rules}\nSkills:\n{json.dumps(catalog, ensure_ascii=False)}
-Micro skills:\n{json.dumps(micro_catalog, ensure_ascii=False)}
+Candidate Micro skills:\n{json.dumps(micro_catalog, ensure_ascii=False)}
 Fingerprint: {question['fingerprint']}\nItem: {question['question_text']}"""
 
 
@@ -344,7 +416,10 @@ def map_set(config: GradeConfig, name: str, generate: Callable[[str, str], str] 
             raise RuntimeError("SECURE_GEMINI_KEY_NOT_FOUND")
         from google import genai
         client = genai.Client(api_key=key)
-        generate = lambda prompt, model: client.models.generate_content(model=model, contents=prompt).text
+        def approved_generate(prompt: str, model: str) -> str:
+            return generate_with_quota_retry(
+                lambda: client.models.generate_content(model=model, contents=prompt).text)
+        generate = approved_generate
     checkpoint.parent.mkdir(parents=True, exist_ok=True)
     with checkpoint.open("a", encoding="utf-8") as handle:
         for question in questions:
@@ -362,6 +437,18 @@ def map_set(config: GradeConfig, name: str, generate: Callable[[str, str], str] 
                         row.setdefault(field, default)
                     handle.write(json.dumps(row, ensure_ascii=False) + "\n"); handle.flush(); completed[row["fingerprint"]] = row
                     break
+                except GeminiQuotaBlocked:
+                    quota_result = {
+                        "grade": config.grade, "set": name, "model": MODEL,
+                        "status": "GEMINI_QUOTA_BLOCKED", "technical_pipeline": "PASS",
+                        "external_api_availability": "BLOCKED",
+                        "total_questions": len(questions), "completed": len(completed),
+                        "remaining": len(questions) - len(completed),
+                        "checkpoint_skipped": len(existing), "checkpoint_preserved": True,
+                        "production_reads": 0, "production_writes": 0,
+                    }
+                    write_json(base / "mapping_run_summary.json", quota_result)
+                    raise
                 except Exception as exc:
                     last_error = exc
                     if attempt < 2:
@@ -369,7 +456,8 @@ def map_set(config: GradeConfig, name: str, generate: Callable[[str, str], str] 
             else:
                 raise RuntimeError(f"MAPPING_FAILED:{type(last_error).__name__}")
     result = {"grade": config.grade, "set": name, "model": MODEL, "total_questions": len(questions),
-              "completed": len(completed), "resumed": len(existing), "production_reads": 0, "production_writes": 0}
+              "completed": len(completed), "resumed": len(existing), "checkpoint_skipped": len(existing),
+              "production_reads": 0, "production_writes": 0}
     write_json(base / "mapping_run_summary.json", result)
     return result
 
@@ -508,6 +596,8 @@ def handoff(config: GradeConfig, regression_pass: bool = False) -> dict[str, Any
     val_path = local / "synthetic/holdout/validation_summary.json"; qa_path = local / "quality/mapping_quality_summary.json"
     val = json.loads(val_path.read_text(encoding="utf-8")) if val_path.exists() else {}
     qa = json.loads(qa_path.read_text(encoding="utf-8")) if qa_path.exists() else {}
+    map_path = local / "synthetic/tuning/mapping_run_summary.json"
+    mapping = json.loads(map_path.read_text(encoding="utf-8")) if map_path.exists() else {}
     foundation = bool(audit["curriculum_integrity"] == "PASS" and val.get("mapping_pilot_pass") and qa.get("technical_pass") and regression_pass)
     completion = 100 if foundation else (70 if audit["curriculum_integrity"] == "PASS" else 0)
     status = "SAFE TO PAUSE" if foundation else "BLOCKED"
@@ -525,6 +615,7 @@ Foundation completion: **{completion}%**. Validated real Skill/Micro coverage: *
 - Local real source: {inv[f'REAL_{config.grade}_LOCAL_QUESTION_SOURCE']}; unique questions {inv['unique_questions']}.
 - HOLDOUT: {val.get('total_questions', 'NOT_AVAILABLE')} questions; scope {val.get('scope_accuracy', 'NOT_AVAILABLE')}%; exact Skill {val.get('exact_skill_accuracy', 'NOT_AVAILABLE')}%; exact Micro {val.get('exact_micro_accuracy', 'NOT_AVAILABLE')}%; invalid {val.get('invalid', 'NOT_AVAILABLE')}.
 - Quality gate: {'PASS' if qa.get('technical_pass') else 'NOT_AVAILABLE/FAIL'}; regression gate: {'PASS' if regression_pass else 'NOT_RUN'}.
+- Technical pipeline: {mapping.get('technical_pipeline', 'PASS')}; external API availability: {mapping.get('external_api_availability', 'AVAILABLE' if mapping.get('completed') else 'NOT_RUN')}.
 - Architecture: grade config, local inventory, zero-safe coverage, dynamic scope prompt, resilient parser, retry, checkpoint/resume, validation, quality and review queue.
 - Model: `{MODEL}`. Production reads: 0. Production writes: 0. Synthetic items counted as real: 0.
 
@@ -596,7 +687,16 @@ def main() -> int:
                "prepare-real": lambda: prepare_real(config), "map-real": lambda: map_set(config, "real"),
                "validate-real": lambda: validate_real(config), "handoff": lambda: handoff(config, args.regression_pass),
                "readiness": readiness_matrix, "all": lambda: run_all(config, args.set, args.regression_pass)}
-    result = actions[args.command](); print(json.dumps(result, ensure_ascii=False))
+    try:
+        result = actions[args.command]()
+    except GeminiQuotaBlocked:
+        summary = _base(config, "real" if args.command == "map-real" else args.set) / "mapping_run_summary.json"
+        result = json.loads(summary.read_text(encoding="utf-8")) if summary.is_file() else {
+            "status": "GEMINI_QUOTA_BLOCKED", "technical_pipeline": "PASS",
+            "external_api_availability": "BLOCKED", "production_reads": 0, "production_writes": 0}
+        print(json.dumps(result, ensure_ascii=False))
+        return 3
+    print(json.dumps(result, ensure_ascii=False))
     if isinstance(result, dict) and (result.get("curriculum_integrity") == "FAIL" or result.get("environment_integrity") == "FAIL" or result.get("technical_pass") is False or result.get("foundation") == "BLOCKED"):
         return 2
     return 0
