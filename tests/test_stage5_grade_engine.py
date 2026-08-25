@@ -318,3 +318,65 @@ def test_preparation_validation_fails_on_cross_set_duplicate_and_parent_error(tm
     assert result["preparation_integrity"] == "FAIL"
     assert "TUNING_HOLDOUT_FINGERPRINT_OVERLAP" in result["errors"]
     assert "EXPECTED_MICRO_PARENT_MISMATCH:holdout" in result["errors"]
+
+
+def _passing_validation():
+    return {"scope_accuracy": 100, "exact_skill_accuracy": 100,
+            "exact_micro_accuracy": 100, "invalid": 0, "mapping_pilot_pass": True}
+
+
+def test_holdout_first_pass_skips_tuning(tmp_path, monkeypatch):
+    config = replace(load_grade_config("G4"), local_output_dir=tmp_path / "g4")
+    engine.prepare_set(config, "holdout")
+    calls = []
+    monkeypatch.setattr(engine, "map_set", lambda unused, name: calls.append(("map", name)) or {"completed": 34})
+    monkeypatch.setattr(engine, "validate_set", lambda unused, name: calls.append(("validate", name)) or _passing_validation())
+    monkeypatch.setattr(engine, "quality", lambda unused, name: calls.append(("quality", name)) or {"technical_pass": True})
+    result = engine.holdout_first(config)
+    assert result["status"] == "FOUNDATION_VALIDATION_PASS"
+    assert result["tuning_skipped"] is True
+    assert calls == [("map", "holdout"), ("validate", "holdout"), ("quality", "holdout")]
+    assert not (config.local_output_dir / "synthetic/tuning/questions.jsonl").exists()
+
+
+def test_holdout_failure_requests_tuning_without_running_it(tmp_path, monkeypatch):
+    config = replace(load_grade_config("G9"), local_output_dir=tmp_path / "g9")
+    engine.prepare_set(config, "holdout")
+    calls = []
+    failed = {**_passing_validation(), "exact_skill_accuracy": 80, "mapping_pilot_pass": False}
+    monkeypatch.setattr(engine, "map_set", lambda unused, name: calls.append(name) or {"completed": 34})
+    monkeypatch.setattr(engine, "validate_set", lambda unused, name: failed)
+    monkeypatch.setattr(engine, "quality", lambda unused, name: {"technical_pass": True})
+    result = engine.holdout_first(config)
+    assert result["status"] == "HOLDOUT_NEEDS_TUNING"
+    assert calls == ["holdout"]
+    assert not (config.local_output_dir / "synthetic/tuning/questions.jsonl").exists()
+
+
+def test_fallback_creates_new_holdout2_and_never_reuses_original(tmp_path, monkeypatch):
+    config = replace(load_grade_config("G11_B"), local_output_dir=tmp_path / "g11b")
+    engine.prepare_set(config, "holdout")
+    original_path = config.local_output_dir / "synthetic/holdout/questions.jsonl"
+    original = original_path.read_bytes()
+    engine.write_json(config.local_output_dir / "synthetic/holdout/validation_summary.json",
+                      {"mapping_pilot_pass": False})
+    calls = []
+    monkeypatch.setattr(engine, "map_set", lambda unused, name: calls.append(name) or {"completed": 34})
+    monkeypatch.setattr(engine, "validate_set", lambda unused, name: _passing_validation())
+    monkeypatch.setattr(engine, "quality", lambda unused, name: {"technical_pass": True})
+    result = engine.fallback_validation(config)
+    assert result["status"] == "FOUNDATION_VALIDATION_PASS"
+    assert result["original_holdout_reused"] is False
+    assert calls == ["tuning", "holdout2"]
+    assert original_path.read_bytes() == original
+    original_fps = {row["fingerprint"] for row in engine.read_jsonl(original_path)}
+    holdout2_fps = {row["fingerprint"] for row in engine.read_jsonl(
+        config.local_output_dir / "synthetic/holdout2/questions.jsonl")}
+    assert original_fps.isdisjoint(holdout2_fps)
+
+
+def test_resume_bat_defaults_to_holdout_first_and_supports_explicit_modes():
+    source = (engine.ROOT / "Stage5_Resume_Target.bat").read_text(encoding="utf-8")
+    assert 'set "RESUME_COMMAND=holdout-first"' in source
+    assert '"--full" set "RESUME_COMMAND=full-validation"' in source
+    assert '"--fallback" set "RESUME_COMMAND=fallback"' in source

@@ -7,7 +7,12 @@ echo %~1| findstr /R /I "^G[1-4]$ ^G7$ ^G9$ ^G10_GENERAL$ ^G11_A$ ^G11_B$ ^G12_A
 for /f "delims=" %%B in ('git branch --show-current') do set "PILOT_BRANCH=%%B"
 if /I not "%PILOT_BRANCH%"=="stage5/generic-grade-engine" exit /b 22
 
-python scripts\stage5_grade_foundation.py --grade %~1 all || exit /b %ERRORLEVEL%
+set "RESUME_COMMAND=holdout-first"
+if /I "%~2"=="--full" set "RESUME_COMMAND=full-validation"
+if /I "%~2"=="--fallback" set "RESUME_COMMAND=fallback"
+if not "%~2"=="" if /I not "%~2"=="--full" if /I not "%~2"=="--fallback" exit /b 23
+
+python scripts\stage5_grade_foundation.py --grade %~1 %RESUME_COMMAND% || exit /b %ERRORLEVEL%
 python -m pytest -q tests\test_stage5_grade_engine.py tests\test_stage5_g5_foundation.py tests\test_stage5_g6_foundation.py tests\test_stage5_g8_freeze.py tests\test_stage5_question_mapping.py || exit /b 30
 python scripts\stage5_grade_foundation.py --grade %~1 handoff --regression-pass
 exit /b %ERRORLEVEL%

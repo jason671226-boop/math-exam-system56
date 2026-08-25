@@ -256,7 +256,7 @@ def prepare_set(config: GradeConfig, name: str) -> dict[str, Any]:
     for skill in selected:
         candidates = by_parent[skill["skill_id"]]
         for index in range(3):
-            micro = candidates[(index + (name == "holdout")) % len(candidates)]
+            micro = candidates[(index + name.startswith("holdout")) % len(candidates)]
             text = " | ".join((config.grade_label, skill["skill_name"], micro["focus"],
                                micro.get("item_pattern", ""), name, str(index + 1)))
             questions.append({"fingerprint": fingerprint(text), "question_text": text,
@@ -645,6 +645,79 @@ def quality(config: GradeConfig, name: str) -> dict[str, Any]:
     return result
 
 
+def _validation_pass(validation: dict[str, Any], audit: dict[str, Any]) -> bool:
+    return bool(validation.get("scope_accuracy", 0) >= 95 and
+                validation.get("exact_skill_accuracy", 0) >= 90 and
+                validation.get("exact_micro_accuracy", 0) >= 80 and
+                validation.get("invalid") == 0 and audit.get("technical_pass"))
+
+
+def holdout_first(config: GradeConfig) -> dict[str, Any]:
+    prepared = ensure_prepared(config, "holdout")
+    mapping = map_set(config, "holdout")
+    validation = validate_set(config, "holdout")
+    audit = quality(config, "holdout")
+    passed = _validation_pass(validation, audit)
+    result = {"target_id": config.target_id,
+              "status": "FOUNDATION_VALIDATION_PASS" if passed else "HOLDOUT_NEEDS_TUNING",
+              "validation_strategy": "HOLDOUT_FIRST", "holdout_set": "holdout",
+              "holdout_questions": prepared["questions"], "tuning_skipped": True,
+              "mapping": mapping, "validation": validation, "quality": audit,
+              "technical_pipeline": "PASS", "production_reads": 0, "production_writes": 0}
+    write_json(config.local_output_dir / "foundation_validation_summary.json", result)
+    return result
+
+
+def fallback_validation(config: GradeConfig) -> dict[str, Any]:
+    original_path = config.local_output_dir / "synthetic/holdout/validation_summary.json"
+    if not original_path.is_file():
+        raise RuntimeError(f"ORIGINAL_HOLDOUT_RESULT_NOT_FOUND:{config.target_id}")
+    original = json.loads(original_path.read_text(encoding="utf-8"))
+    if original.get("mapping_pilot_pass"):
+        raise RuntimeError(f"FALLBACK_NOT_REQUIRED:{config.target_id}")
+    tuning_prepared = ensure_prepared(config, "tuning")
+    tuning_mapping = map_set(config, "tuning")
+    tuning_validation = validate_set(config, "tuning")
+    holdout2_prepared = ensure_prepared(config, "holdout2")
+    holdout2_mapping = map_set(config, "holdout2")
+    holdout2_validation = validate_set(config, "holdout2")
+    audit = quality(config, "holdout2")
+    passed = _validation_pass(holdout2_validation, audit)
+    result = {"target_id": config.target_id,
+              "status": "FOUNDATION_VALIDATION_PASS" if passed else "HOLDOUT2_FAILED",
+              "validation_strategy": "TUNING_THEN_NEW_HOLDOUT2",
+              "original_holdout_reused": False, "tuning_questions": tuning_prepared["questions"],
+              "holdout2_questions": holdout2_prepared["questions"],
+              "tuning_mapping": tuning_mapping, "tuning_validation": tuning_validation,
+              "holdout2_mapping": holdout2_mapping, "holdout2_validation": holdout2_validation,
+              "quality": audit, "technical_pipeline": "PASS",
+              "production_reads": 0, "production_writes": 0}
+    write_json(config.local_output_dir / "foundation_validation_summary.json", result)
+    return result
+
+
+def full_validation(config: GradeConfig) -> dict[str, Any]:
+    tuning_prepared = ensure_prepared(config, "tuning")
+    tuning_mapping = map_set(config, "tuning")
+    tuning_validation = validate_set(config, "tuning")
+    holdout_prepared = ensure_prepared(config, "holdout")
+    holdout_mapping = map_set(config, "holdout")
+    holdout_validation = validate_set(config, "holdout")
+    audit = quality(config, "holdout")
+    passed = _validation_pass(holdout_validation, audit)
+    result = {"target_id": config.target_id,
+              "status": "FOUNDATION_VALIDATION_PASS" if passed else "HOLDOUT_NEEDS_TUNING",
+              "validation_strategy": "FULL_TUNING_THEN_HOLDOUT",
+              "tuning_questions": tuning_prepared["questions"],
+              "holdout_questions": holdout_prepared["questions"],
+              "tuning_mapping": tuning_mapping, "tuning_validation": tuning_validation,
+              "holdout_mapping": holdout_mapping, "holdout_validation": holdout_validation,
+              "quality": audit, "technical_pipeline": "PASS",
+              "production_reads": 0, "production_writes": 0}
+    write_json(config.local_output_dir / "foundation_validation_summary.json", result)
+    return result
+
+
 def prepare_real(config: GradeConfig) -> dict[str, Any]:
     questions = {}
     for path in _real_sources(config):
@@ -690,7 +763,13 @@ def handoff(config: GradeConfig, regression_pass: bool = False) -> dict[str, Any
     audit = json.loads((local / f"{prefix}_curriculum_audit.json").read_text(encoding="utf-8"))
     inv = json.loads((local / f"{prefix}_local_inventory.json").read_text(encoding="utf-8"))
     cov = json.loads((local / "coverage" / f"{prefix}_coverage_summary.json").read_text(encoding="utf-8"))
-    val_path = local / "synthetic/holdout/validation_summary.json"; qa_path = local / "quality/mapping_quality_summary.json"
+    holdout2_path = local / "synthetic/holdout2/validation_summary.json"
+    holdout_path = local / "synthetic/holdout/validation_summary.json"
+    if holdout2_path.is_file() and json.loads(holdout2_path.read_text(encoding="utf-8")).get("mapping_pilot_pass"):
+        val_path = holdout2_path
+    else:
+        val_path = holdout_path
+    qa_path = local / "quality/mapping_quality_summary.json"
     val = json.loads(val_path.read_text(encoding="utf-8")) if val_path.exists() else {}
     qa = json.loads(qa_path.read_text(encoding="utf-8")) if qa_path.exists() else {}
     map_path = local / "synthetic/tuning/mapping_run_summary.json"
@@ -776,12 +855,15 @@ def resume_queue() -> dict[str, Any]:
         holdout = read_jsonl(local / "synthetic/holdout/questions.jsonl")
         tuning_completed = len(read_jsonl(local / "synthetic/tuning/mapping_checkpoint.jsonl"))
         holdout_completed = len(read_jsonl(local / "synthetic/holdout/mapping_checkpoint.jsonl"))
-        completed = tuning_completed + holdout_completed
-        minimum = max(0, len(tuning) + len(holdout) - completed)
-        if tuning_completed < len(tuning):
-            active_completed, active_remaining = tuning_completed, len(tuning) - tuning_completed
-        else:
-            active_completed, active_remaining = holdout_completed, len(holdout) - holdout_completed
+        holdout2 = read_jsonl(local / "synthetic/holdout2/questions.jsonl")
+        holdout2_completed = len(read_jsonl(local / "synthetic/holdout2/mapping_checkpoint.jsonl"))
+        active_completed = holdout_completed
+        active_remaining = max(0, len(holdout) - holdout_completed)
+        holdout_first_calls = active_remaining
+        fallback_tuning_calls = max(0, len(tuning) - tuning_completed)
+        fallback_holdout2_calls = max(0, (len(holdout2) or len(holdout)) - holdout2_completed)
+        best_case = holdout_first_calls
+        worst_case = holdout_first_calls + fallback_tuning_calls + fallback_holdout2_calls
         optional = int(preflight.get("real_unique_questions") or 0)
         mapping_summary_path = local / "synthetic/tuning/mapping_run_summary.json"
         mapping_summary = json.loads(mapping_summary_path.read_text(encoding="utf-8")) if mapping_summary_path.is_file() else {}
@@ -797,21 +879,37 @@ def resume_queue() -> dict[str, Any]:
                      "real_unique_questions": optional,
                      "tuning_questions": len(tuning), "holdout_questions": len(holdout),
                      "checkpoint_completed": active_completed, "checkpoint_remaining": active_remaining,
-                     "minimum_validation_calls": minimum, "optional_real_mapping_calls": optional,
-                     "total_estimated_calls": minimum + optional, "estimated_gemini_calls": minimum + optional,
+                     "legacy_completed_calls": tuning_completed + holdout_completed,
+                     "validation_strategy": "HOLDOUT_FIRST",
+                     "holdout_first_calls": holdout_first_calls,
+                     "fallback_tuning_calls": fallback_tuning_calls,
+                     "fallback_holdout2_calls": fallback_holdout2_calls,
+                     "best_case_calls": best_case, "worst_case_calls": worst_case,
+                     "minimum_validation_calls": best_case, "optional_real_mapping_calls": optional,
+                     "total_estimated_calls": best_case + optional, "estimated_gemini_calls": best_case + optional,
                      "resume_status": status, "recommended_action": action})
-    totals = {"minimum_validation_calls": sum(row["minimum_validation_calls"] for row in rows),
+    old_minimum = sum((row["tuning_questions"] + row["holdout_questions"] - row["legacy_completed_calls"])
+                      for row in rows)
+    totals = {"old_minimum_validation_calls": old_minimum,
+              "best_case_validation_calls": sum(row["best_case_calls"] for row in rows),
+              "worst_case_validation_calls": sum(row["worst_case_calls"] for row in rows),
               "optional_real_mapping_calls": sum(row["optional_real_mapping_calls"] for row in rows)}
-    totals["total_estimated_calls"] = totals["minimum_validation_calls"] + totals["optional_real_mapping_calls"]
+    totals["minimum_validation_calls"] = totals["best_case_validation_calls"]
+    totals["total_estimated_calls"] = totals["best_case_validation_calls"] + totals["optional_real_mapping_calls"]
+    totals["estimated_savings"] = totals["old_minimum_validation_calls"] - totals["best_case_validation_calls"]
+    totals["estimated_savings_percent"] = round(100 * totals["estimated_savings"] / totals["old_minimum_validation_calls"], 2) if totals["old_minimum_validation_calls"] else 0.0
     lines = ["# Stage 5 API Resume Queue", "",
              "Sanitized metadata only. No question content, mapping output, or credentials are included.", "",
-             "| Priority | Target | Curriculum | Real source | Real unique | Tuning | HOLDOUT | Checkpoint done | Remaining | Minimum calls | Optional real calls | Total calls | Resume status | Recommended action |",
-             "|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|"]
+             "| Priority | Target | Strategy | Curriculum | Real source | Real unique | Tuning | HOLDOUT | Checkpoint done | Remaining | HOLDOUT-first | Fallback tuning | Fallback HOLDOUT2 | Best case | Worst case | Optional real | Resume status | Recommended action |",
+             "|---:|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|"]
     for row in rows:
-        lines.append("| {priority} | {target_id} | {curriculum_status} | {real_source_available} | {real_unique_questions} | {tuning_questions} | {holdout_questions} | {checkpoint_completed} | {checkpoint_remaining} | {minimum_validation_calls} | {optional_real_mapping_calls} | {total_estimated_calls} | {resume_status} | {recommended_action} |".format(**row))
-    lines += ["", "## Totals", "", f"- Minimum validation calls: {totals['minimum_validation_calls']}",
+        lines.append("| {priority} | {target_id} | {validation_strategy} | {curriculum_status} | {real_source_available} | {real_unique_questions} | {tuning_questions} | {holdout_questions} | {checkpoint_completed} | {checkpoint_remaining} | {holdout_first_calls} | {fallback_tuning_calls} | {fallback_holdout2_calls} | {best_case_calls} | {worst_case_calls} | {optional_real_mapping_calls} | {resume_status} | {recommended_action} |".format(**row))
+    lines += ["", "## Totals", "", f"- Old minimum validation calls: {totals['old_minimum_validation_calls']}",
+              f"- Best-case validation calls: {totals['best_case_validation_calls']}",
+              f"- Worst-case validation calls: {totals['worst_case_validation_calls']}",
               f"- Optional real mapping calls: {totals['optional_real_mapping_calls']}",
               f"- Total estimated calls: {totals['total_estimated_calls']}",
+              f"- Estimated savings: {totals['estimated_savings']} ({totals['estimated_savings_percent']}%)",
               f"- Recommended order: {', '.join(preferred)}"]
     doc = ROOT / "docs/stage5/STAGE5_API_RESUME_QUEUE.md"
     doc.parent.mkdir(parents=True, exist_ok=True); doc.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -837,8 +935,8 @@ def run_all(config: GradeConfig, selected_set: str, regression_pass: bool) -> di
 
 def main() -> int:
     parser = argparse.ArgumentParser(); parser.add_argument("--grade", required=True)
-    parser.add_argument("command", choices=["environment", "audit", "inventory", "coverage", "prepare", "preflight", "map", "validate", "quality", "prepare-real", "map-real", "validate-real", "handoff", "readiness", "resume-queue", "all"])
-    parser.add_argument("--set", choices=["tuning", "holdout"], default="holdout"); parser.add_argument("--regression-pass", action="store_true")
+    parser.add_argument("command", choices=["environment", "audit", "inventory", "coverage", "prepare", "preflight", "map", "validate", "quality", "holdout-first", "fallback", "full-validation", "prepare-real", "map-real", "validate-real", "handoff", "readiness", "resume-queue", "all"])
+    parser.add_argument("--set", choices=["tuning", "holdout", "holdout2"], default="holdout"); parser.add_argument("--regression-pass", action="store_true")
     args = parser.parse_args(); config = load_grade_config(args.grade)
     actions = {"environment": lambda: environment_audit(config), "audit": lambda: curriculum_audit(config),
                "inventory": lambda: inventory(config), "coverage": lambda: coverage(config),
@@ -847,6 +945,8 @@ def main() -> int:
                "validate": lambda: validate_set(config, args.set), "quality": lambda: quality(config, args.set),
                "prepare-real": lambda: prepare_real(config), "map-real": lambda: map_set(config, "real"),
                "validate-real": lambda: validate_real(config), "handoff": lambda: handoff(config, args.regression_pass),
+               "holdout-first": lambda: holdout_first(config), "fallback": lambda: fallback_validation(config),
+               "full-validation": lambda: full_validation(config),
                "readiness": readiness_matrix, "resume-queue": resume_queue,
                "all": lambda: run_all(config, args.set, args.regression_pass)}
     try:
@@ -859,6 +959,8 @@ def main() -> int:
         print(json.dumps(result, ensure_ascii=False))
         return 3
     print(json.dumps(result, ensure_ascii=False))
+    if isinstance(result, dict) and result.get("status") == "HOLDOUT_NEEDS_TUNING":
+        return 4
     if isinstance(result, dict) and (result.get("curriculum_integrity") == "FAIL" or result.get("environment_integrity") == "FAIL" or result.get("technical_pass") is False or result.get("foundation") == "BLOCKED"):
         return 2
     return 0
