@@ -1,14 +1,14 @@
-# G12_A Pilot Freeze / Handoff
+# G12_B Pilot Freeze / Handoff
 
 ## Status
 
-**G12_A PILOT FOUNDATION: SAFE TO PAUSE**
+**G12_B PILOT FOUNDATION: SAFE TO PAUSE**
 
 Foundation completion: **100%**. Validated real Skill/Micro coverage: **0.0% / 0.0%**.
 
 ## Sanitized evidence
 
-- Curriculum integrity: PASS; Skills 62; Micro Skills 422.
+- Curriculum integrity: PASS; Skills 40; Micro Skills 269.
 - Local real source: NOT_AVAILABLE; unique questions 0.
 - HOLDOUT: 34 questions; scope 100.0%; exact Skill 100.0%; exact Micro 100.0%; invalid 0.
 - Quality gate: PASS; regression gate: PASS.
@@ -18,6 +18,6 @@ Foundation completion: **100%**. Validated real Skill/Micro coverage: **0.0% / 0
 
 ## Unfinished work and next action
 
-Offline profile-isolation audit: PASS (no G12_B Skill predictions, no unknown Skills, no Micro parent errors, aggregate G12 mapping forbidden, Gemini calls 0).
+Offline profile-isolation audit: PASS (no G12_A Skill predictions, no unknown Skills, no Micro parent errors, aggregate G12 mapping forbidden, Gemini calls 0).
 
 Human validation is required before provisional mappings increase real coverage. If the HOLDOUT artifacts are unavailable in this workspace, restore the local checkpoint or run the grade pilot without committing private artifacts.

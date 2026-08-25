@@ -17,6 +17,7 @@ This is a sanitized release-candidate snapshot. Foundation completion and valida
 - G11_A Foundation: PASS (profile-specific HOLDOUT-first, 34/34 complete).
 - G11_B Foundation: PASS (profile-specific HOLDOUT-first, 34/34 complete).
 - G12_A Foundation: PASS (profile-specific HOLDOUT-first, 34/34 complete).
+- G12_B Foundation: PASS (profile-specific HOLDOUT-first, 34/34 complete).
 - Validated real-question coverage remains 0% in the current generic coverage summaries.
 
 ## Engine state
@@ -107,8 +108,17 @@ This is a sanitized release-candidate snapshot. Foundation completion and valida
 - Validated real-question coverage remains 0%; synthetic HOLDOUT is excluded.
 - Local checkpoints are preserved.
 
+## G12_B state
+
+- Foundation: SAFE TO PAUSE.
+- Profile B catalog and scope rules used exclusively; HOLDOUT completed: 34/34.
+- Scope, exact Skill, and exact Micro accuracy: 100%; invalid: 0; quality: PASS.
+- G12 offline profile isolation: PASS; aggregate G12 mapping remains forbidden.
+- Validated real-question coverage remains 0%; synthetic HOLDOUT is excluded.
+- Local checkpoints are preserved.
+
 ## Pending targets
 
-G12_B.
+None. All 14 formal targets are Foundation SAFE TO PAUSE.
 
-Resume one target at a time in the sanitized API queue order. Elementary targets are complete; profile targets remain pending.
+Stage 5 Foundation is frozen. Future work is validated real-question coverage, kept separate from synthetic Foundation validation.

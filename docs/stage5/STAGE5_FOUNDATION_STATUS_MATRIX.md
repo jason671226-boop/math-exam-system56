@@ -17,4 +17,4 @@ Foundation completion is independent of validated real-question coverage. Synthe
 | G11_A | PASS | PASS | YES | YES | PASS / SAFE TO PAUSE | NO | 0% | AVAILABLE | Foundation complete; profile A isolated |
 | G11_B | PASS | PASS | YES | YES | PASS / SAFE TO PAUSE | NO | 0% | AVAILABLE | Foundation complete; profile B isolated |
 | G12_A | PASS | PASS | YES | YES | PASS / SAFE TO PAUSE | NO | 0% | AVAILABLE | Foundation complete; profile A isolated |
-| G12_B | PASS | PASS | YES | NO | PENDING | NO | 0% | NOT_PROBED | Resume profile-specific HOLDOUT |
+| G12_B | PASS | PASS | YES | YES | PASS / SAFE TO PAUSE | NO | 0% | AVAILABLE | Foundation complete; profile B isolated |
