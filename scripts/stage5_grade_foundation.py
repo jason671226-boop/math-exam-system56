@@ -446,6 +446,23 @@ def generate_with_quota_retry(call: Callable[[], str], sleep: Callable[[float], 
     raise GeminiQuotaBlocked("GEMINI_QUOTA_BLOCKED")
 
 
+def quota_probe(config: GradeConfig, generate: Callable[[str, str], str] | None = None) -> str:
+    """Make at most one minimal availability request; never retry or expose details."""
+    try:
+        if generate is None:
+            key = gemini_api_key(config)
+            if not key:
+                return "GEMINI_QUOTA_BLOCKED"
+            from google import genai
+            client = genai.Client(api_key=key)
+            generate = lambda prompt, model: client.models.generate_content(
+                model=model, contents=prompt).text
+        generate("Return one empty JSON object.", MODEL)
+        return "GEMINI_AVAILABLE"
+    except Exception:
+        return "GEMINI_QUOTA_BLOCKED"
+
+
 def _terms(value: str) -> set[str]:
     compact = re.sub(r"\s+", "", str(value or "").lower())
     return {compact[index:index + 2] for index in range(max(0, len(compact) - 1))}
@@ -935,7 +952,7 @@ def run_all(config: GradeConfig, selected_set: str, regression_pass: bool) -> di
 
 def main() -> int:
     parser = argparse.ArgumentParser(); parser.add_argument("--grade", required=True)
-    parser.add_argument("command", choices=["environment", "audit", "inventory", "coverage", "prepare", "preflight", "map", "validate", "quality", "holdout-first", "fallback", "full-validation", "prepare-real", "map-real", "validate-real", "handoff", "readiness", "resume-queue", "all"])
+    parser.add_argument("command", choices=["environment", "audit", "inventory", "coverage", "prepare", "preflight", "map", "validate", "quality", "holdout-first", "fallback", "full-validation", "quota-probe", "prepare-real", "map-real", "validate-real", "handoff", "readiness", "resume-queue", "all"])
     parser.add_argument("--set", choices=["tuning", "holdout", "holdout2"], default="holdout"); parser.add_argument("--regression-pass", action="store_true")
     args = parser.parse_args(); config = load_grade_config(args.grade)
     actions = {"environment": lambda: environment_audit(config), "audit": lambda: curriculum_audit(config),
@@ -947,6 +964,7 @@ def main() -> int:
                "validate-real": lambda: validate_real(config), "handoff": lambda: handoff(config, args.regression_pass),
                "holdout-first": lambda: holdout_first(config), "fallback": lambda: fallback_validation(config),
                "full-validation": lambda: full_validation(config),
+               "quota-probe": lambda: quota_probe(config),
                "readiness": readiness_matrix, "resume-queue": resume_queue,
                "all": lambda: run_all(config, args.set, args.regression_pass)}
     try:
@@ -958,6 +976,9 @@ def main() -> int:
             "external_api_availability": "BLOCKED", "production_reads": 0, "production_writes": 0}
         print(json.dumps(result, ensure_ascii=False))
         return 3
+    if isinstance(result, str):
+        print(result)
+        return 0 if result == "GEMINI_AVAILABLE" else 3
     print(json.dumps(result, ensure_ascii=False))
     if isinstance(result, dict) and result.get("status") == "HOLDOUT_NEEDS_TUNING":
         return 4

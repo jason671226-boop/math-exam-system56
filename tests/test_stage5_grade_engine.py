@@ -380,3 +380,24 @@ def test_resume_bat_defaults_to_holdout_first_and_supports_explicit_modes():
     assert 'set "RESUME_COMMAND=holdout-first"' in source
     assert '"--full" set "RESUME_COMMAND=full-validation"' in source
     assert '"--fallback" set "RESUME_COMMAND=fallback"' in source
+
+
+def test_quota_probe_makes_exactly_one_request_and_has_two_sanitized_results():
+    config = load_grade_config("G7")
+    available_calls = []
+    assert engine.quota_probe(config, lambda prompt, model: available_calls.append((prompt, model)) or "{}") == "GEMINI_AVAILABLE"
+    assert len(available_calls) == 1
+    blocked_calls = []
+    def blocked(prompt, model):
+        blocked_calls.append((prompt, model))
+        raise _QuotaError()
+    assert engine.quota_probe(config, blocked) == "GEMINI_QUOTA_BLOCKED"
+    assert len(blocked_calls) == 1
+
+
+def test_resume_controller_is_single_target_g7_first_and_delegates_modes():
+    source = (engine.ROOT / "Stage5_Quota_Resume_Controller.bat").read_text(encoding="utf-8")
+    assert 'if "%~1"=="" exit /b 20' in source
+    assert 'if /I not "%~1"=="G7"' in source
+    assert 'findstr /C:"SAFE TO PAUSE"' in source
+    assert "call Stage5_Resume_Target.bat %*" in source
