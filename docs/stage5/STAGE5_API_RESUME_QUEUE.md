@@ -11,17 +11,17 @@ Sanitized metadata only. No question content, mapping output, or credentials are
 | 0 | G3 | HOLDOUT_FIRST | PASS | NO | 0 | 34 | 34 | 34 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | COMPLETED | Foundation complete; no validation calls required |
 | 0 | G2 | HOLDOUT_FIRST | PASS | NO | 0 | 34 | 34 | 34 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | COMPLETED | Foundation complete; no validation calls required |
 | 0 | G1 | HOLDOUT_FIRST | PASS | NO | 0 | 34 | 34 | 34 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | COMPLETED | Foundation complete; no validation calls required |
-| 1 | G11_A | HOLDOUT_FIRST | PASS | NO | 0 | 34 | 34 | 0 | 34 | 34 | 34 | 34 | 34 | 102 | 0 | READY | Start bounded API validation when quota is available |
-| 2 | G11_B | HOLDOUT_FIRST | PASS | NO | 0 | 34 | 34 | 0 | 34 | 34 | 34 | 34 | 34 | 102 | 0 | READY | Start bounded API validation when quota is available |
-| 3 | G12_A | HOLDOUT_FIRST | PASS | NO | 0 | 34 | 34 | 0 | 34 | 34 | 34 | 34 | 34 | 102 | 0 | READY | Start bounded API validation when quota is available |
-| 4 | G12_B | HOLDOUT_FIRST | PASS | NO | 0 | 34 | 34 | 0 | 34 | 34 | 34 | 34 | 34 | 102 | 0 | READY | Start bounded API validation when quota is available |
+| 0 | G11_A | HOLDOUT_FIRST | PASS | NO | 0 | 34 | 34 | 34 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | COMPLETED | Foundation complete; no validation calls required |
+| 1 | G11_B | HOLDOUT_FIRST | PASS | NO | 0 | 34 | 34 | 0 | 34 | 34 | 34 | 34 | 34 | 102 | 0 | READY | Start bounded API validation when quota is available |
+| 2 | G12_A | HOLDOUT_FIRST | PASS | NO | 0 | 34 | 34 | 0 | 34 | 34 | 34 | 34 | 34 | 102 | 0 | READY | Start bounded API validation when quota is available |
+| 3 | G12_B | HOLDOUT_FIRST | PASS | NO | 0 | 34 | 34 | 0 | 34 | 34 | 34 | 34 | 34 | 102 | 0 | READY | Start bounded API validation when quota is available |
 
 ## Totals
 
-- Old minimum validation calls: 272
-- Best-case validation calls: 136
-- Worst-case validation calls: 408
+- Old minimum validation calls: 204
+- Best-case validation calls: 102
+- Worst-case validation calls: 306
 - Optional real mapping calls: 36
-- Total estimated calls: 172
-- Estimated savings: 136 (50.0%)
-- Recommended order: G11_A, G11_B, G12_A, G12_B
+- Total estimated calls: 138
+- Estimated savings: 102 (50.0%)
+- Recommended order: G11_B, G12_A, G12_B
