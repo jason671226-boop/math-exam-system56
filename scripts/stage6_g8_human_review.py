@@ -89,6 +89,11 @@ def _suggestion(reasons: set[str]) -> str:
     return "；".join(prompts)
 
 
+def _write_bom_csv(path: Path, fields: tuple[str, ...], rows: list[dict[str, Any]]) -> None:
+    with path.open("w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields); writer.writeheader(); writer.writerows(rows)
+
+
 def prepare() -> dict[str, Any]:
     before = _hashes()
     queue = _csv(PRIVATE / "human_review_private.csv")
@@ -129,8 +134,7 @@ def prepare() -> dict[str, Any]:
         "deepseek_confidence", "validation_error", "human_scope", "human_skill_id", "human_micro_id", "human_decision", "human_note",
     )
     teacher_path = PRIVATE / "G8_HUMAN_REVIEW_FOR_TEACHER.csv"
-    with teacher_path.open("w", encoding="utf-8-sig", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=teacher_fields); writer.writeheader(); writer.writerows({k: row[k] for k in teacher_fields} for row in rows)
+    _write_bom_csv(teacher_path, teacher_fields, [{k: row[k] for k in teacher_fields} for row in rows])
     simple_fields = ("序號", "優先級", "題目", "Gemini判斷", "DeepSeek判斷", "差異原因", "建議檢查點", "人工正確Scope", "人工正確Skill", "人工正確Micro", "人工備註")
     simple_path = PRIVATE / "G8_HUMAN_REVIEW_SIMPLE.csv"
     with simple_path.open("w", encoding="utf-8-sig", newline="") as handle:

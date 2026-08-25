@@ -162,6 +162,19 @@ def validate(row: dict[str, Any], skills: dict[str, Any], micros: dict[str, Any]
     return errors
 
 
+def enforce_micro_parent_constraint(row: dict[str, Any], micros: dict[str, Any]) -> None:
+    """Fail closed before checkpointing any cross-Skill Micro prediction."""
+    if row.get("scope_status") != "IN_SCOPE_G8":
+        return
+    skill_id = str(row.get("skill_id") or "")
+    micro_id = str(row.get("micro_skill_id") or "")
+    if not micro_id:
+        return
+    micro = micros.get(micro_id)
+    if micro is None or str(micro.get("parent_skill_id") or "") != skill_id:
+        raise RuntimeError("MICRO_PARENT_CONSTRAINT_FAILED")
+
+
 def checkpoint_rows() -> dict[str, dict[str, Any]]:
     rows = read_jsonl(PRIVATE / "deepseek_checkpoint.jsonl")
     completed: dict[str, dict[str, Any]] = {}
@@ -181,6 +194,7 @@ def run() -> dict[str, Any]:
     completed = checkpoint_rows()
     if not set(completed).issubset(known): raise RuntimeError("CHECKPOINT_FINGERPRINT_NOT_IN_SOURCE")
     skills = read_json(PRIVATE / SOURCE_FILES["skills"]); micros = read_json(PRIVATE / SOURCE_FILES["micros"])
+    micros_by_id = {row["micro_skill_id"]: row for row in micros}
     catalog = scope_catalog(skills); checkpoint = PRIVATE / "deepseek_checkpoint.jsonl"
     original_provider, original_model = os.getenv("AI_PROVIDER"), os.getenv("DEEPSEEK_MODEL")
     os.environ["AI_PROVIDER"] = "deepseek"; os.environ["DEEPSEEK_MODEL"] = "deepseek-v4-flash"
@@ -194,6 +208,7 @@ def run() -> dict[str, Any]:
                 for attempt in range(3):
                     try:
                         response = provider.generate_json(prompt); parsed = dict(response.parsed_json or {})
+                        enforce_micro_parent_constraint(parsed, micros_by_id)
                         parsed.update({"fingerprint": fp, "provider": "deepseek", "model": response.model,
                                        "latency_ms": response.latency_ms, "input_tokens": response.input_tokens,
                                        "output_tokens": response.output_tokens, "total_tokens": response.total_tokens,

@@ -16,6 +16,17 @@ def test_validate_out_of_scope_requires_null_ids():
     assert "OUT_OF_SCOPE_HAS_SKILL" in pilot.validate(bad, {}, {})
 
 
+def test_parent_constraint_rejects_cross_skill_micro():
+    micros = {"M1": {"parent_skill_id": "S1"}}
+    pilot.enforce_micro_parent_constraint({"scope_status": "IN_SCOPE_G8", "skill_id": "S1", "micro_skill_id": "M1"}, micros)
+    try:
+        pilot.enforce_micro_parent_constraint({"scope_status": "IN_SCOPE_G8", "skill_id": "S2", "micro_skill_id": "M1"}, micros)
+    except RuntimeError as exc:
+        assert str(exc) == "MICRO_PARENT_CONSTRAINT_FAILED"
+    else:
+        raise AssertionError("cross-Skill Micro must fail closed")
+
+
 def test_checkpoint_is_provider_scoped(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(pilot, "PRIVATE", tmp_path)
     (tmp_path / "deepseek_checkpoint.jsonl").write_text(

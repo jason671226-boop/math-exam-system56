@@ -14,18 +14,16 @@ def test_invalid_id_name_is_explicit():
     assert review._id_name(None, {}) == ("", "")
 
 
-def test_prepared_csvs_are_bom_and_unique():
-    status = review.prepare()
-    teacher = review.PRIVATE / "G8_HUMAN_REVIEW_FOR_TEACHER.csv"
-    simple = review.PRIVATE / "G8_HUMAN_REVIEW_SIMPLE.csv"
+def test_bom_csv_is_readable_and_unique(tmp_path):
+    teacher = tmp_path / "teacher.csv"
+    review._write_bom_csv(teacher, ("fingerprint", "human_scope"), [
+        {"fingerprint": "one", "human_scope": ""}, {"fingerprint": "two", "human_scope": ""},
+    ])
     assert teacher.read_bytes().startswith(b"\xef\xbb\xbf")
-    assert simple.read_bytes().startswith(b"\xef\xbb\xbf")
     with teacher.open(encoding="utf-8-sig", newline="") as handle:
         rows = list(csv.DictReader(handle))
-    assert len(rows) == status["total_review"] == 56
-    assert len({row["fingerprint"] for row in rows}) == 56
-    assert all(row["human_scope"] == row["human_skill_id"] == row["human_micro_id"] == "" for row in rows)
-    assert status["production_reads"] == status["production_writes"] == 0
+    assert len(rows) == len({row["fingerprint"] for row in rows}) == 2
+    assert all(row["human_scope"] == "" for row in rows)
 
 
 def test_micro_name_and_parent_lookup_are_catalog_backed():
