@@ -19,6 +19,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from services.stage5_grade_config import GradeConfig, PACK_ROOT, load_grade_config
+from services.ai_provider import ProviderCallError, get_ai_provider
 
 MODEL = "gemini-3.6-flash"
 QUOTA_BACKOFF_SECONDS = (60.0, 120.0, 300.0)
@@ -79,7 +80,8 @@ def environment_audit(config: GradeConfig) -> dict[str, Any]:
                             capture_output=True, text=True).stdout.strip()
     result = {"workspace": str(cwd), "branch": branch,
               "workspace_pass": cwd == ROOT.resolve(),
-              "branch_pass": branch in {"stage5/generic-grade-engine", f"stage5/{config.target_id.lower()}-mapping-pilot"},
+              "branch_pass": branch in {"stage5/generic-grade-engine", "stage6/provider-adapter",
+                                         f"stage5/{config.target_id.lower()}-mapping-pilot"},
               "production_reads": 0, "production_writes": 0}
     result["environment_integrity"] = "PASS" if result["workspace_pass"] and result["branch_pass"] else "FAIL"
     write_json(config.local_output_dir / "environment_audit.json", result)
@@ -418,10 +420,17 @@ class GeminiQuotaBlocked(RuntimeError):
 
 
 def _is_quota_error(exc: Exception) -> bool:
-    return getattr(exc, "code", None) == 429 or getattr(exc, "status", None) == "RESOURCE_EXHAUSTED"
+    return (getattr(exc, "code", None) == 429 or getattr(exc, "status", None) == "RESOURCE_EXHAUSTED"
+            or getattr(exc, "error_type", None) in {"RATE_LIMIT", "QUOTA_EXHAUSTED"})
 
 
 def _retry_after_seconds(exc: Exception) -> float | None:
+    direct = getattr(exc, "retry_after", None)
+    if direct is not None:
+        try:
+            return max(0.0, float(direct))
+        except (TypeError, ValueError):
+            pass
     response = getattr(exc, "response", None)
     headers = getattr(response, "headers", None)
     value = headers.get("Retry-After") if headers is not None and hasattr(headers, "get") else None
@@ -457,17 +466,13 @@ def quota_probe(config: GradeConfig, generate: Callable[[str, str], str] | None 
     """Make at most one minimal availability request; never retry or expose details."""
     try:
         if generate is None:
-            key = gemini_api_key(config)
-            if not key:
-                return "GEMINI_QUOTA_BLOCKED"
-            from google import genai
-            client = genai.Client(api_key=key)
-            generate = lambda prompt, model: client.models.generate_content(
-                model=model, contents=prompt).text
+            provider = get_ai_provider(secret_paths=config.gemini_secret_paths)
+            return provider.health_check()
         generate("Return one empty JSON object.", MODEL)
         return "GEMINI_AVAILABLE"
     except Exception:
-        return "GEMINI_QUOTA_BLOCKED"
+        provider_name = os.getenv("AI_PROVIDER", "gemini").strip().upper() or "GEMINI"
+        return f"{provider_name}_QUOTA_BLOCKED"
 
 
 def _terms(value: str) -> set[str]:
@@ -527,15 +532,13 @@ def map_set(config: GradeConfig, name: str, generate: Callable[[str, str], str] 
         if not fp or fp not in known or fp in completed:
             raise RuntimeError("INVALID_CHECKPOINT_FINGERPRINT")
         completed[fp] = row
+    provider_name = "gemini"; selected_model = MODEL
     if generate is None:
-        key = gemini_api_key(config)
-        if not key:
-            raise RuntimeError("SECURE_GEMINI_KEY_NOT_FOUND")
-        from google import genai
-        client = genai.Client(api_key=key)
+        provider = get_ai_provider(secret_paths=config.gemini_secret_paths)
+        provider_name = provider.provider_name; selected_model = provider.model_name
         def approved_generate(prompt: str, model: str) -> str:
             return generate_with_quota_retry(
-                lambda: client.models.generate_content(model=model, contents=prompt).text)
+                lambda: provider.generate_json(prompt).raw_text)
         generate = approved_generate
     checkpoint.parent.mkdir(parents=True, exist_ok=True)
     with checkpoint.open("a", encoding="utf-8") as handle:
@@ -545,7 +548,7 @@ def map_set(config: GradeConfig, name: str, generate: Callable[[str, str], str] 
             last_error = None
             for attempt in range(3):
                 try:
-                    row = response_json_resilient(generate(mapping_prompt(config, question, skills, micros), MODEL))
+                    row = response_json_resilient(generate(mapping_prompt(config, question, skills, micros), selected_model))
                     row["fingerprint"] = question["fingerprint"]
                     for field, default in (("scope_status", ""), ("predicted_skill_id", ""),
                                            ("predicted_micro_skill_id", ""), ("confidence", 0),
@@ -557,8 +560,8 @@ def map_set(config: GradeConfig, name: str, generate: Callable[[str, str], str] 
                 except GeminiQuotaBlocked:
                     quota_result = {
                         "grade": config.grade, "target_id": config.target_id, "profile": config.profile,
-                        "set": name, "model": MODEL,
-                        "status": "GEMINI_QUOTA_BLOCKED", "technical_pipeline": "PASS",
+                        "set": name, "provider": provider_name, "model": selected_model,
+                        "status": f"{provider_name.upper()}_QUOTA_BLOCKED", "technical_pipeline": "PASS",
                         "external_api_availability": "BLOCKED",
                         "total_questions": len(questions), "completed": len(completed),
                         "remaining": len(questions) - len(completed),
@@ -574,7 +577,7 @@ def map_set(config: GradeConfig, name: str, generate: Callable[[str, str], str] 
             else:
                 raise RuntimeError(f"MAPPING_FAILED:{type(last_error).__name__}")
     result = {"grade": config.grade, "target_id": config.target_id, "profile": config.profile,
-              "set": name, "model": MODEL, "total_questions": len(questions),
+              "set": name, "provider": provider_name, "model": selected_model, "total_questions": len(questions),
               "completed": len(completed), "resumed": len(existing), "checkpoint_skipped": len(existing),
               "production_reads": 0, "production_writes": 0}
     write_json(base / "mapping_run_summary.json", result)
