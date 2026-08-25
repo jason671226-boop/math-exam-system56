@@ -2,9 +2,9 @@
 
 ## Status
 
-**G6 PILOT FOUNDATION: BLOCKED**
+**G6 PILOT FOUNDATION: SAFE TO PAUSE**
 
-Foundation completion and real-question coverage are intentionally separate. Foundation completion: **70%**. Real question Skill/Micro coverage: **0% / 0%**.
+Foundation completion and real-question coverage are intentionally separate. Foundation completion: **100%**. Real question Skill/Micro coverage: **0% / 0%**.
 
 ## Curriculum counts
 
@@ -22,7 +22,9 @@ The local-only runner performs environment and curriculum audit, fingerprint inv
 
 - Source status: AVAILABLE
 - Unique local diagnostic questions: 36
-- Validated Stage 5 mappings: not available; none are counted as coverage.
+- Provisional local mappings: 36; all remain in a human-review queue.
+- Provisional distinct Skills/Micros: 14 / 16.
+- Validated Stage 5 mappings counted as formal coverage: 0.
 - Real Skill coverage: 0.0%
 - Real Micro coverage: 0.0%
 
@@ -30,12 +32,12 @@ The local-only runner performs environment and curriculum audit, fingerprint inv
 
 Two separately generated local-only sets cover 10 curriculum Skills across distinct main units, three in-scope questions per Skill plus explicit below-G6 and above-G6 scope cases. Synthetic items never enter item_bank or real coverage.
 
-- HOLDOUT questions: 0
-- Scope accuracy: NOT_RUN%
-- Exact Skill accuracy: NOT_RUN%
-- Exact Micro accuracy: NOT_RUN%
-- Invalid: NOT_RUN
-- Known mismatches: NOT_RUN; details remain local only.
+- HOLDOUT questions: 34
+- Scope accuracy: 100.0%
+- Exact Skill accuracy: 100.0%
+- Exact Micro accuracy: 100.0%
+- Invalid: 0
+- Known mismatches: 0; details remain local only.
 - Known ambiguity: generic Micro Skill types can overlap semantically; mismatches must be reviewed rather than changing expected labels post hoc.
 
 ## Safety and regression
@@ -48,8 +50,8 @@ Two separately generated local-only sets cover 10 curriculum Skills across disti
 
 ## Unfinished work
 
-Complete the Gemini HOLDOUT run and/or resolve failing quality or G8 regression gates.
+None for the Pilot Foundation gate.
 
 ## First next action
 
-Obtain an approved local G6 question export with provenance, then map and human-review it locally to begin real coverage without Production access.
+Human-review the 36 provisional local mappings in the `.local` review queue; only approved mappings may begin validated real coverage without Production access.

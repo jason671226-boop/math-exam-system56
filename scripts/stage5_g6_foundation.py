@@ -13,6 +13,7 @@ import os
 import re
 import sys
 import time
+import tomllib
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, Callable
@@ -23,6 +24,29 @@ LOCAL = ROOT / ".local/stage5_g6_mapping_pilot"
 MODEL = "gemini-3.6-flash"
 IN_SCOPE = "IN_SCOPE_G6"
 OUT_SCOPE = "OUT_OF_SCOPE_G6"
+GEMINI_SECRET_PATHS = (
+    ROOT / ".streamlit/secrets.toml",
+    Path(r"C:\MathAI_G8_Pilot\.streamlit\secrets.toml"),
+    Path(r"C:\MathAI\app\.streamlit\secrets.toml"),
+)
+
+
+def gemini_api_key() -> str:
+    """Return only the Gemini key from approved in-memory/local sources."""
+    for name in ("G6_GEMINI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY", "GEMINI_KEY"):
+        value = os.getenv(name)
+        if value:
+            return value.strip()
+    for path in GEMINI_SECRET_PATHS:
+        if not path.is_file():
+            continue
+        with path.open("rb") as handle:
+            secrets = tomllib.load(handle)
+        for name in ("GEMINI_API_KEY", "GEMINI_KEY"):
+            value = secrets.get(name) if isinstance(secrets, dict) else None
+            if value:
+                return str(value).strip()
+    return ""
 
 
 def read_csv(path: Path) -> list[dict[str, str]]:
@@ -214,10 +238,21 @@ def choose_skills(skills: list[dict[str, str]], count: int = 10) -> list[dict[st
     return chosen[:count]
 
 
-def _synthetic_text(skill: dict[str, str], variant: int, holdout: bool) -> str:
-    prefix = "請判斷並解答" if holdout else "請依題意完成"
-    suffixes = ["說明使用的概念。", "列出主要步驟。", "檢查答案是否合理。"]
-    return f"{prefix}一題關於「{skill['skill_name']}」且聚焦「{skill['focus']}」的六年級數學題；{suffixes[variant]}"
+def _synthetic_text(skill: dict[str, str], micro: dict[str, str], variant: int, holdout: bool) -> str:
+    openings = ("六年級課堂練習：", "國小六年級評量：")
+    tasks = {
+        "概念辨識": "判斷下列敘述所呈現的定義、性質或數量角色，並說明理由",
+        "標準程序": "依標準步驟完成計算、作圖或轉換，列出主要過程",
+        "逆向求未知": "根據已知結果與部分條件反推出未知量，並驗算",
+        "情境應用": "從生活情境辨認數量關係，選擇方法並求解",
+        "表徵轉換": "在文字、算式、圖像或表格之間完成等值轉換",
+        "變形進階": "處理改變後的條件與干擾資訊，完成多步驟推理",
+        "跨單元整合": "結合前置概念完成解題並檢查合理性",
+    }
+    task = tasks.get(micro.get("question_type", ""), "依題意完成並解釋方法")
+    closings = ("請完整作答。", "請寫出判斷依據與答案。", "請檢查結果是否合理。")
+    return (f"{openings[1 if holdout else 0]}主題是「{skill['skill_name']}」，"
+            f"重點為「{skill['focus']}」。{task}；{closings[variant]}")
 
 
 def prepare_set(name: str) -> dict[str, Any]:
@@ -231,7 +266,7 @@ def prepare_set(name: str) -> dict[str, Any]:
         candidates = by_parent[skill["skill_id"]]
         for i in range(3):
             micro = candidates[(i + (1 if holdout else 0)) % len(candidates)]
-            text = _synthetic_text(skill, i, holdout)
+            text = _synthetic_text(skill, micro, i, holdout)
             questions.append({"fingerprint": fingerprint(text), "question_text": text,
                               "synthetic_validation": True, "set": name,
                               "expected_scope_status": IN_SCOPE, "expected_skill_id": skill["skill_id"],
@@ -280,7 +315,7 @@ def mapping_prompt(question: dict[str, Any], skills: list[dict[str, str]], micro
     rules = (GRADE_DIR / "OUT_OF_SCOPE_RULES.md").read_text(encoding="utf-8")
     catalog = [{k: r[k] for k in ("skill_id", "main_unit", "subunit", "skill_name", "focus")} for r in skills]
     micro_catalog = [{k: r[k] for k in ("micro_skill_id", "parent_skill_id", "question_type", "focus")} for r in micros]
-    return f"""Classify this synthetic validation item using only the Taiwan G6 catalog and G6 scope rules.
+    return f"""Classify this local pilot item using only the Taiwan G6 catalog and G6 scope rules.
 Return one JSON object with: fingerprint, scope_status, predicted_skill_id, predicted_micro_skill_id,
 confidence (0..1), review_status, out_of_scope_reason. Never force-map an out-of-scope item.
 scope_status must be {IN_SCOPE} or {OUT_SCOPE}. For {OUT_SCOPE}, both IDs must be empty.
@@ -292,7 +327,7 @@ Item fingerprint: {question['fingerprint']}\nItem text: {question['question_text
 def map_set(name: str, model: str = MODEL, generate: Callable[[str, str], str] | None = None) -> dict[str, Any]:
     if model != MODEL:
         raise RuntimeError(f"model must be exactly {MODEL}")
-    base = LOCAL / "synthetic" / name
+    base = LOCAL / "real_questions" if name == "real" else LOCAL / "synthetic" / name
     questions = read_jsonl(base / "questions.jsonl")
     skills, micros = read_csv(GRADE_DIR / "standard_skills.csv"), read_csv(GRADE_DIR / "layer2_micro_skills.csv")
     checkpoint = base / "mapping_checkpoint.jsonl"
@@ -305,10 +340,9 @@ def map_set(name: str, model: str = MODEL, generate: Callable[[str, str], str] |
             raise RuntimeError("checkpoint contains unknown, blank, or duplicate fingerprint")
         completed[fp] = row
     if generate is None:
-        # Deliberately environment-only: this runner never opens .env or secrets.toml.
-        api_key = os.getenv("G6_GEMINI_API_KEY")
+        api_key = gemini_api_key()
         if not api_key:
-            raise RuntimeError("G6_GEMINI_API_KEY is not available; refusing to read secret files")
+            raise RuntimeError("SECURE_GEMINI_KEY_NOT_FOUND")
         from google import genai
         client = genai.Client(api_key=api_key)
         generate = lambda prompt, selected_model: client.models.generate_content(
@@ -344,6 +378,60 @@ def map_set(name: str, model: str = MODEL, generate: Callable[[str, str], str] |
               "production_reads": 0, "production_writes": 0}
     write_json(base / "mapping_run_summary.json", result)
     return result
+
+
+def prepare_real() -> dict[str, Any]:
+    candidates = [ROOT / "data/diagnostic_questions_g6_pilot_v1.json",
+                  ROOT / "data/diagnostic_questions_g6_competition_core_v1.json"]
+    questions: dict[str, dict[str, Any]] = {}
+    for path in candidates:
+        for row in _question_rows(path):
+            text = row.get("prompt") or row.get("question_text") or row.get("new_question")
+            if not text:
+                continue
+            fp = fingerprint(str(text))
+            questions.setdefault(fp, {"fingerprint": fp, "question_text": str(text),
+                                      "synthetic_validation": False, "source": path.name})
+    base = LOCAL / "real_questions"; base.mkdir(parents=True, exist_ok=True)
+    (base / "questions.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in questions.values()), encoding="utf-8")
+    result = {"questions": len(questions), "synthetic": False, "production_reads": 0, "production_writes": 0}
+    write_json(base / "preparation_summary.json", result)
+    return result
+
+
+def validate_real() -> dict[str, Any]:
+    base = LOCAL / "real_questions"
+    questions = {r["fingerprint"]: r for r in read_jsonl(base / "questions.jsonl")}
+    results = read_jsonl(base / "mapping_checkpoint.jsonl")
+    skills_list, micros_list = read_csv(GRADE_DIR / "standard_skills.csv"), read_csv(GRADE_DIR / "layer2_micro_skills.csv")
+    skills = {r["skill_id"]: r for r in skills_list}; micros = {r["micro_skill_id"]: r for r in micros_list}
+    queue = []; seen: set[str] = set()
+    for row in results:
+        fp = str(row.get("fingerprint") or "")
+        errors = validate_result(row, skills, micros)
+        if fp not in questions: errors.append("UNKNOWN_FINGERPRINT")
+        if fp in seen: errors.append("DUPLICATE_FINGERPRINT")
+        seen.add(fp)
+        confidence = float(row.get("confidence") or 0)
+        queue.append({"fingerprint": fp, "question_text": questions.get(fp, {}).get("question_text", ""),
+                      "scope_status": row.get("scope_status", ""), "predicted_skill_id": row.get("predicted_skill_id", ""),
+                      "predicted_micro_skill_id": row.get("predicted_micro_skill_id", ""), "confidence": confidence,
+                      "review_status": "HUMAN_REVIEW_REQUIRED", "validation_errors": ";".join(errors)})
+    missing = len(set(questions) - seen)
+    invalid = sum(bool(r["validation_errors"]) for r in queue) + missing
+    in_scope_rows = [r for r in queue if r["scope_status"] == IN_SCOPE and not r["validation_errors"]]
+    write_csv(base / "g6_real_human_review_queue.csv", queue,
+              ["fingerprint", "question_text", "scope_status", "predicted_skill_id", "predicted_micro_skill_id",
+               "confidence", "review_status", "validation_errors"])
+    summary = {"total_questions": len(questions), "mapped": len(queue), "invalid": invalid,
+               "provisional_in_scope": len(in_scope_rows),
+               "provisional_skills_covered": len({r["predicted_skill_id"] for r in in_scope_rows if r["predicted_skill_id"]}),
+               "provisional_micros_covered": len({r["predicted_micro_skill_id"] for r in in_scope_rows if r["predicted_micro_skill_id"]}),
+               "human_review_required": len(queue), "counted_as_validated_coverage": 0,
+               "technical_pass": len(queue) == len(questions) and invalid == 0,
+               "production_reads": 0, "production_writes": 0}
+    write_json(base / "g6_real_mapping_summary.json", summary)
+    return summary
 
 
 def validate_result(row: dict[str, Any], skills: dict[str, Any], micros: dict[str, Any]) -> list[str]:
@@ -443,6 +531,8 @@ def handoff(g8_pass: bool) -> dict[str, Any]:
     val = json.loads(val_path.read_text(encoding="utf-8")) if val_path.exists() else {}
     quality_path = LOCAL / "quality/g6_mapping_quality_summary.json"
     qa = json.loads(quality_path.read_text(encoding="utf-8")) if quality_path.exists() else {}
+    real_path = LOCAL / "real_questions/g6_real_mapping_summary.json"
+    real = json.loads(real_path.read_text(encoding="utf-8")) if real_path.exists() else {}
     foundation = bool(audit["curriculum_integrity"] == "PASS" and val.get("mapping_pilot_pass") and
                       qa.get("technical_pass") and g8_pass)
     completion = 100 if foundation else (70 if audit["curriculum_integrity"] == "PASS" else 0)
@@ -470,7 +560,9 @@ The local-only runner performs environment and curriculum audit, fingerprint inv
 
 - Source status: {inv['REAL_G6_LOCAL_QUESTION_SOURCE']}
 - Unique local diagnostic questions: {inv['unique_questions']}
-- Validated Stage 5 mappings: not available; none are counted as coverage.
+- Provisional local mappings: {real.get('mapped', 0)}; all remain in a human-review queue.
+- Provisional distinct Skills/Micros: {real.get('provisional_skills_covered', 0)} / {real.get('provisional_micros_covered', 0)}.
+- Validated Stage 5 mappings counted as formal coverage: 0.
 - Real Skill coverage: {cov['real_skill_coverage_percent']}%
 - Real Micro coverage: {cov['real_micro_coverage_percent']}%
 
@@ -500,7 +592,7 @@ Two separately generated local-only sets cover 10 curriculum Skills across disti
 
 ## First next action
 
-Obtain an approved local G6 question export with provenance, then map and human-review it locally to begin real coverage without Production access.
+Human-review the 36 provisional local mappings in the `.local` review queue; only approved mappings may begin validated real coverage without Production access.
 """
     doc = ROOT / "docs/stage5/G6_PILOT_FREEZE_HANDOFF.md"
     doc.parent.mkdir(parents=True, exist_ok=True); doc.write_text(text, encoding="utf-8")
@@ -513,7 +605,7 @@ Obtain an approved local G6 question export with provenance, then map and human-
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=["audit", "inventory", "coverage", "prepare", "map", "validate", "quality", "handoff"])
+    parser.add_argument("command", choices=["audit", "inventory", "coverage", "prepare", "map", "validate", "quality", "prepare-real", "map-real", "validate-real", "handoff"])
     parser.add_argument("--set", choices=["tuning", "holdout"], default="holdout")
     parser.add_argument("--g8-pass", action="store_true")
     args = parser.parse_args()
@@ -521,6 +613,7 @@ def main() -> int:
         "audit": curriculum_audit, "inventory": inventory, "coverage": coverage,
         "prepare": lambda: prepare_set(args.set), "validate": lambda: validate_set(args.set),
         "map": lambda: map_set(args.set),
+        "prepare-real": prepare_real, "map-real": lambda: map_set("real"), "validate-real": validate_real,
         "quality": lambda: quality(args.set), "handoff": lambda: handoff(args.g8_pass),
     }
     result = actions[args.command]()

@@ -16,6 +16,9 @@ python scripts\stage5_g6_foundation.py validate --set tuning || exit /b 8
 python scripts\stage5_g6_foundation.py map --set holdout || exit /b 9
 python scripts\stage5_g6_foundation.py validate --set holdout || exit /b 10
 python scripts\stage5_g6_foundation.py quality --set holdout || exit /b 11
-python -m pytest -q tests\test_stage5_question_mapping.py tests\test_stage5_g8_freeze.py tests\test_stage5_g6_foundation.py || exit /b 12
-python scripts\stage5_g6_foundation.py handoff --g8-pass || exit /b 13
+python scripts\stage5_g6_foundation.py prepare-real || exit /b 12
+python scripts\stage5_g6_foundation.py map-real || exit /b 13
+python scripts\stage5_g6_foundation.py validate-real || exit /b 14
+python -m pytest -q tests\test_stage5_question_mapping.py tests\test_stage5_g8_freeze.py tests\test_stage5_g6_foundation.py || exit /b 15
+python scripts\stage5_g6_foundation.py handoff --g8-pass || exit /b 16
 exit /b 0

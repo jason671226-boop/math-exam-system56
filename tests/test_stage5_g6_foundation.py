@@ -1,5 +1,5 @@
 from scripts.stage5_g6_foundation import (
-    IN_SCOPE, OUT_SCOPE, choose_skills, map_set, pilot_status, response_json_resilient, validate_result,
+    IN_SCOPE, OUT_SCOPE, choose_skills, gemini_api_key, map_set, pilot_status, response_json_resilient, validate_result,
 )
 
 
@@ -45,3 +45,17 @@ def test_mapper_checkpoint_resume(tmp_path, monkeypatch):
     assert first["completed"] == second["completed"] == 2
     assert second["resumed"] == 2
     assert len(calls) == 2
+
+
+def test_gemini_secret_loader_never_prints_or_persists(tmp_path, monkeypatch, capsys):
+    import scripts.stage5_g6_foundation as module
+    secret = "unit-test-secret-value"
+    source = tmp_path / "secrets.toml"
+    source.write_text(f'GEMINI_API_KEY = "{secret}"\nSUPABASE_SERVICE_ROLE_KEY = "must-not-read"\n', encoding="utf-8")
+    monkeypatch.setattr(module, "GEMINI_SECRET_PATHS", (source,))
+    for name in ("G6_GEMINI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY", "GEMINI_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    assert gemini_api_key() == secret
+    captured = capsys.readouterr()
+    assert secret not in captured.out + captured.err
+    assert list(tmp_path.iterdir()) == [source]
