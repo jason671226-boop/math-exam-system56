@@ -6,7 +6,7 @@ Foundation completion is independent of validated real-question coverage. Synthe
 |---|---|---|---:|---:|---|---:|---:|---|---|
 | G1 | PASS | PASS | YES | NO | PENDING | NO | 0% | NOT_PROBED | Resume HOLDOUT-first after higher-priority targets |
 | G2 | PASS | PASS | YES | NO | PENDING | NO | 0% | NOT_PROBED | Resume HOLDOUT-first after higher-priority targets |
-| G3 | PASS | PASS | YES | NO | PENDING | NO | 0% | NOT_PROBED | Resume HOLDOUT-first after G10_GENERAL |
+| G3 | PASS | PASS | YES | YES | PASS / SAFE TO PAUSE | NO | 0% | AVAILABLE | Foundation complete; no real source detected |
 | G4 | PASS | PASS | YES | YES | PASS / SAFE TO PAUSE | NO | 0% | AVAILABLE | Foundation complete; no real source detected |
 | G5 | PASS | REFERENCE | YES | YES | PASS | YES | 0% | VALIDATED_PREVIOUSLY | No API work required |
 | G6 | PASS | REFERENCE | YES | YES | PASS | YES | 0% | VALIDATED_PREVIOUSLY | No API work required |
