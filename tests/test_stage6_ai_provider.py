@@ -32,6 +32,15 @@ def deepseek(content='{"ok": true}', error=None):
     return DeepSeekProvider(secret_paths=(), client=client), completions
 
 
+class MockModels:
+    def __init__(self, ids=("deepseek-v4-flash",), error=None):
+        self.ids = ids; self.error = error; self.calls = 0
+    def list(self):
+        self.calls += 1
+        if self.error: raise self.error
+        return SimpleNamespace(data=[SimpleNamespace(id=value) for value in self.ids])
+
+
 def test_deepseek_valid_json_and_metadata(monkeypatch):
     monkeypatch.delenv("DEEPSEEK_MODEL", raising=False)
     provider, calls = deepseek()
@@ -56,7 +65,7 @@ def test_deepseek_malformed_json():
 
 @pytest.mark.parametrize("exc,kind", [
     (TimeoutError("timed out"), "TIMEOUT"),
-    (type("Auth", (Exception,), {"status_code": 401})("denied"), "AUTH_ERROR"),
+    (type("Auth", (Exception,), {"status_code": 401})("denied"), "AUTH"),
     (type("Rate", (Exception,), {"status_code": 429})("rate limit"), "RATE_LIMIT"),
     (type("Quota", (Exception,), {"status_code": 429})("quota exhausted"), "QUOTA_EXHAUSTED"),
 ])
@@ -71,6 +80,37 @@ def test_retry_after_normalized():
     exc = type("Rate", (Exception,), {"status_code": 429})("rate limit")
     exc.response = SimpleNamespace(headers={"Retry-After": "7"})
     assert normalize_provider_exception(exc).retry_after == 7
+
+
+@pytest.mark.parametrize("status,kind", [(400, "BAD_REQUEST"), (402, "BALANCE"), (422, "PARAMETER"),
+                                          (500, "SERVER"), (503, "OVERLOADED")])
+def test_deepseek_http_error_normalization(status, kind):
+    exc = type("HttpError", (Exception,), {"status_code": status})("safe")
+    assert normalize_provider_exception(exc).error_type == kind
+
+
+def test_missing_provider_dependency_is_configuration_error():
+    assert normalize_provider_exception(ModuleNotFoundError("missing sdk")).error_type == "CONFIGURATION_ERROR"
+
+
+def test_deepseek_diagnostic_models_then_one_minimal_chat():
+    provider, completions = deepseek()
+    models = MockModels()
+    provider._client.models = models
+    result = provider.diagnose()
+    assert result == {"models_http": 200, "authentication": "PASS", "balance": "PASS",
+                      "model_available": True, "chat_completion": "PASS", "normalized_error": "NONE"}
+    assert models.calls == 1 and len(completions.calls) == 1
+    call = completions.calls[0]
+    assert call["model"] == "deepseek-v4-flash" and call["max_tokens"] == 8 and call["stream"] is False
+
+
+def test_deepseek_diagnostic_stops_when_model_missing():
+    provider, completions = deepseek()
+    provider._client.models = MockModels(ids=("deepseek-chat",))
+    result = provider.diagnose()
+    assert result["normalized_error"] == "MODEL_UNAVAILABLE"
+    assert not completions.calls
 
 
 def test_provider_selection_default_and_explicit(monkeypatch):

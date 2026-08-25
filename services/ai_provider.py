@@ -9,8 +9,9 @@ from pathlib import Path
 from typing import Any, Protocol, Sequence
 
 ERROR_TYPES = {
-    "AUTH_ERROR", "RATE_LIMIT", "QUOTA_EXHAUSTED", "NETWORK_ERROR", "TIMEOUT",
-    "INVALID_JSON", "MODEL_UNAVAILABLE", "UNKNOWN_PROVIDER_ERROR",
+    "AUTH", "AUTH_ERROR", "BALANCE", "BAD_REQUEST", "PARAMETER", "RATE_LIMIT",
+    "QUOTA_EXHAUSTED", "SERVER", "OVERLOADED", "NETWORK_ERROR", "TIMEOUT",
+    "INVALID_JSON", "MODEL_UNAVAILABLE", "CONFIGURATION_ERROR", "UNKNOWN_PROVIDER_ERROR",
 }
 
 
@@ -36,7 +37,9 @@ class ProviderCallError(RuntimeError):
         super().__init__(error_type)
         self.error_type = error_type
         self.retry_after = retry_after
-        self.code = 429 if error_type in {"RATE_LIMIT", "QUOTA_EXHAUSTED"} else None
+        self.code = {"AUTH": 401, "AUTH_ERROR": 401, "BALANCE": 402, "BAD_REQUEST": 400,
+                     "PARAMETER": 422, "RATE_LIMIT": 429, "QUOTA_EXHAUSTED": 429,
+                     "SERVER": 500, "OVERLOADED": 503}.get(error_type)
         self.status = "RESOURCE_EXHAUSTED" if error_type == "QUOTA_EXHAUSTED" else None
 
 
@@ -104,10 +107,16 @@ def normalize_provider_exception(exc: Exception) -> ProviderCallError:
         return exc
     code = getattr(exc, "status_code", None) or getattr(exc, "code", None)
     text = f"{type(exc).__name__} {exc}".lower()
-    if code in (401, 403): kind = "AUTH_ERROR"
+    if isinstance(exc, (ImportError, ModuleNotFoundError)): kind = "CONFIGURATION_ERROR"
+    elif code in (401, 403): kind = "AUTH"
+    elif code == 402: kind = "BALANCE"
+    elif code == 400: kind = "BAD_REQUEST"
+    elif code == 422: kind = "PARAMETER"
     elif code == 429 and any(word in text for word in ("quota", "exhausted", "insufficient")): kind = "QUOTA_EXHAUSTED"
     elif code == 429: kind = "RATE_LIMIT"
-    elif code in (404, 422) and "model" in text: kind = "MODEL_UNAVAILABLE"
+    elif code == 404 and "model" in text: kind = "MODEL_UNAVAILABLE"
+    elif code == 500: kind = "SERVER"
+    elif code == 503: kind = "OVERLOADED"
     elif isinstance(exc, TimeoutError) or "timeout" in text: kind = "TIMEOUT"
     elif any(word in text for word in ("connection", "network", "dns")): kind = "NETWORK_ERROR"
     else: kind = "UNKNOWN_PROVIDER_ERROR"
@@ -117,6 +126,7 @@ def normalize_provider_exception(exc: Exception) -> ProviderCallError:
 def _default_secret_paths() -> tuple[Path, ...]:
     return (
         Path.cwd() / ".streamlit/secrets.toml",
+        Path(r"C:\MathAI_G5_Pilot\.streamlit\secrets.toml"),
         Path(r"C:\MathAI_G6_Pilot\.streamlit\secrets.toml"),
         Path(r"C:\MathAI_G8_Pilot\.streamlit\secrets.toml"),
         Path(r"C:\MathAI\app\.streamlit\secrets.toml"),

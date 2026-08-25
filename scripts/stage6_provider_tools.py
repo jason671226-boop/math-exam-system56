@@ -24,11 +24,16 @@ def probe(name: str) -> int:
         print("DEEPSEEK_NOT_CONFIGURED")
         return 0
     try:
-        status = get_ai_provider(secret_paths=config.gemini_secret_paths).health_check()
-        print(status)
+        provider = get_ai_provider(secret_paths=config.gemini_secret_paths)
+        if name == "deepseek":
+            result = provider.diagnose()
+            print(json.dumps(result, sort_keys=True))
+            return 0 if result["chat_completion"] == "PASS" else 1
+        print(provider.health_check())
         return 0
-    except Exception:
-        print(f"{name.upper()}_UNAVAILABLE")
+    except Exception as exc:
+        normalized = exc.error_type if isinstance(exc, ProviderCallError) else "UNKNOWN_PROVIDER_ERROR"
+        print(json.dumps({"provider": name, "normalized_error": normalized}))
         return 1
 
 

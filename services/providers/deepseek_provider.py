@@ -48,6 +48,42 @@ class DeepSeekProvider:
             if isinstance(exc, RuntimeError) and str(exc) == "DEEPSEEK_NOT_CONFIGURED": raise
             raise normalize_provider_exception(exc) from None
 
+    def diagnose(self) -> dict[str, Any]:
+        """One models request and, only when available, one minimal chat request."""
+        try:
+            models = self._get_client().models.list()
+        except Exception as exc:
+            if isinstance(exc, RuntimeError) and str(exc) == "DEEPSEEK_NOT_CONFIGURED":
+                return {"models_http": None, "authentication": "NOT_CONFIGURED", "balance": "UNKNOWN",
+                        "model_available": False, "chat_completion": "NOT_RUN", "normalized_error": "AUTH"}
+            error = normalize_provider_exception(exc)
+            return {"models_http": error.code, "authentication": "FAIL" if error.error_type == "AUTH" else "UNKNOWN",
+                    "balance": "FAIL" if error.error_type == "BALANCE" else "UNKNOWN", "model_available": False,
+                    "chat_completion": "NOT_RUN", "normalized_error": error.error_type}
+        model_ids = {str(getattr(item, "id", "")) for item in getattr(models, "data", models)}
+        if self.model_name not in model_ids:
+            return {"models_http": 200, "authentication": "PASS", "balance": "UNKNOWN",
+                    "model_available": False, "chat_completion": "NOT_RUN", "normalized_error": "MODEL_UNAVAILABLE"}
+        try:
+            self._get_client().chat.completions.create(
+                model=self.model_name,
+                messages=[{"role": "system", "content": "Return a JSON object."},
+                          {"role": "user", "content": "Return {\"ok\":true}."}],
+                response_format={"type": "json_object"},
+                extra_body={"thinking": {"type": "disabled"}},
+                max_tokens=8,
+                stream=False,
+            )
+            return {"models_http": 200, "authentication": "PASS", "balance": "PASS",
+                    "model_available": True, "chat_completion": "PASS", "normalized_error": "NONE"}
+        except Exception as exc:
+            error = normalize_provider_exception(exc)
+            return {"models_http": 200, "authentication": "PASS",
+                    "balance": "FAIL" if error.error_type == "BALANCE" else "UNKNOWN",
+                    "model_available": True, "chat_completion": "FAIL", "normalized_error": error.error_type}
+
     def health_check(self) -> str:
-        self.generate_json("Return exactly {}.")
+        result = self.diagnose()
+        if result["chat_completion"] != "PASS":
+            raise ProviderCallError(str(result["normalized_error"]))
         return "DEEPSEEK_AVAILABLE"

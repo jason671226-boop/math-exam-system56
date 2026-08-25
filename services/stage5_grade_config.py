@@ -48,6 +48,7 @@ def load_grade_config(grade: str) -> GradeConfig:
     sources = tuple(sorted((ROOT / "data").glob(f"diagnostic_questions_{lower}_*.json")))
     secret_paths = (
         ROOT / ".streamlit/secrets.toml",
+        Path(r"C:\MathAI_G5_Pilot\.streamlit\secrets.toml"),
         Path(r"C:\MathAI_G6_Pilot\.streamlit\secrets.toml"),
         Path(r"C:\MathAI_G8_Pilot\.streamlit\secrets.toml"),
         Path(r"C:\MathAI\app\.streamlit\secrets.toml"),
