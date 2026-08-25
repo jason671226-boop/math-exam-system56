@@ -9,6 +9,7 @@ This is a sanitized release-candidate snapshot. Foundation completion and valida
 - G8 Foundation: PASS.
 - G7 Foundation: PASS (HOLDOUT-first, 34/34 complete).
 - G9 Foundation: PASS (HOLDOUT-first, 34/34 complete).
+- G4 Foundation: PASS (HOLDOUT-first, 34/34 complete).
 - Validated real-question coverage remains 0% in the current generic coverage summaries.
 
 ## Engine state
@@ -35,8 +36,16 @@ This is a sanitized release-candidate snapshot. Foundation completion and valida
 - Validated real-question coverage remains 0%; synthetic HOLDOUT is excluded.
 - Local checkpoints are preserved.
 
+## G4 state
+
+- Foundation: SAFE TO PAUSE.
+- HOLDOUT prepared and completed: 34/34.
+- Scope, exact Skill, and exact Micro accuracy: 100%; invalid: 0; quality: PASS.
+- Validated real-question coverage remains 0%; synthetic HOLDOUT is excluded.
+- Local checkpoints are preserved.
+
 ## Pending targets
 
-G1, G2, G3, G4, G10_GENERAL, G11_A, G11_B, G12_A, and G12_B.
+G1, G2, G3, G10_GENERAL, G11_A, G11_B, G12_A, and G12_B.
 
-Resume one target at a time in the sanitized API queue order. The next target is G4.
+Resume one target at a time in the sanitized API queue order. The next target is G10_GENERAL.
