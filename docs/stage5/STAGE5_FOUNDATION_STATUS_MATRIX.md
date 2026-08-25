@@ -10,7 +10,7 @@ Foundation completion is independent of validated real-question coverage. Synthe
 | G4 | PASS | PASS | YES | NO | PENDING | NO | 0% | NOT_PROBED | Resume HOLDOUT-first after G9 |
 | G5 | PASS | REFERENCE | YES | YES | PASS | YES | 0% | VALIDATED_PREVIOUSLY | No API work required |
 | G6 | PASS | REFERENCE | YES | YES | PASS | YES | 0% | VALIDATED_PREVIOUSLY | No API work required |
-| G7 | PASS | PASS | YES | NO | EXTERNAL_API_BLOCKED | YES | 0% | QUOTA_BLOCKED | Resume HOLDOUT-first first |
+| G7 | PASS | PASS | YES | YES | PASS / SAFE TO PAUSE | YES | 0% | AVAILABLE | Foundation complete; keep real coverage separate |
 | G8 | PASS | REFERENCE | YES | YES | PASS | YES | 0% | VALIDATED_PREVIOUSLY | No API work required |
 | G9 | PASS | PASS | YES | NO | PENDING | YES | 0% | NOT_PROBED | Resume HOLDOUT-first after G7 |
 | G10_GENERAL | PASS | PASS | YES | NO | PENDING | NO | 0% | NOT_PROBED | Resume HOLDOUT-first after G4 |

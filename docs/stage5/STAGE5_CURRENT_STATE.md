@@ -7,6 +7,7 @@ This is a sanitized release-candidate snapshot. Foundation completion and valida
 - G5 Foundation: PASS.
 - G6 Foundation: PASS.
 - G8 Foundation: PASS.
+- G7 Foundation: PASS (HOLDOUT-first, 34/34 complete).
 - Validated real-question coverage remains 0% in the current generic coverage summaries.
 
 ## Engine state
@@ -15,18 +16,18 @@ This is a sanitized release-candidate snapshot. Foundation completion and valida
 - Profile-aware Engine: PASS.
 - All-target Offline Preflight: PASS.
 - HOLDOUT-first strategy: PASS.
-- Offline regression: 59/59 PASS.
+- Offline regression: 61/61 PASS.
 - Production reads: 0; production writes: 0.
 
 ## G7 state
 
-- Foundation: BLOCKED only by external API availability.
+- Foundation: SAFE TO PAUSE.
 - HOLDOUT prepared: 34.
 - Tuning, HOLDOUT, checkpoint, and quota summary artifacts are preserved locally.
-- Active HOLDOUT checkpoint: 0 completed / 34 remaining.
+- HOLDOUT checkpoint: 34 completed / 0 remaining.
 
 ## Pending targets
 
-G1, G2, G3, G4, G7, G9, G10_GENERAL, G11_A, G11_B, G12_A, and G12_B.
+G1, G2, G3, G4, G9, G10_GENERAL, G11_A, G11_B, G12_A, and G12_B.
 
-Resume one target at a time in the sanitized API queue order. The next target is G7.
+Resume one target at a time in the sanitized API queue order. The next target is G9.

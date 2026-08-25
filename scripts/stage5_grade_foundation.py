@@ -162,6 +162,13 @@ def _real_sources(config: GradeConfig) -> tuple[Path, ...]:
     return tuple(allowed[k] for k in sorted(allowed, key=str))
 
 
+def _sanitized_source_path(config: GradeConfig, path: Path) -> str:
+    try:
+        return path.relative_to(ROOT).as_posix()
+    except ValueError:
+        return f"{config.local_output_dir.name}/imports/{path.name}"
+
+
 def inventory(config: GradeConfig) -> dict[str, Any]:
     unique: dict[str, dict[str, str]] = {}
     sources = []
@@ -169,7 +176,7 @@ def inventory(config: GradeConfig) -> dict[str, Any]:
         try:
             rows = _question_rows(path)
         except (OSError, json.JSONDecodeError) as exc:
-            sources.append({"path": path.relative_to(ROOT).as_posix(), "question_rows": 0,
+            sources.append({"path": _sanitized_source_path(config, path), "question_rows": 0,
                             "parse_error": type(exc).__name__})
             continue
         count = 0
@@ -178,7 +185,7 @@ def inventory(config: GradeConfig) -> dict[str, Any]:
             if text:
                 fp = fingerprint(str(text)); count += 1
                 unique.setdefault(fp, {"fingerprint": fp, "source": path.name})
-        sources.append({"path": path.relative_to(ROOT).as_posix(), "question_rows": count})
+        sources.append({"path": _sanitized_source_path(config, path), "question_rows": count})
     total = sum(x["question_rows"] for x in sources)
     result = {f"REAL_{config.target_id}_LOCAL_QUESTION_SOURCE": "AVAILABLE" if unique else "NOT_AVAILABLE",
               "source_files": sources, "source_question_rows": total, "unique_questions": len(unique),
@@ -862,7 +869,8 @@ def resume_queue() -> dict[str, Any]:
     preferred = ("G7", "G9", "G4", "G10_GENERAL", "G3", "G2", "G1",
                  "G11_A", "G11_B", "G12_A", "G12_B")
     rows = []
-    for priority, target in enumerate(preferred, 1):
+    active_priority = 0
+    for target in preferred:
         if target not in pending:
             continue
         config = load_grade_config(target); local = config.local_output_dir
@@ -884,13 +892,24 @@ def resume_queue() -> dict[str, Any]:
         optional = int(preflight.get("real_unique_questions") or 0)
         mapping_summary_path = local / "synthetic/tuning/mapping_run_summary.json"
         mapping_summary = json.loads(mapping_summary_path.read_text(encoding="utf-8")) if mapping_summary_path.is_file() else {}
-        if preflight.get("offline_preflight") != "PASS":
+        handoff_path = local / "handoff_summary.json"
+        handoff_summary = json.loads(handoff_path.read_text(encoding="utf-8")) if handoff_path.is_file() else {}
+        foundation_complete = handoff_summary.get("foundation") == "SAFE TO PAUSE"
+        if foundation_complete:
+            row_priority = 0
+            holdout_first_calls = fallback_tuning_calls = fallback_holdout2_calls = 0
+            best_case = worst_case = 0
+            status, action = "COMPLETED", "Foundation complete; no validation calls required"
+        elif preflight.get("offline_preflight") != "PASS":
+            active_priority += 1; row_priority = active_priority
             status, action = "BLOCKED", "Resolve offline preflight errors"
         elif mapping_summary.get("status") == "GEMINI_QUOTA_BLOCKED":
+            active_priority += 1; row_priority = active_priority
             status, action = "QUOTA_BLOCKED_RESUME", "Resume from checkpoint when quota is available"
         else:
+            active_priority += 1; row_priority = active_priority
             status, action = "READY", "Start bounded API validation when quota is available"
-        rows.append({"priority": priority, "target_id": target,
+        rows.append({"priority": row_priority, "target_id": target,
                      "curriculum_status": preflight.get("curriculum_status", "NOT_RUN"),
                      "real_source_available": "YES" if preflight.get("real_source_available") else "NO",
                      "real_unique_questions": optional,
@@ -906,7 +925,7 @@ def resume_queue() -> dict[str, Any]:
                      "total_estimated_calls": best_case + optional, "estimated_gemini_calls": best_case + optional,
                      "resume_status": status, "recommended_action": action})
     old_minimum = sum((row["tuning_questions"] + row["holdout_questions"] - row["legacy_completed_calls"])
-                      for row in rows)
+                      for row in rows if row["resume_status"] != "COMPLETED")
     totals = {"old_minimum_validation_calls": old_minimum,
               "best_case_validation_calls": sum(row["best_case_calls"] for row in rows),
               "worst_case_validation_calls": sum(row["worst_case_calls"] for row in rows),
@@ -927,11 +946,13 @@ def resume_queue() -> dict[str, Any]:
               f"- Optional real mapping calls: {totals['optional_real_mapping_calls']}",
               f"- Total estimated calls: {totals['total_estimated_calls']}",
               f"- Estimated savings: {totals['estimated_savings']} ({totals['estimated_savings_percent']}%)",
-              f"- Recommended order: {', '.join(preferred)}"]
+              f"- Recommended order: {', '.join(row['target_id'] for row in rows if row['resume_status'] != 'COMPLETED')}"]
     doc = ROOT / "docs/stage5/STAGE5_API_RESUME_QUEUE.md"
     doc.parent.mkdir(parents=True, exist_ok=True); doc.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    return {"targets": rows, **totals, "recommended_order": list(preferred),
-            "ready": sum(row["resume_status"] != "BLOCKED" for row in rows),
+    return {"targets": rows, **totals,
+            "recommended_order": [row["target_id"] for row in rows if row["resume_status"] != "COMPLETED"],
+            "ready": sum(row["resume_status"] not in {"BLOCKED", "COMPLETED"} for row in rows),
+            "completed": sum(row["resume_status"] == "COMPLETED" for row in rows),
             "blocked": sum(row["resume_status"] == "BLOCKED" for row in rows),
             "production_reads": 0, "production_writes": 0}
 
