@@ -281,3 +281,40 @@ def test_quota_block_writes_fail_closed_summary_and_preserves_checkpoint(tmp_pat
     assert summary["completed"] == 0 and summary["remaining"] == 1
     assert summary["checkpoint_preserved"] is True
     assert checkpoint.read_text(encoding="utf-8") == ""
+
+
+def test_offline_preflight_validates_sets_and_preserves_resume_artifacts(tmp_path, monkeypatch):
+    config = replace(load_grade_config("G7"), local_output_dir=tmp_path / "g7")
+    engine.prepare_set(config, "tuning")
+    engine.prepare_set(config, "holdout")
+    tuning = config.local_output_dir / "synthetic/tuning/questions.jsonl"
+    holdout = config.local_output_dir / "synthetic/holdout/questions.jsonl"
+    checkpoint = config.local_output_dir / "synthetic/tuning/mapping_checkpoint.jsonl"
+    quota = config.local_output_dir / "synthetic/tuning/mapping_run_summary.json"
+    checkpoint.write_text("", encoding="utf-8")
+    engine.write_json(quota, {"status": "GEMINI_QUOTA_BLOCKED", "remaining": 34})
+    before = {path: path.read_bytes() for path in (tuning, holdout, checkpoint, quota)}
+    monkeypatch.setattr(engine, "gemini_api_key",
+                        lambda unused: pytest.fail("offline preflight attempted Gemini key access"))
+    result = engine.offline_preflight(config)
+    assert result["offline_preflight"] == "PASS"
+    assert result["tuning_preserved"] is result["holdout_preserved"] is True
+    assert all(path.read_bytes() == content for path, content in before.items())
+
+
+def test_preparation_validation_fails_on_cross_set_duplicate_and_parent_error(tmp_path):
+    config = replace(load_grade_config("G4"), local_output_dir=tmp_path / "g4")
+    engine.coverage(config); engine.prepare_set(config, "tuning"); engine.prepare_set(config, "holdout")
+    tuning = engine.read_jsonl(config.local_output_dir / "synthetic/tuning/questions.jsonl")
+    holdout_path = config.local_output_dir / "synthetic/holdout/questions.jsonl"
+    holdout = engine.read_jsonl(holdout_path)
+    holdout[0]["fingerprint"] = tuning[0]["fingerprint"]
+    foreign = next(row for row in tuning
+                   if row.get("expected_micro_skill_id") and
+                   row.get("expected_skill_id") != holdout[1].get("expected_skill_id"))
+    holdout[1]["expected_micro_skill_id"] = foreign["expected_micro_skill_id"]
+    holdout_path.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in holdout), encoding="utf-8")
+    result = engine.validate_preparation(config)
+    assert result["preparation_integrity"] == "FAIL"
+    assert "TUNING_HOLDOUT_FINGERPRINT_OVERLAP" in result["errors"]
+    assert "EXPECTED_MICRO_PARENT_MISMATCH:holdout" in result["errors"]

@@ -1,0 +1,13 @@
+@echo off
+setlocal
+cd /d "%~dp0"
+
+if "%~1"=="" exit /b 20
+echo %~1| findstr /R /I "^G[1-4]$ ^G7$ ^G9$ ^G10_GENERAL$ ^G11_A$ ^G11_B$ ^G12_A$ ^G12_B$" >nul || exit /b 21
+for /f "delims=" %%B in ('git branch --show-current') do set "PILOT_BRANCH=%%B"
+if /I not "%PILOT_BRANCH%"=="stage5/generic-grade-engine" exit /b 22
+
+python scripts\stage5_grade_foundation.py --grade %~1 all || exit /b %ERRORLEVEL%
+python -m pytest -q tests\test_stage5_grade_engine.py tests\test_stage5_g5_foundation.py tests\test_stage5_g6_foundation.py tests\test_stage5_g8_freeze.py tests\test_stage5_question_mapping.py || exit /b 30
+python scripts\stage5_grade_foundation.py --grade %~1 handoff --regression-pass
+exit /b %ERRORLEVEL%

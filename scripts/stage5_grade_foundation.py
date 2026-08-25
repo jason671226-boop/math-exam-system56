@@ -26,6 +26,8 @@ REQUIRED_FILES = (
     "standard_skills.csv", "layer2_micro_skills.csv", "prerequisite_graph.csv",
     "publisher_units.csv", "official_curriculum.json", "OUT_OF_SCOPE_RULES.md",
 )
+PILOT_TARGET_IDS = tuple([f"G{number}" for number in range(1, 10)] + [
+    "G10_GENERAL", "G11_A", "G11_B", "G12_A", "G12_B"])
 
 
 def read_csv(path: Path) -> list[dict[str, str]]:
@@ -276,6 +278,96 @@ def prepare_set(config: GradeConfig, name: str) -> dict[str, Any]:
               "main_units": len({skill_unit(x) for x in selected}),
               "production_reads": 0, "production_writes": 0}
     write_json(dest.parent / "preparation_summary.json", result)
+    return result
+
+
+def ensure_prepared(config: GradeConfig, name: str) -> dict[str, Any]:
+    """Prepare only when absent, preserving every existing local artifact."""
+    path = config.local_output_dir / "synthetic" / name / "questions.jsonl"
+    if path.is_file():
+        rows = read_jsonl(path)
+        if not rows:
+            raise RuntimeError(f"EMPTY_PREPARED_SET:{config.target_id}:{name}")
+        return {"set": name, "questions": len(rows), "preserved": True,
+                "production_reads": 0, "production_writes": 0}
+    result = prepare_set(config, name)
+    result["preserved"] = False
+    return result
+
+
+def validate_preparation(config: GradeConfig) -> dict[str, Any]:
+    skills, micros = _catalog(config)
+    skill_ids = {row["skill_id"] for row in skills}
+    micro_by_id = {row["micro_skill_id"]: row for row in micros}
+    sets = {}
+    errors = []
+    fingerprints = {}
+    for name in ("tuning", "holdout"):
+        path = config.local_output_dir / "synthetic" / name / "questions.jsonl"
+        rows = read_jsonl(path)
+        if not rows:
+            errors.append(f"EMPTY_SET:{name}")
+        fps = [str(row.get("fingerprint") or "") for row in rows]
+        if any(not fp for fp in fps):
+            errors.append(f"BLANK_FINGERPRINT:{name}")
+        if len(fps) != len(set(fps)):
+            errors.append(f"DUPLICATE_FINGERPRINT:{name}")
+        for row in rows:
+            sid = str(row.get("expected_skill_id") or "")
+            mid = str(row.get("expected_micro_skill_id") or "")
+            scope = row.get("expected_scope_status")
+            if row.get("synthetic_validation") is not True:
+                errors.append(f"NOT_SYNTHETIC:{name}")
+            if scope not in {config.in_scope_status, config.out_scope_status}:
+                errors.append(f"INVALID_EXPECTED_SCOPE:{name}")
+            if scope == config.out_scope_status and (sid or mid):
+                errors.append(f"OUT_OF_SCOPE_EXPECTED_MAPPING:{name}")
+            if scope == config.in_scope_status:
+                if sid not in skill_ids:
+                    errors.append(f"UNKNOWN_EXPECTED_SKILL:{name}")
+                if mid and mid not in micro_by_id:
+                    errors.append(f"UNKNOWN_EXPECTED_MICRO:{name}")
+                if mid in micro_by_id and micro_by_id[mid]["parent_skill_id"] != sid:
+                    errors.append(f"EXPECTED_MICRO_PARENT_MISMATCH:{name}")
+        fingerprints[name] = set(fps)
+        sets[name] = len(rows)
+    overlap = fingerprints.get("tuning", set()) & fingerprints.get("holdout", set())
+    if overlap:
+        errors.append("TUNING_HOLDOUT_FINGERPRINT_OVERLAP")
+    coverage_path = config.local_output_dir / "coverage" / f"{config.target_id.lower()}_coverage_summary.json"
+    coverage_summary = json.loads(coverage_path.read_text(encoding="utf-8")) if coverage_path.is_file() else {}
+    if coverage_summary.get("synthetic_questions_counted_as_real") != 0:
+        errors.append("SYNTHETIC_COUNTED_AS_REAL")
+    result = {"target_id": config.target_id, "tuning_questions": sets.get("tuning", 0),
+              "holdout_questions": sets.get("holdout", 0), "cross_set_duplicate_fingerprints": len(overlap),
+              "errors": sorted(set(errors)), "preparation_integrity": "PASS" if not errors else "FAIL",
+              "production_reads": 0, "production_writes": 0}
+    write_json(config.local_output_dir / "preparation_validation_summary.json", result)
+    return result
+
+
+def offline_preflight(config: GradeConfig) -> dict[str, Any]:
+    environment = environment_audit(config)
+    audit = curriculum_audit(config)
+    if environment["environment_integrity"] != "PASS" or audit["curriculum_integrity"] != "PASS":
+        raise RuntimeError(f"OFFLINE_PREFLIGHT_PRECHECK_FAILED:{config.target_id}")
+    inv = inventory(config)
+    cov = coverage(config)
+    tuning = ensure_prepared(config, "tuning")
+    holdout = ensure_prepared(config, "holdout")
+    validation = validate_preparation(config)
+    result = {"target_id": config.target_id, "curriculum_status": audit["curriculum_integrity"],
+              "real_source_available": inv[f"REAL_{config.target_id}_LOCAL_QUESTION_SOURCE"] == "AVAILABLE",
+              "real_unique_questions": inv["unique_questions"],
+              "tuning_questions": validation["tuning_questions"],
+              "holdout_questions": validation["holdout_questions"],
+              "tuning_preserved": tuning.get("preserved", False),
+              "holdout_preserved": holdout.get("preserved", False),
+              "preparation_integrity": validation["preparation_integrity"],
+              "synthetic_counted_as_real": cov["synthetic_questions_counted_as_real"],
+              "offline_preflight": "PASS" if validation["preparation_integrity"] == "PASS" else "BLOCKED",
+              "production_reads": 0, "production_writes": 0}
+    write_json(config.local_output_dir / "offline_preflight_summary.json", result)
     return result
 
 
@@ -639,9 +731,7 @@ Human validation is required before provisional mappings increase real coverage.
 
 def readiness_matrix() -> dict[str, Any]:
     rows = []
-    target_ids = [f"G{number}" for number in range(1, 10)] + [
-        "G10_GENERAL", "G11_A", "G11_B", "G12_A", "G12_B"]
-    for grade in target_ids:
+    for grade in PILOT_TARGET_IDS:
         try:
             config = load_grade_config(grade); pack = config.curriculum_dir
         except (ValueError, FileNotFoundError):
@@ -670,13 +760,74 @@ def readiness_matrix() -> dict[str, Any]:
             "production_reads": 0, "production_writes": 0}
 
 
+def resume_queue() -> dict[str, Any]:
+    pending = ("G1", "G2", "G3", "G4", "G7", "G9", "G10_GENERAL",
+               "G11_A", "G11_B", "G12_A", "G12_B")
+    preferred = ("G7", "G9", "G4", "G10_GENERAL", "G3", "G2", "G1",
+                 "G11_A", "G11_B", "G12_A", "G12_B")
+    rows = []
+    for priority, target in enumerate(preferred, 1):
+        if target not in pending:
+            continue
+        config = load_grade_config(target); local = config.local_output_dir
+        preflight_path = local / "offline_preflight_summary.json"
+        preflight = json.loads(preflight_path.read_text(encoding="utf-8")) if preflight_path.is_file() else {}
+        tuning = read_jsonl(local / "synthetic/tuning/questions.jsonl")
+        holdout = read_jsonl(local / "synthetic/holdout/questions.jsonl")
+        tuning_completed = len(read_jsonl(local / "synthetic/tuning/mapping_checkpoint.jsonl"))
+        holdout_completed = len(read_jsonl(local / "synthetic/holdout/mapping_checkpoint.jsonl"))
+        completed = tuning_completed + holdout_completed
+        minimum = max(0, len(tuning) + len(holdout) - completed)
+        if tuning_completed < len(tuning):
+            active_completed, active_remaining = tuning_completed, len(tuning) - tuning_completed
+        else:
+            active_completed, active_remaining = holdout_completed, len(holdout) - holdout_completed
+        optional = int(preflight.get("real_unique_questions") or 0)
+        mapping_summary_path = local / "synthetic/tuning/mapping_run_summary.json"
+        mapping_summary = json.loads(mapping_summary_path.read_text(encoding="utf-8")) if mapping_summary_path.is_file() else {}
+        if preflight.get("offline_preflight") != "PASS":
+            status, action = "BLOCKED", "Resolve offline preflight errors"
+        elif mapping_summary.get("status") == "GEMINI_QUOTA_BLOCKED":
+            status, action = "QUOTA_BLOCKED_RESUME", "Resume from checkpoint when quota is available"
+        else:
+            status, action = "READY", "Start bounded API validation when quota is available"
+        rows.append({"priority": priority, "target_id": target,
+                     "curriculum_status": preflight.get("curriculum_status", "NOT_RUN"),
+                     "real_source_available": "YES" if preflight.get("real_source_available") else "NO",
+                     "real_unique_questions": optional,
+                     "tuning_questions": len(tuning), "holdout_questions": len(holdout),
+                     "checkpoint_completed": active_completed, "checkpoint_remaining": active_remaining,
+                     "minimum_validation_calls": minimum, "optional_real_mapping_calls": optional,
+                     "total_estimated_calls": minimum + optional, "estimated_gemini_calls": minimum + optional,
+                     "resume_status": status, "recommended_action": action})
+    totals = {"minimum_validation_calls": sum(row["minimum_validation_calls"] for row in rows),
+              "optional_real_mapping_calls": sum(row["optional_real_mapping_calls"] for row in rows)}
+    totals["total_estimated_calls"] = totals["minimum_validation_calls"] + totals["optional_real_mapping_calls"]
+    lines = ["# Stage 5 API Resume Queue", "",
+             "Sanitized metadata only. No question content, mapping output, or credentials are included.", "",
+             "| Priority | Target | Curriculum | Real source | Real unique | Tuning | HOLDOUT | Checkpoint done | Remaining | Minimum calls | Optional real calls | Total calls | Resume status | Recommended action |",
+             "|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|"]
+    for row in rows:
+        lines.append("| {priority} | {target_id} | {curriculum_status} | {real_source_available} | {real_unique_questions} | {tuning_questions} | {holdout_questions} | {checkpoint_completed} | {checkpoint_remaining} | {minimum_validation_calls} | {optional_real_mapping_calls} | {total_estimated_calls} | {resume_status} | {recommended_action} |".format(**row))
+    lines += ["", "## Totals", "", f"- Minimum validation calls: {totals['minimum_validation_calls']}",
+              f"- Optional real mapping calls: {totals['optional_real_mapping_calls']}",
+              f"- Total estimated calls: {totals['total_estimated_calls']}",
+              f"- Recommended order: {', '.join(preferred)}"]
+    doc = ROOT / "docs/stage5/STAGE5_API_RESUME_QUEUE.md"
+    doc.parent.mkdir(parents=True, exist_ok=True); doc.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return {"targets": rows, **totals, "recommended_order": list(preferred),
+            "ready": sum(row["resume_status"] != "BLOCKED" for row in rows),
+            "blocked": sum(row["resume_status"] == "BLOCKED" for row in rows),
+            "production_reads": 0, "production_writes": 0}
+
+
 def run_all(config: GradeConfig, selected_set: str, regression_pass: bool) -> dict[str, Any]:
     steps = {"environment": environment_audit(config), "audit": curriculum_audit(config)}
     if steps["environment"]["environment_integrity"] != "PASS" or steps["audit"]["curriculum_integrity"] != "PASS":
         raise RuntimeError("FOUNDATION_PRECHECK_FAILED")
     steps["inventory"] = inventory(config); steps["coverage"] = coverage(config)
-    steps["prepare_tuning"] = prepare_set(config, "tuning"); steps["map_tuning"] = map_set(config, "tuning")
-    steps["validate_tuning"] = validate_set(config, "tuning"); steps["prepare_holdout"] = prepare_set(config, "holdout")
+    steps["prepare_tuning"] = ensure_prepared(config, "tuning"); steps["map_tuning"] = map_set(config, "tuning")
+    steps["validate_tuning"] = validate_set(config, "tuning"); steps["prepare_holdout"] = ensure_prepared(config, "holdout")
     steps["map_holdout"] = map_set(config, "holdout"); steps["validate_holdout"] = validate_set(config, "holdout")
     steps["quality"] = quality(config, "holdout"); steps["prepare_real"] = prepare_real(config)
     if steps["prepare_real"]["questions"]:
@@ -686,16 +837,18 @@ def run_all(config: GradeConfig, selected_set: str, regression_pass: bool) -> di
 
 def main() -> int:
     parser = argparse.ArgumentParser(); parser.add_argument("--grade", required=True)
-    parser.add_argument("command", choices=["environment", "audit", "inventory", "coverage", "prepare", "map", "validate", "quality", "prepare-real", "map-real", "validate-real", "handoff", "readiness", "all"])
+    parser.add_argument("command", choices=["environment", "audit", "inventory", "coverage", "prepare", "preflight", "map", "validate", "quality", "prepare-real", "map-real", "validate-real", "handoff", "readiness", "resume-queue", "all"])
     parser.add_argument("--set", choices=["tuning", "holdout"], default="holdout"); parser.add_argument("--regression-pass", action="store_true")
     args = parser.parse_args(); config = load_grade_config(args.grade)
     actions = {"environment": lambda: environment_audit(config), "audit": lambda: curriculum_audit(config),
                "inventory": lambda: inventory(config), "coverage": lambda: coverage(config),
-               "prepare": lambda: prepare_set(config, args.set), "map": lambda: map_set(config, args.set),
+               "prepare": lambda: prepare_set(config, args.set), "preflight": lambda: offline_preflight(config),
+               "map": lambda: map_set(config, args.set),
                "validate": lambda: validate_set(config, args.set), "quality": lambda: quality(config, args.set),
                "prepare-real": lambda: prepare_real(config), "map-real": lambda: map_set(config, "real"),
                "validate-real": lambda: validate_real(config), "handoff": lambda: handoff(config, args.regression_pass),
-               "readiness": readiness_matrix, "all": lambda: run_all(config, args.set, args.regression_pass)}
+               "readiness": readiness_matrix, "resume-queue": resume_queue,
+               "all": lambda: run_all(config, args.set, args.regression_pass)}
     try:
         result = actions[args.command]()
     except GeminiQuotaBlocked:
