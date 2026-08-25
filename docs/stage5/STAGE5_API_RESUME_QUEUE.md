@@ -9,19 +9,19 @@ Sanitized metadata only. No question content, mapping output, or credentials are
 | 0 | G4 | HOLDOUT_FIRST | PASS | NO | 0 | 34 | 34 | 34 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | COMPLETED | Foundation complete; no validation calls required |
 | 0 | G10_GENERAL | HOLDOUT_FIRST | PASS | NO | 0 | 34 | 34 | 34 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | COMPLETED | Foundation complete; no validation calls required |
 | 0 | G3 | HOLDOUT_FIRST | PASS | NO | 0 | 34 | 34 | 34 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | COMPLETED | Foundation complete; no validation calls required |
-| 1 | G2 | HOLDOUT_FIRST | PASS | NO | 0 | 34 | 34 | 0 | 34 | 34 | 34 | 34 | 34 | 102 | 0 | READY | Start bounded API validation when quota is available |
-| 2 | G1 | HOLDOUT_FIRST | PASS | NO | 0 | 34 | 34 | 0 | 34 | 34 | 34 | 34 | 34 | 102 | 0 | READY | Start bounded API validation when quota is available |
-| 3 | G11_A | HOLDOUT_FIRST | PASS | NO | 0 | 34 | 34 | 0 | 34 | 34 | 34 | 34 | 34 | 102 | 0 | READY | Start bounded API validation when quota is available |
-| 4 | G11_B | HOLDOUT_FIRST | PASS | NO | 0 | 34 | 34 | 0 | 34 | 34 | 34 | 34 | 34 | 102 | 0 | READY | Start bounded API validation when quota is available |
-| 5 | G12_A | HOLDOUT_FIRST | PASS | NO | 0 | 34 | 34 | 0 | 34 | 34 | 34 | 34 | 34 | 102 | 0 | READY | Start bounded API validation when quota is available |
-| 6 | G12_B | HOLDOUT_FIRST | PASS | NO | 0 | 34 | 34 | 0 | 34 | 34 | 34 | 34 | 34 | 102 | 0 | READY | Start bounded API validation when quota is available |
+| 0 | G2 | HOLDOUT_FIRST | PASS | NO | 0 | 34 | 34 | 34 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | COMPLETED | Foundation complete; no validation calls required |
+| 1 | G1 | HOLDOUT_FIRST | PASS | NO | 0 | 34 | 34 | 0 | 34 | 34 | 34 | 34 | 34 | 102 | 0 | READY | Start bounded API validation when quota is available |
+| 2 | G11_A | HOLDOUT_FIRST | PASS | NO | 0 | 34 | 34 | 0 | 34 | 34 | 34 | 34 | 34 | 102 | 0 | READY | Start bounded API validation when quota is available |
+| 3 | G11_B | HOLDOUT_FIRST | PASS | NO | 0 | 34 | 34 | 0 | 34 | 34 | 34 | 34 | 34 | 102 | 0 | READY | Start bounded API validation when quota is available |
+| 4 | G12_A | HOLDOUT_FIRST | PASS | NO | 0 | 34 | 34 | 0 | 34 | 34 | 34 | 34 | 34 | 102 | 0 | READY | Start bounded API validation when quota is available |
+| 5 | G12_B | HOLDOUT_FIRST | PASS | NO | 0 | 34 | 34 | 0 | 34 | 34 | 34 | 34 | 34 | 102 | 0 | READY | Start bounded API validation when quota is available |
 
 ## Totals
 
-- Old minimum validation calls: 408
-- Best-case validation calls: 204
-- Worst-case validation calls: 612
+- Old minimum validation calls: 340
+- Best-case validation calls: 170
+- Worst-case validation calls: 510
 - Optional real mapping calls: 36
-- Total estimated calls: 240
-- Estimated savings: 204 (50.0%)
-- Recommended order: G2, G1, G11_A, G11_B, G12_A, G12_B
+- Total estimated calls: 206
+- Estimated savings: 170 (50.0%)
+- Recommended order: G1, G11_A, G11_B, G12_A, G12_B
