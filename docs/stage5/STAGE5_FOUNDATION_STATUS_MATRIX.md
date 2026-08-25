@@ -4,7 +4,7 @@ Foundation completion is independent of validated real-question coverage. Synthe
 
 | target_id | curriculum_ready | offline_preflight | holdout_prepared | holdout_completed | foundation_status | real_source | validated_real_coverage | api_status | next_action |
 |---|---|---|---:|---:|---|---:|---:|---|---|
-| G1 | PASS | PASS | YES | NO | PENDING | NO | 0% | NOT_PROBED | Resume HOLDOUT-first after higher-priority targets |
+| G1 | PASS | PASS | YES | YES | PASS / SAFE TO PAUSE | NO | 0% | AVAILABLE | Foundation complete; no real source detected |
 | G2 | PASS | PASS | YES | YES | PASS / SAFE TO PAUSE | NO | 0% | AVAILABLE | Foundation complete; no real source detected |
 | G3 | PASS | PASS | YES | YES | PASS / SAFE TO PAUSE | NO | 0% | AVAILABLE | Foundation complete; no real source detected |
 | G4 | PASS | PASS | YES | YES | PASS / SAFE TO PAUSE | NO | 0% | AVAILABLE | Foundation complete; no real source detected |
