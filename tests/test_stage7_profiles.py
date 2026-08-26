@@ -17,7 +17,7 @@ def valid_mapping(profile="COMPETITION"):
     grades = ("G4", "G5", "G6") if profile == "COMPETITION" else ("G5", "G6")
     skills, micros = load_curriculum_catalog(grades)
     micro_id, micro = next(iter(micros.items()))
-    return {"profile_type": profile, "primary_skill_id": micro["parent_skill_id"],
+    return {"profile_type": profile, "scope_status": profile, "primary_skill_id": micro["parent_skill_id"],
             "primary_micro_skill_id": micro_id, "secondary_skill_ids": [],
             "thinking_skill_ids": ["TS-ENUM"] if profile == "COMPETITION" else [],
             "primary_thinking_skill_id": "TS-ENUM" if profile == "COMPETITION" else "",
@@ -62,6 +62,14 @@ def test_private_jh_cannot_expand_catalog_by_caller_request():
                 "strategy_depth": None, "assessment_style": "HIGH_DIFFICULTY"})
     errors = validate_mapping_result(row, grades=("G4", "G5", "G6"))
     assert "UNKNOWN_SKILL_ID" in errors and "UNKNOWN_MICRO_SKILL_ID" in errors
+
+
+def test_private_jh_out_of_scope_must_be_unmapped():
+    row = valid_mapping("PRIVATE_JH")
+    row.update(scope_status="OUT_OF_SCOPE_PROFILE", primary_skill_id="", primary_micro_skill_id="")
+    assert validate_mapping_result(row, grades=("G5", "G6")) == []
+    row["primary_skill_id"] = next(iter(load_curriculum_catalog(("G5", "G6"))[0]))
+    assert "OUT_OF_SCOPE_MAPPED" in validate_mapping_result(row, grades=("G5", "G6"))
 
 
 def test_parent_constraint_and_invalid_ids():

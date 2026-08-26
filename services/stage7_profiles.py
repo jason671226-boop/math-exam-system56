@@ -130,13 +130,20 @@ def validate_mapping_result(result: dict[str, Any], *, grades: Iterable[str]) ->
     thinking = load_thinking_taxonomy()
     skill_id = str(result.get("primary_skill_id") or "")
     micro_id = str(result.get("primary_micro_skill_id") or "")
-    if skill_id not in skills:
-        errors.append("UNKNOWN_SKILL_ID")
-    micro = micros.get(micro_id)
-    if micro is None:
-        errors.append("UNKNOWN_MICRO_SKILL_ID")
-    elif skill_id and micro.get("parent_skill_id") != skill_id:
-        errors.append("MICRO_PARENT_MISMATCH")
+    out_of_scope = result.get("scope_status") == "OUT_OF_SCOPE_PROFILE"
+    if result.get("scope_status") not in {profile.value, "OUT_OF_SCOPE_PROFILE"}:
+        errors.append("INVALID_SCOPE_STATUS")
+    if out_of_scope:
+        if skill_id or micro_id or result.get("secondary_skill_ids"):
+            errors.append("OUT_OF_SCOPE_MAPPED")
+    else:
+        if skill_id not in skills:
+            errors.append("UNKNOWN_SKILL_ID")
+        micro = micros.get(micro_id)
+        if micro is None:
+            errors.append("UNKNOWN_MICRO_SKILL_ID")
+        elif skill_id and micro.get("parent_skill_id") != skill_id:
+            errors.append("MICRO_PARENT_MISMATCH")
     for item in result.get("secondary_skill_ids") or []:
         if item not in skills:
             errors.append("UNKNOWN_SECONDARY_SKILL_ID")
@@ -159,8 +166,12 @@ def validate_mapping_result(result: dict[str, Any], *, grades: Iterable[str]) ->
         if not isinstance(result.get("strategy_depth"), int) or not 1 <= result["strategy_depth"] <= 5:
             errors.append("INVALID_STRATEGY_DEPTH")
     style = result.get("assessment_style")
-    if profile is ProfileType.PRIVATE_JH and style not in PRIVATE_JH_STYLES:
+    if profile is ProfileType.PRIVATE_JH and not out_of_scope and style not in PRIVATE_JH_STYLES:
         errors.append("INVALID_PRIVATE_JH_STYLE")
+    if profile is ProfileType.PRIVATE_JH and not out_of_scope:
+        for secondary_style in result.get("secondary_assessment_styles") or []:
+            if secondary_style not in PRIVATE_JH_STYLES:
+                errors.append("INVALID_PRIVATE_JH_SECONDARY_STYLE")
     return sorted(set(errors))
 
 
