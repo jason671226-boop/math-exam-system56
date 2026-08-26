@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0,str(ROOT))
 
-from services.stage7_profiles import load_curriculum_catalog, validate_mapping_result
+from services.stage7_profiles import PRIVATE_JH_CATALOG_GRADES, load_curriculum_catalog, validate_mapping_result
 
 PILOT = ROOT / ".local" / "stage7_private_jh" / "pilot100"
 MANIFEST = PILOT / "sample_manifest.json"
@@ -91,7 +91,7 @@ def prepare() -> dict[str, Any]:
     if any(fp not in questions or fp not in deep for fp in fingerprints):
         raise RuntimeError("REVIEW_SOURCE_MISSING")
 
-    skills,micros=load_curriculum_catalog(("G5","G6"))
+    skills,micros=load_curriculum_catalog(PRIVATE_JH_CATALOG_GRADES)
     signatures={fp:structural_signature(str(questions[fp].get("question_text") or "")) for fp in fingerprints}
     sizes=Counter(signatures.values())
     ordered=sorted(queue,key=lambda row:(int(_priority(set(filter(None,row["reasons"].split("|"))))[1]),row["fingerprint"]))
@@ -124,17 +124,19 @@ def prepare() -> dict[str, Any]:
         })
 
     teacher_fields=list(records[0])
-    with TEACHER.open("w",encoding="utf-8-sig",newline="") as handle:
-        writer=csv.DictWriter(handle,fieldnames=teacher_fields);writer.writeheader();writer.writerows(records)
+    if not TEACHER.exists():
+        with TEACHER.open("w",encoding="utf-8-sig",newline="") as handle:
+            writer=csv.DictWriter(handle,fieldnames=teacher_fields);writer.writeheader();writer.writerows(records)
     simple_fields=("序號","優先級","題目","DeepSeek判斷","Gemini判斷","差異原因","建議檢查點","人工Scope","人工Skill","人工Micro","人工Secondary Skill","人工Assessment Style","人工備註","structural_group_id","group_size")
-    with SIMPLE.open("w",encoding="utf-8-sig",newline="") as handle:
-        writer=csv.DictWriter(handle,fieldnames=simple_fields);writer.writeheader()
-        for row in records:
-            writer.writerow({"序號":row["序號"],"優先級":row["優先級"],"題目":row["題目"],
-                "DeepSeek判斷":" / ".join(map(str,(row["DeepSeek Scope"],row["DeepSeek Skill 中文名稱"],row["DeepSeek Micro 中文名稱"],row["DeepSeek Assessment Style"]))),
-                "Gemini判斷":" / ".join(filter(None,(row["Gemini Scope（若有）"],row["Gemini Skill"],row["Gemini Micro"]))),
-                "差異原因":row["Review Reason"],"建議檢查點":row["建議檢查點"],"人工Scope":"","人工Skill":"","人工Micro":"",
-                "人工Secondary Skill":"","人工Assessment Style":"","人工備註":"","structural_group_id":row["structural_group_id"],"group_size":row["group_size"]})
+    if not SIMPLE.exists():
+        with SIMPLE.open("w",encoding="utf-8-sig",newline="") as handle:
+            writer=csv.DictWriter(handle,fieldnames=simple_fields);writer.writeheader()
+            for row in records:
+                writer.writerow({"序號":row["序號"],"優先級":row["優先級"],"題目":row["題目"],
+                    "DeepSeek判斷":" / ".join(map(str,(row["DeepSeek Scope"],row["DeepSeek Skill 中文名稱"],row["DeepSeek Micro 中文名稱"],row["DeepSeek Assessment Style"]))),
+                    "Gemini判斷":" / ".join(filter(None,(row["Gemini Scope（若有）"],row["Gemini Skill"],row["Gemini Micro"]))),
+                    "差異原因":row["Review Reason"],"建議檢查點":row["建議檢查點"],"人工Scope":"","人工Skill":"","人工Micro":"",
+                    "人工Secondary Skill":"","人工Assessment Style":"","人工備註":"","structural_group_id":row["structural_group_id"],"group_size":row["group_size"]})
     after={path.name:file_hash(path) for path in (DEEPSEEK,GEMINI,QUEUE)}
     priority_counts=Counter(row["優先級"] for row in records)
     reason_counts=Counter(reason for item in queue for reason in filter(None,item["reasons"].split("|")))

@@ -19,7 +19,7 @@ if str(ROOT) not in sys.path:
 
 from services.ai_provider import ProviderCallError, get_ai_provider
 from services.stage5_question_mapping import build_candidate_packet
-from services.stage7_profiles import PRIVATE_JH_STYLES, load_curriculum_catalog, validate_mapping_result
+from services.stage7_profiles import PRIVATE_JH_CATALOG_GRADES, PRIVATE_JH_STYLES, load_curriculum_catalog, validate_mapping_result
 
 LOCAL = ROOT / ".local/stage7_private_jh"
 CORPUS = LOCAL / "raw_extracted/public_private_jh_questions.jsonl"
@@ -125,7 +125,7 @@ def distribution(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def catalogs() -> tuple[list[dict], list[dict], dict[str, dict], dict[str, dict]]:
-    skill_map, micro_map = load_curriculum_catalog(("G5", "G6"))
+    skill_map, micro_map = load_curriculum_catalog(PRIVATE_JH_CATALOG_GRADES)
     return list(skill_map.values()), list(micro_map.values()), skill_map, micro_map
 
 
@@ -135,11 +135,12 @@ def mapping_prompt(question: dict[str, Any]) -> str:
         "unit":" ".join(question.get("topic_groups") or []), "knowledge_tag":question_type(question)}, skills, micros,
         skill_limit=14, micro_limit=50)
     context = {"skill_candidates":packet["skill_candidates"], "micro_candidates":packet["micro_candidates"]}
-    return """You are mapping one official G6-to-G7 private-school entrance-style math question to the existing Taiwan G5/G6 curriculum catalog.
+    guidance=json.loads((ROOT/"data/stage7/private_jh_topic_guidance_v1.json").read_text(encoding="utf-8"))
+    return """You are mapping one official G6-to-G7 private-school entrance-style math question. The target band is G5/G6; real G1-G4 prerequisite curriculum IDs are also allowed.
 Return one JSON object only. Do not invent IDs. A selected primary_micro_skill_id MUST have parent_skill_id equal to primary_skill_id. Every secondary_skill_id must be one of the listed skill candidates. Thinking skills are disabled.
-High difficulty alone is NOT out of scope. Use OUT_OF_SCOPE_PROFILE only if the question is incomplete or cannot reasonably rest on G5/G6 foundations.
+High difficulty alone is NOT out of scope and does not imply COMPETITION. Use OUT_OF_SCOPE_PROFILE only with profile evidence that the item cannot reasonably support private-JH entrance assessment.
 Required fields: scope_status (PRIVATE_JH or OUT_OF_SCOPE_PROFILE), primary_skill_id, primary_micro_skill_id, secondary_skill_ids (array), assessment_style, secondary_assessment_styles (array), difficulty (FOUNDATION/STANDARD/HIGH), confidence (0..1).
-assessment_style and secondary_assessment_styles may only use: """ + ", ".join(sorted(PRIVATE_JH_STYLES)) + "\nQUESTION:\n" + question["question_text"] + "\nCANDIDATE_CONTEXT:\n" + json.dumps(context, ensure_ascii=False)
+assessment_style and secondary_assessment_styles may only use: """ + ", ".join(sorted(PRIVATE_JH_STYLES)) + "\nCANDIDATE_GUIDANCE_ONLY (never Human Ground Truth):\n" + json.dumps(guidance,ensure_ascii=False) + "\nQUESTION:\n" + question["question_text"] + "\nCANDIDATE_CONTEXT:\n" + json.dumps(context, ensure_ascii=False)
 
 
 def checkpoint_key(provider: str, fingerprint: str) -> str:

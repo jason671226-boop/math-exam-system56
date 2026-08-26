@@ -11,6 +11,9 @@ from typing import Any, Iterable
 ROOT = Path(__file__).resolve().parents[1]
 PACK_ROOT = ROOT / "data/master_curriculum_v2_7/grade_packs"
 THINKING_PATH = ROOT / "data/stage7/thinking_skills_v1.csv"
+PRIVATE_JH_TARGET_GRADES = ("G5", "G6")
+PRIVATE_JH_FOUNDATION_GRADES = ("G1", "G2", "G3", "G4")
+PRIVATE_JH_CATALOG_GRADES = PRIVATE_JH_FOUNDATION_GRADES + PRIVATE_JH_TARGET_GRADES
 
 
 class ProfileType(str, Enum):
@@ -33,6 +36,8 @@ class AssessmentProfile:
     profile_type: ProfileType
     grade_band: str
     curriculum_grade: tuple[str, ...]
+    curriculum_target_grade: tuple[str, ...]
+    curriculum_foundation_grade: tuple[str, ...]
     difficulty_band: tuple[str, ...]
     assessment_style: tuple[str, ...]
     allowed_skill_ids: tuple[str, ...]
@@ -92,13 +97,16 @@ def load_thinking_taxonomy(path: Path = THINKING_PATH) -> dict[str, dict]:
 
 def build_profile(profile_type: str | ProfileType | None = None) -> AssessmentProfile:
     kind = normalize_profile_type(profile_type)
-    grades = ("G5", "G6") if kind is ProfileType.PRIVATE_JH else (("G4", "G5", "G6") if kind is ProfileType.COMPETITION else tuple())
-    skills, micros = load_curriculum_catalog(grades) if grades else ({}, {})
+    target_grades = PRIVATE_JH_TARGET_GRADES if kind is ProfileType.PRIVATE_JH else (("G4", "G5", "G6") if kind is ProfileType.COMPETITION else tuple())
+    foundation_grades = PRIVATE_JH_FOUNDATION_GRADES if kind is ProfileType.PRIVATE_JH else tuple()
+    catalog_grades = foundation_grades + target_grades
+    skills, micros = load_curriculum_catalog(catalog_grades) if catalog_grades else ({}, {})
     styles = tuple(sorted(PRIVATE_JH_STYLES)) if kind is ProfileType.PRIVATE_JH else (("COMPETITION_STRATEGY",) if kind is ProfileType.COMPETITION else ("STANDARD",))
     return AssessmentProfile(
         profile_id=f"{kind.value}_V1", profile_type=kind,
         grade_band="G5-G6" if kind is ProfileType.PRIVATE_JH else ("G4-G6" if kind is ProfileType.COMPETITION else "CONFIGURED_GRADE"),
-        curriculum_grade=grades, difficulty_band=("FOUNDATION", "STANDARD", "ADVANCED"),
+        curriculum_grade=target_grades, curriculum_target_grade=target_grades,
+        curriculum_foundation_grade=foundation_grades, difficulty_band=("FOUNDATION", "STANDARD", "ADVANCED"),
         assessment_style=styles, allowed_skill_ids=tuple(sorted(skills)),
         allowed_micro_ids=tuple(sorted(micros)), thinking_skill_enabled=kind is ProfileType.COMPETITION,
         cross_unit_enabled=kind is not ProfileType.STANDARD,
@@ -124,7 +132,7 @@ def validate_mapping_result(result: dict[str, Any], *, grades: Iterable[str]) ->
         profile = normalize_profile_type(result.get("profile_type"))
     except ValueError:
         return ["UNKNOWN_PROFILE"]
-    catalog_grades = (("G5", "G6") if profile is ProfileType.PRIVATE_JH else
+    catalog_grades = (PRIVATE_JH_CATALOG_GRADES if profile is ProfileType.PRIVATE_JH else
                       (("G4", "G5", "G6") if profile is ProfileType.COMPETITION else tuple(grades)))
     skills, micros = load_curriculum_catalog(catalog_grades)
     thinking = load_thinking_taxonomy()

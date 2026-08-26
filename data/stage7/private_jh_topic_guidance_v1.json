@@ -1,0 +1,11 @@
+{
+  "status": "CANDIDATE_GUIDANCE_ONLY",
+  "human_validation_implied": false,
+  "rules": [
+    {"rule_id":"PJH-CONCENTRATION","evidence":["部分量/全體量","加水後反推濃度"],"primary_candidate":"G05-N-RATE-01","secondary_candidates":["G05-N-PERCENT-01"]},
+    {"rule_id":"PJH-MENTAL-LAWS","evidence":["湊整","拆數","分配律簡算"],"primary_candidate":"G05-R-LAW-01","secondary_candidates":[]},
+    {"rule_id":"PJH-PERIOD-LCM","evidence":["週期同時發生"],"primary_candidate":"G05-N-LCM-01","secondary_candidates":["G04-R-PERIOD-01"]},
+    {"rule_id":"PJH-RECTANGLE-FACTOR","evidence":["長方形排列種數","整數邊長配對"],"primary_candidate":"G05-N-FACTOR-01","avoid_primary_candidate":"G05-N-MULTIPLE-01","secondary_candidates":[]},
+    {"rule_id":"PJH-CUBE-NET-FACES","evidence":["正方體展開圖","相鄰面"],"primary_candidate":"G05-S-FACE-01","secondary_candidates":[]}
+  ]
+}

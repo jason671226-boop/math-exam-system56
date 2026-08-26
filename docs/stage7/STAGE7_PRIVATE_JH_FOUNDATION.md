@@ -1,6 +1,6 @@
 # Stage 7 PRIVATE_JH Foundation
 
-PRIVATE_JH v1 targets G5–G6 and reuses 98 Skills and 646 Micros from the existing master curriculum packs. It adds assessment style and secondary-Skill metadata, not curriculum IDs.
+PRIVATE_JH v1 targets G5–G6 and reuses the existing curriculum packs. G1–G4 Skills and Micros may be selected only as real prerequisite/foundation curriculum for a reasonable private-JH entrance item. This adds no curriculum IDs or duplicate tree; difficulty alone neither makes an item out of scope nor changes it to Competition.
 
 | Topic group | Curriculum support | Secondary Skill likely | New assessment tag | Suitable |
 |---|---|---|---|---|

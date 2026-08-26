@@ -35,7 +35,8 @@ def test_standard_backward_compatibility():
 def test_profiles_reuse_curriculum_without_duplicate_tree():
     private = build_profile("PRIVATE_JH")
     competition = build_profile("COMPETITION")
-    assert private.curriculum_grade == ("G5", "G6") and private.allowed_skill_ids
+    assert private.curriculum_grade == private.curriculum_target_grade == ("G5", "G6")
+    assert private.curriculum_foundation_grade == ("G1", "G2", "G3", "G4") and private.allowed_skill_ids
     assert competition.curriculum_grade == ("G4", "G5", "G6") and competition.thinking_skill_enabled
     assert all(not item.startswith("TS-") for item in competition.allowed_skill_ids + competition.allowed_micro_ids)
 
@@ -52,16 +53,15 @@ def test_valid_private_jh_and_competition():
     assert validate_mapping_result(competition, grades=("G4", "G5", "G6")) == []
 
 
-def test_private_jh_cannot_expand_catalog_by_caller_request():
+def test_private_jh_allows_real_g4_prerequisite_catalog_ids():
     row = valid_mapping("COMPETITION")
     skills_g4, micros_g4 = load_curriculum_catalog(("G4",))
     micro_id, micro = next(iter(micros_g4.items()))
-    row.update({"profile_type": "PRIVATE_JH", "primary_skill_id": micro["parent_skill_id"],
+    row.update({"profile_type": "PRIVATE_JH", "scope_status": "PRIVATE_JH", "primary_skill_id": micro["parent_skill_id"],
                 "primary_micro_skill_id": micro_id, "thinking_skill_ids": [],
                 "primary_thinking_skill_id": "", "competition_level": None,
                 "strategy_depth": None, "assessment_style": "HIGH_DIFFICULTY"})
-    errors = validate_mapping_result(row, grades=("G4", "G5", "G6"))
-    assert "UNKNOWN_SKILL_ID" in errors and "UNKNOWN_MICRO_SKILL_ID" in errors
+    assert validate_mapping_result(row, grades=("G5", "G6")) == []
 
 
 def test_private_jh_out_of_scope_must_be_unmapped():
