@@ -5,7 +5,9 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-FORBIDDEN_NAMES = (".local/", ".env", "secrets.toml", "human_review", "raw_question", "raw_mapping", "model_raw")
+FORBIDDEN_ALWAYS = (".local/", ".env", "secrets.toml")
+PRIVATE_ARTIFACT_NAMES = ("human_review", "raw_question", "raw_mapping", "model_raw")
+SANITIZED_SOURCE_SUFFIXES = {".py", ".md"}
 SECRET_MARKERS = tuple(prefix + "KEY=" for prefix in ("DEEPSEEK_API_", "GEMINI_API_", "GOOGLE_API_")) + ("service_" + "role_key",)
 
 
@@ -19,7 +21,10 @@ def validate_staged(paths: list[str] | None = None) -> list[str]:
     errors: list[str] = []
     for relative in paths if paths is not None else staged_paths():
         lowered = relative.lower()
-        if any(marker in lowered for marker in FORBIDDEN_NAMES):
+        suffix = Path(lowered).suffix
+        if any(marker in lowered for marker in FORBIDDEN_ALWAYS) or (
+            suffix not in SANITIZED_SOURCE_SUFFIXES and any(marker in lowered for marker in PRIVATE_ARTIFACT_NAMES)
+        ):
             errors.append(f"FORBIDDEN_STAGED_PATH:{relative}")
             continue
         path = ROOT / relative
