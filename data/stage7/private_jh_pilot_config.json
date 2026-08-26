@@ -1,0 +1,1 @@
+{"profile_type":"PRIVATE_JH","target_count":100,"run_enabled":false,"provider":"deepseek","model":"deepseek-v4-flash","automatic_fallback":false,"input_root":".local/stage7_private_jh","checkpoint_key":"profile_type:fingerprint","human_review_required":true}

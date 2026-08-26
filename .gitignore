@@ -9,3 +9,5 @@ __pycache__/
 
 # Stage 5 local-only pilot snapshots and AI mapping outputs.
 .local/
+.local/stage7_private_jh/
+.local/stage7_competition/

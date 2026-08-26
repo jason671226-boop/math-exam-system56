@@ -1,0 +1,25 @@
+thinking_skill_id,category,name_zh,name_en,definition,recognition_rule,common_mistake,recommended_grade_band,status
+TS-NUMBER_THEORY,A. 數與代數策略,數論觀察,Number theory observation,從整數性質尋找可推廣的關係,解法核心使用因數倍數餘數或數字結構,只做計算而未指出整數性質,G4-G6,ACTIVE
+TS-DIVISIBILITY,A. 數與代數策略,整除性,Divisibility,使用整除規則或倍數結構縮小可能性,判定或構造可被指定整數整除的數,把整除與除法有餘數混同,G4-G6,ACTIVE
+TS-GCD_LCM,A. 數與代數策略,最大公因數／最小公倍數策略,GCD and LCM strategy,以公因數或公倍數統整週期與分組限制,問題核心是共同分組同步或最小重現,未辨別應求最大公因數或最小公倍數,G5-G6,ACTIVE
+TS-PARITY,A. 數與代數策略,奇偶性,Parity,利用奇偶在運算下的封閉規律推理,追蹤奇偶即可排除或證明結果,逐項試算而忽略奇偶不變關係,G4-G6,ACTIVE
+TS-SUBSTITUTION,A. 數與代數策略,代換,Substitution,用等值符號或較簡單量替代重複結構,相同複合量多次出現且可整體替換,代換後忘記還原原量,G5-G6,ACTIVE
+TS-ENUM,B. 組合與邏輯策略,枚舉,Enumeration,有系統列出所有符合條件的可能,有限候選需保證不重不漏,隨意列舉造成重複或遺漏,G4-G6,ACTIVE
+TS-CASE,B. 組合與邏輯策略,分類討論,Case analysis,依互斥且完備的條件分支求解,不同條件分支需分別處理再合併,分類互相重疊或未涵蓋全部,G4-G6,ACTIVE
+TS-PIGEONHOLE,B. 組合與邏輯策略,抽屜原理,Pigeonhole principle,以物件多於容器保證至少一處重複或超額,問題要求證明必有而非找出特例,未清楚定義物件與抽屜,G5-G6,ACTIVE
+TS-COUNTING,B. 組合與邏輯策略,組合計數,Combinatorial counting,用加法乘法原理或結構化方法計數,目標是計算不重複配置路徑或選法,直接相乘而未檢查限制與重複,G4-G6,ACTIVE
+TS-LOGIC,B. 組合與邏輯策略,邏輯排除,Logical elimination,從條件相容性逐步排除不可能選項,多個敘述限制共同決定唯一或有限結果,把未證明的猜測當成條件,G4-G6,ACTIVE
+TS-INVARIANT,B. 組合與邏輯策略,不變量,Invariant,辨識操作過程中保持不變的量或性質,重複操作後需判斷可達性或終態,只模擬少數步驟便宣稱一般結論,G5-G6,ACTIVE
+TS-CONSTRUCTION,B. 組合與邏輯策略,構造法,Construction,明確建立滿足全部條件的例子或配置,題目要求存在性或可行配置,只聲稱存在而未給出完整構造,G4-G6,ACTIVE
+TS-CUTTING,C. 幾何策略,圖形切割,Geometric dissection,將圖形切為容易計算或比較的部分,複合圖形可拆成已知形狀,切割後重算或漏算重疊區域,G4-G6,ACTIVE
+TS-COMPLEMENT,C. 幾何策略,補形,Geometric completion,補成規則圖形後扣除多餘部分,缺角或不規則區域能嵌入已知圖形,補出的區域扣除不完整,G4-G6,ACTIVE
+TS-SYMMETRY,C. 幾何策略,對稱,Symmetry,利用鏡射旋轉或中心對稱簡化關係,圖形或配置存在等價對稱部分,未驗證題目條件是否保留對稱,G4-G6,ACTIVE
+TS-AREA_TRANSFORM,C. 幾何策略,等積變形,Area-preserving transformation,以剪移平移或同底等高保持面積,形狀改變但面積可證明不變,把視覺相似誤認為等積,G5-G6,ACTIVE
+TS-AUXILIARY,C. 幾何策略,輔助元素,Auxiliary element,添加線段點或延伸線揭示隱藏關係,現有圖形資訊不足而輔助元素可形成已知結構,任意加線但未說明用途,G5-G6,ACTIVE
+TS-DIAGRAM,C. 幾何策略,圖示／畫圖策略,Diagram strategy,把文字條件轉為位置線段表格或示意圖,空間或關係資訊以圖示更清楚,圖未標示條件或比例失真後直接量測,G4-G6,ACTIVE
+TS-PATTERN,D. 一般解題策略,規律觀察,Pattern recognition,從序列圖形或運算辨識可驗證規律,重複結構能推測並驗證後續或一般項,僅看前兩項便過度推廣,G4-G6,ACTIVE
+TS-BACKWARD,D. 一般解題策略,逆推,Backward reasoning,從已知結果逐步反向還原先前狀態,正向未知分支多而逆向操作唯一或較少,反向運算次序或逆運算錯誤,G4-G6,ACTIVE
+TS-WORK_BACK,D. 一般解題策略,從結果反推條件,Work back from result,由目標限制反推必要條件與候選範圍,需找起始條件或證明必要性,只找到必要條件卻未驗證充分性,G5-G6,ACTIVE
+TS-EXTREMAL,D. 一般解題策略,極值思考,Extremal reasoning,考察最大最小或邊界案例導出限制,最佳化或存在性可由極端元素控制,只猜極值而未證明界限,G5-G6,ACTIVE
+TS-MULTI_REP,D. 一般解題策略,多表徵轉換,Multiple representations,在文字算式表格圖形間轉換以揭示關係,一種表示不易看出但另一表示可直接處理,轉換時遺失單位或限制,G4-G6,ACTIVE
+TS-DECOMPOSE,D. 一般解題策略,分解問題,Problem decomposition,將複雜問題拆成可獨立處理的子問題,多條件多步驟問題可分階段合成,子問題未涵蓋原問題全部條件,G4-G6,ACTIVE

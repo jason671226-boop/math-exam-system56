@@ -1,0 +1,13 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema","title":"Stage 7 Mapping Result","type":"object","additionalProperties":false,
+  "required":["fingerprint","profile_type","scope_status","primary_skill_id","primary_micro_skill_id","secondary_skill_ids","thinking_skill_ids","primary_thinking_skill_id","difficulty","competition_level","strategy_depth","assessment_style","provider","model","confidence","validation_status","review_status","parent_validation","profile_validation","thinking_skill_validation","status","latency","token_usage"],
+  "properties":{
+    "fingerprint":{"type":"string","minLength":1},"profile_type":{"enum":["STANDARD","PRIVATE_JH","COMPETITION"]},"scope_status":{"enum":["STANDARD","PRIVATE_JH","COMPETITION","OUT_OF_SCOPE_PROFILE"]},
+    "primary_skill_id":{"type":"string"},"primary_micro_skill_id":{"type":"string"},"secondary_skill_ids":{"type":"array","items":{"type":"string"},"uniqueItems":true},
+    "thinking_skill_ids":{"type":"array","items":{"type":"string","pattern":"^TS-"},"uniqueItems":true},"primary_thinking_skill_id":{"type":"string"},
+    "difficulty":{"type":"string"},"competition_level":{"type":["string","null"]},"strategy_depth":{"type":["integer","null"],"minimum":1,"maximum":5},"assessment_style":{"type":"string"},
+    "provider":{"type":"string"},"model":{"type":"string"},"status":{"type":"string"},"latency":{"type":"number","minimum":0},"token_usage":{"type":"object"},"confidence":{"type":"number","minimum":0,"maximum":1},
+    "validation_status":{"enum":["VALID","INVALID"]},"review_status":{"enum":["AUTO_CANDIDATE","REVIEW","HUMAN_VALIDATED","REJECTED"]},
+    "parent_validation":{"enum":["PASS","FAIL"]},"profile_validation":{"enum":["PASS","FAIL"]},"thinking_skill_validation":{"enum":["PASS","FAIL","NOT_APPLICABLE"]}
+  }
+}

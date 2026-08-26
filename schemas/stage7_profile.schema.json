@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MathAI Stage 7 Assessment Profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["profile_id","profile_type","grade_band","curriculum_grade","difficulty_band","assessment_style","allowed_skill_ids","allowed_micro_ids","thinking_skill_enabled","cross_unit_enabled","time_pressure_enabled","source_type","status"],
+  "properties": {
+    "profile_id": {"type":"string","minLength":1},
+    "profile_type": {"enum":["STANDARD","PRIVATE_JH","COMPETITION"]},
+    "grade_band": {"type":"string","minLength":1},
+    "curriculum_grade": {"type":"array","items":{"type":"string"},"uniqueItems":true},
+    "difficulty_band": {"type":"array","items":{"type":"string"},"uniqueItems":true},
+    "assessment_style": {"type":"array","items":{"type":"string"},"uniqueItems":true},
+    "allowed_skill_ids": {"type":"array","items":{"type":"string"},"uniqueItems":true},
+    "allowed_micro_ids": {"type":"array","items":{"type":"string"},"uniqueItems":true},
+    "thinking_skill_enabled": {"type":"boolean"}, "cross_unit_enabled": {"type":"boolean"},
+    "time_pressure_enabled": {"type":"boolean"}, "source_type": {"type":"string"},
+    "status": {"enum":["DRAFT","ACTIVE","INACTIVE"]}
+  }
+}
