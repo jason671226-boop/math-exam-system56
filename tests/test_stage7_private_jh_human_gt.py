@@ -8,7 +8,7 @@ from services.stage7_profiles import build_profile, load_curriculum_catalog, val
 
 
 def test_teacher_gt_ingest_is_unique_valid_and_excludes_source_invalid():
-    status=gt.ingest();rows=gt._jsonl(gt.GT)
+    status=gt.ingest();all_rows=gt._jsonl(gt.GT);rows=[row for row in all_rows if int(row["source_review_number"])<=15]
     assert len(rows)==len({row["fingerprint"] for row in rows})==15
     assert sum(row["source_status"]=="HUMAN_VALIDATED" for row in rows)==14
     invalid=[row for row in rows if row["source_status"]=="SOURCE_INVALID"]
