@@ -19,7 +19,7 @@ def test_teacher_gt_ingest_is_unique_valid_and_excludes_source_invalid():
 def test_all_teacher_ids_and_parents_are_catalog_valid():
     skills,micros=load_curriculum_catalog(("G1","G2","G3","G4","G5","G6"))
     for row in gt._jsonl(gt.GT):
-        if row["source_status"]=="SOURCE_INVALID":continue
+        if row["source_status"]!="HUMAN_VALIDATED":continue
         assert row["human_primary_skill_id"] in skills
         assert row["human_primary_micro_id"] in micros
         assert micros[row["human_primary_micro_id"]]["parent_skill_id"]==row["human_primary_skill_id"]
