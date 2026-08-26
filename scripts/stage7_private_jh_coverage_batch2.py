@@ -45,7 +45,17 @@ def _validate_ids()->None:
         if micros[spec["micro"]]["parent_skill_id"]!=spec["skill"]:raise RuntimeError(f"MICRO_PARENT_MISMATCH:{number}")
         if any(sid not in skills for sid in spec["secondary"]):raise RuntimeError(f"UNKNOWN_SECONDARY:{number}")
 
-def ingest()->dict[str,Any]:
+def ingest(*,force:bool=False)->dict[str,Any]:
+    if not force and TEACHER_V3.is_file() and STATUS.is_file():
+        status=json.loads(STATUS.read_text(encoding="utf-8-sig"))
+        # Later teacher batches legitimately extend the shared cleaning queue.
+        # Report its current totals without regenerating or overwriting V3.
+        if CLEANING.is_file():
+            current=json.loads(CLEANING.read_text(encoding="utf-8-sig")).get("items",[])
+            status["source_cleaning_queue_total"]=len(current)
+            status["human_coverage"]["missing_image_queue"]=sum(
+                row.get("status")=="NEEDS_IMAGE_REEXTRACTION" for row in current)
+        return status
     required=(TEACHER_V2,MANIFEST,GT,CLEANING)
     if not all(p.is_file() for p in required):raise RuntimeError("MISSING_COVERAGE_BATCH2_INPUT")
     resolved=_locate();_validate_ids();existing={r["fingerprint"]:r for r in _jsonl(GT)};now=datetime.now(timezone.utc).isoformat()
