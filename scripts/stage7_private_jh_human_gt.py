@@ -108,7 +108,10 @@ def ingest()->dict[str,Any]:
     GT.write_text("".join(json.dumps(row,ensure_ascii=False)+"\n" for row in sorted(merged.values(),key=lambda x:int(x["source_review_number"]))),encoding="utf-8")
     invalid=next(row for row in records if row["source_status"]=="SOURCE_INVALID")
     source={q["fingerprint"]:q for q in questions}[invalid["fingerprint"]]
-    CLEANING.write_text(json.dumps({"items":[{"fingerprint":invalid["fingerprint"],"source":{"school":source.get("source_school"),"year":source.get("source_year"),"exam":source.get("source_exam"),"url":source.get("source_url")},"reason":"題目抽取污染／多題黏在同一題幹","status":"NEEDS_REEXTRACTION","replacement_status":"PENDING"}]},ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+    cleaning=json.loads(CLEANING.read_text(encoding="utf-8-sig")) if CLEANING.exists() else {"items":[]}
+    cleaning_items={row["fingerprint"]:row for row in cleaning.get("items",[])}
+    cleaning_items[invalid["fingerprint"]]={"fingerprint":invalid["fingerprint"],"source":{"school":source.get("source_school"),"year":source.get("source_year"),"exam":source.get("source_exam"),"url":source.get("source_url")},"reason":"題目抽取污染／多題黏在同一題幹","status":"NEEDS_REEXTRACTION","replacement_status":"PENDING"}
+    CLEANING.write_text(json.dumps({"items":list(cleaning_items.values())},ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
     removed=set(resolved.values());teacher_q={row["題目"]:row for row in teacher}
     by_text={q["question_text"]:q["fingerprint"] for q in questions if q["question_text"] in teacher_q}
     remaining=[row.copy() for row in teacher if by_text.get(row["題目"]) not in removed]

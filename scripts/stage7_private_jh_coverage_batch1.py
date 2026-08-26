@@ -55,7 +55,9 @@ def _source_metadata(q:dict[str,Any])->dict[str,Any]:
     year=str(q.get("source_year") or "");pdf=PDF_ROOT/PDF_BY_SOURCE.get(year,"")
     return {"official_pdf":pdf.is_file(),"question_number":q.get("question_number"),"fraction_expected":"分數" in (q.get("topic_groups") or [])}
 
-def ingest()->dict[str,Any]:
+def ingest(*,force:bool=False)->dict[str,Any]:
+    if not force and NEXT_TEACHER.is_file() and STATUS.is_file():
+        return json.loads(STATUS.read_text(encoding="utf-8-sig"))
     required=(TEACHER_SET,DEFERRED,MANIFEST,GT,CLEANING)
     if not all(path.is_file() for path in required):raise RuntimeError("MISSING_COVERAGE_BATCH_INPUT")
     resolved,_=_locate();_validate_ids();existing={r["fingerprint"]:r for r in _jsonl(GT)};now=datetime.now(timezone.utc).isoformat()

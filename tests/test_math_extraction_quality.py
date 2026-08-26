@@ -1,4 +1,4 @@
-from services.math_extraction_quality import assess_fraction_structure_loss,assess_math_extraction
+from services.math_extraction_quality import assess_fraction_structure_loss,assess_math_extraction,assess_missing_required_image
 
 
 def test_math_notation_gate_detects_broken_fraction_radical_exponent_and_geometry():
@@ -19,3 +19,9 @@ def test_fraction_loss_requires_multiple_signals_and_does_not_flag_large_integer
     assert assess_fraction_structure_loss(broken,source_metadata=meta).status=="SOURCE_NEEDS_REEXTRACTION"
     intact="計算 299998+29998+2998+298+28？ (A) 333320 (B) 333310 (C) 333210 (D) 333120"
     assert assess_fraction_structure_loss(intact,source_metadata={"official_pdf":True,"question_number":9,"fraction_expected":False}).status=="PASS"
+
+
+def test_missing_image_gate_and_false_positive_reference():
+    assert assess_missing_required_image("如下圖所示，求角度。",extracted_record={}).status=="SOURCE_IMAGE_REQUIRED"
+    assert assess_missing_required_image("如下圖所示，求角度。",extracted_record={"page_crop":"crop.png"}).status=="PASS"
+    assert assess_missing_required_image("請到右圖書館借書。",extracted_record={}).status=="PASS"
