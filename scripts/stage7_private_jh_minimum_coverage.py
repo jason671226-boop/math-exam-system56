@@ -82,7 +82,11 @@ def _representative(item:dict[str,Any],selected_items:list[dict[str,Any]])->dict
         if shared_skill or (shared_topic and shared_style):candidates.append((not shared_skill,not shared_topic,not shared_style,rep["source_review_number"],rep))
     return min(candidates,key=lambda x:x[:4])[-1] if candidates else None
 
-def build()->dict[str,Any]:
+def build(*,force:bool=False)->dict[str,Any]:
+    # Once issued to a teacher, coverage-set numbering is immutable. A later
+    # regression must not silently regenerate or reorder the approved CSV.
+    if not force and TEACHER_SET.is_file() and DEFERRED.is_file() and STATUS.is_file():
+        return json.loads(STATUS.read_text(encoding="utf-8-sig"))
     items=_items();plans={name:select_plan(items,*targets) for name,targets in PLAN_TARGETS.items()};metrics={name:_metric(selected,items) for name,selected in plans.items()}
     recommended="PLAN_B_BALANCED";selected=set(plans[recommended]);item_by_fp={x["fingerprint"]:x for x in items}
     while True:

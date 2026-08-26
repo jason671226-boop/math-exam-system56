@@ -1,4 +1,4 @@
-from services.math_extraction_quality import assess_math_extraction
+from services.math_extraction_quality import assess_fraction_structure_loss,assess_math_extraction
 
 
 def test_math_notation_gate_detects_broken_fraction_radical_exponent_and_geometry():
@@ -11,3 +11,11 @@ def test_math_notation_gate_detects_broken_fraction_radical_exponent_and_geometr
 def test_expected_notation_loss_and_difficulty_independence():
     assert "MISSING_FRACTION_NOTATION" in assess_math_extraction("求兩個數的差",expected_notation=("fraction",)).risks
     assert assess_math_extraction("這是一道非常困難但符號完整的多步驟題").status=="PASS"
+
+
+def test_fraction_loss_requires_multiple_signals_and_does_not_flag_large_integer_arithmetic():
+    broken="計算 12+14+16+18+112？ (A) 2524 (B) 2924 (C) 98 (D) 118"
+    meta={"official_pdf":True,"question_number":2,"fraction_expected":True}
+    assert assess_fraction_structure_loss(broken,source_metadata=meta).status=="SOURCE_NEEDS_REEXTRACTION"
+    intact="計算 299998+29998+2998+298+28？ (A) 333320 (B) 333310 (C) 333210 (D) 333120"
+    assert assess_fraction_structure_loss(intact,source_metadata={"official_pdf":True,"question_number":9,"fraction_expected":False}).status=="PASS"
