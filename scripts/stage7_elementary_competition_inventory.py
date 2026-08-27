@@ -15,7 +15,7 @@ if str(ROOT) not in sys.path:
 from services.elementary_competition import (classify_source, normalized_fingerprint,
     pilot_eligible, select_pilot, source_quality_risks)
 
-LOCAL = ROOT / ".local" / "stage7_elementary_competition"
+LOCAL = ROOT / ".local" / "stage7_elementary_competition" / "foundation_inventory"
 INVENTORY_JSON = LOCAL / "competition_corpus_inventory.json"
 INVENTORY_CSV = LOCAL / "competition_corpus_inventory.csv"
 SOURCE_AUDIT = LOCAL / "competition_source_audit.json"
