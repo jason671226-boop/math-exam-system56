@@ -128,3 +128,7 @@ def test_pilot_configs_are_disabled_and_local():
         data = json.loads(Path(f"data/stage7/{name}_pilot_config.json").read_text(encoding="utf-8"))
         assert data["run_enabled"] is False and data["input_root"].startswith(".local/")
         assert data["automatic_fallback"] is False and data["target_count"] == 100
+
+
+def test_private_jh_pattern_reasoning_style_is_formal_enum():
+    assert "PATTERN_REASONING" in build_profile("PRIVATE_JH").assessment_style
