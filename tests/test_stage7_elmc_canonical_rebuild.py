@@ -31,3 +31,18 @@ def test_image_layout_first_representative_page_has_four_crops():
     assert [q["question_number"] for q in representative] == ["1", "2", "3", "4"]
     assert all((root / q["question_image_crop"]).exists() for q in representative)
     assert not any(q.get("edition") == "第1屆" and q.get("source_page") == 3 for q in failures)
+
+
+def test_hierarchical_representative_parent_preserves_children_and_shared_visual():
+    root = Path(__file__).resolve().parents[1] / ".local" / "stage7_elementary_competition"
+    audit_path = root / "elmc_canonical_corpus_audit_v3.json"
+    parent_path = root / "elmc_canonical_parent_questions_v3.jsonl"
+    if not audit_path.exists() or not parent_path.exists():
+        return
+    audit = json.loads(audit_path.read_text(encoding="utf-8"))
+    parents = [json.loads(line) for line in parent_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    q1 = next(p for p in parents if p.get("edition") == "第1屆" and p.get("source_page") == 3)
+    assert audit["representative_q1"]["pass"] is True
+    assert q1["question_number"] == "1"
+    assert len(q1["child_items"]) == 4
+    assert q1["shared_visuals"]
