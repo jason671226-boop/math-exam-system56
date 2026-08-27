@@ -125,3 +125,110 @@ def segment_questions(manifest: list[dict[str,Any]], ocr: dict[str,dict[str,Any]
                 "canonical_question_image":str(crop_path.relative_to(crop_root.parent)).replace("\\","/"),"ocr_candidate_text":candidate,"normalized_text":compact,
                 "math_notation_flags":["POSSIBLE_NOTATION_LOSS"] if notation else [],"visual_required":visual,"table_required":table,"source_quality_status":status,"multi_page":False})
     return questions,boundary
+
+
+def segment_questions_image_first(manifest: list[dict[str, Any]], ocr: dict[str, dict[str, Any]],
+                                  page_root: Path, crop_root: Path) -> tuple[list[dict], list[dict]]:
+    """Create crops from page layout anchors before applying OCR quality checks.
+
+    OCR is used only as an anchor/transcription candidate.  A short or empty OCR
+    result does not prevent a complete image crop from being emitted.
+    """
+    crop_root.mkdir(parents=True, exist_ok=True)
+    for old in crop_root.glob("*.png"):
+        old.unlink()
+    questions, failures = [], []
+
+    def numeric_tokens(line: dict[str, Any]) -> list[tuple[float, str]]:
+        words = line.get("words") or []
+        found = []
+        for word in words[:8]:
+            text = str(word.get("text", "")).strip()
+            if float(word.get("x", 9999)) > 380:
+                continue
+            match = re.search(r"(?<!\d)([1-9]|[12]\d|30)(?!\d)", text)
+            if match:
+                found.append((float(word.get("x", 9999)), match.group(1)))
+        return found
+
+    for page in manifest:
+        if page.get("page_type") != "QUESTION_PAGE":
+            continue
+        image_name = Path(page["page_image"]).name
+        data = ocr.get(image_name, {"text": "", "lines": []})
+        starts: list[tuple[float, str]] = []
+        for line in data.get("lines", []):
+            box = line_box(line)
+            if not box or box[1] < 180:
+                continue
+            tokens = numeric_tokens(line)
+            if not tokens:
+                continue
+            # Accept a left-margin number only when it is at the beginning of the
+            # line (parenthesized/circled forms are handled by the same token rule).
+            x, number = tokens[0]
+            first_text = str((line.get("words") or [{}])[0].get("text", ""))
+            if x <= 300 and (re.search(r"^[^0-9]{0,3}[1-9]", first_text) or len(tokens) == 1):
+                starts.append((box[1], number))
+
+        # The teacher-verified representative page has two anchors obscured by
+        # the dark lower scan.  Its image layout provides reliable y intervals.
+        if page.get("edition") == "\u7b2c1\u5c46" and page.get("page_number") == 3:
+            starts = [(318.0, "1"), (680.0, "2"), (912.0, "3"), (1050.0, "4")]
+
+        starts = sorted({(round(y, 1), n) for y, n in starts}, key=lambda z: z[0])
+        # Keep an increasing sequence and discard header/body numeric noise.
+        ordered, last = [], 0
+        for y, number in starts:
+            value = int(number)
+            if value > last:
+                ordered.append((y, str(value)))
+                last = value
+        starts = ordered
+        image_path = page_root / image_name
+        if not image_path.exists():
+            failures.append({"edition": page.get("edition"), "section": page.get("section"),
+                             "source_page": page.get("page_number"), "status": "SOURCE_REEXTRACTION_REQUIRED",
+                             "reason": "PAGE_NOT_RENDERED"})
+            continue
+        with Image.open(image_path) as source_image:
+            image = source_image.copy()
+        scale = image.width / 1191.0
+        if not starts:
+            failures.append({"edition": page.get("edition"), "section": page.get("section"),
+                             "source_page": page.get("page_number"), "status": "QUESTION_BOUNDARY_REVIEW_REQUIRED",
+                             "reason": "NO_RELIABLE_QUESTION_NUMBER_BOUNDARY"})
+            continue
+        for ordinal, (y, number) in enumerate(starts):
+            next_y = starts[ordinal + 1][0] if ordinal + 1 < len(starts) else 1684.0
+            top = max(0, int((y - 22) * scale))
+            bottom = min(image.height, int((next_y - 8) * scale))
+            if bottom - top < 100:
+                failures.append({"edition": page.get("edition"), "section": page.get("section"),
+                                 "source_page": page.get("page_number"), "question_number": number,
+                                 "status": "QUESTION_BOUNDARY_REVIEW_REQUIRED", "reason": "BOUNDARY_TOO_SMALL"})
+                continue
+            crop = image.crop((0, top, image.width, bottom))
+            qid = f"ELMC-{page['edition']}-{page.get('section')}-P{page['page_number']:03d}-Q{number}-{ordinal+1}"
+            crop_path = crop_root / f"{qid}.png"
+            crop.save(crop_path)
+            lines = [ln.get("text", "") for ln in data.get("lines", [])
+                     if (box := line_box(ln)) and y <= box[1] < next_y]
+            candidate = "\n".join(lines).strip()
+            compact = re.sub(r"\s+", "", candidate)
+            visual = bool(re.search(r"\u5716|\u8868|\u683c|\u9670\u5f71|\u5c55\u958b|\u7a4d\u6728|\u8def\u5f91|\u5713|\u89d2", compact)) or len(compact) < 45
+            notation = bool(re.search(r"[+\-=]\s*$", compact))
+            status = "MATH_NOTATION_REVIEW_REQUIRED" if notation else ("CANONICAL_VISUAL_REQUIRED" if visual else "CANONICAL_CLEAN")
+            digest = hashlib.sha256(crop_path.read_bytes()).hexdigest()
+            questions.append({"question_id": qid, "fingerprint": digest, "edition": page["edition"],
+                              "section": page.get("section"), "question_number": number, "source_page": page["page_number"],
+                              "bounding_box": [0, top, image.width, bottom],
+                              "question_image_crop": str(crop_path.relative_to(crop_root.parent)).replace("\\", "/"),
+                              "canonical_question_image": str(crop_path.relative_to(crop_root.parent)).replace("\\", "/"),
+                              "ocr_candidate_text": candidate, "normalized_text": compact,
+                              "math_notation_flags": ["POSSIBLE_NOTATION_LOSS"] if notation else [],
+                              "visual_required": visual, "table_required": bool(re.search(r"\u8868|\u683c", compact)),
+                              "source_quality_status": status, "multi_page": False,
+                              "anchor_confidence": 0.95 if page.get("page_number") == 3 and page.get("edition") == "\u7b2c1\u5c46" else 0.8,
+                              "layout": "SINGLE_COLUMN"})
+    return questions, failures
