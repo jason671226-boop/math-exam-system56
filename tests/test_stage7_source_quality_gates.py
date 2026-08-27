@@ -2,6 +2,7 @@ from services.math_extraction_quality import (
     assess_fraction_structure_loss,
     assess_expression_completeness,
     assess_missing_required_chart,
+    assess_missing_required_image,
     assess_multi_document_contamination,
 )
 
@@ -47,3 +48,9 @@ def test_contextual_fraction_loss_requires_all_independent_evidence():
 def test_common_two_digit_numbers_alone_are_not_fraction_loss():
     for value in ("13", "21", "35", "51", "53"):
         assert assess_fraction_structure_loss(value, source_metadata=META).status == "PASS"
+
+
+def test_verified_missing_diagram_and_false_positive_plain_shape_context():
+    assert assess_missing_required_image("圖形資料未隨文字保存", extracted_record={
+        "diagram_dependency_verified": True}).status == "SOURCE_IMAGE_REQUIRED"
+    assert assess_missing_required_image("學校左圖書館共有兩層樓", extracted_record={}).status == "PASS"

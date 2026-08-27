@@ -110,8 +110,13 @@ def _verify_source_evidence(located: dict[int, dict[str, Any]]) -> None:
 
 
 def ingest(*, force: bool = False) -> dict[str, Any]:
-    if not force and TEACHER_V5.is_file() and STATUS.is_file():
-        return json.loads(STATUS.read_text(encoding="utf-8-sig"))
+    successor = PILOT / "PRIVATE_JH_TEACHER_COVERAGE_SET_V6.csv"
+    if (not force or successor.is_file()) and TEACHER_V5.is_file() and STATUS.is_file():
+        status = json.loads(STATUS.read_text(encoding="utf-8-sig"))
+        if CLEANING.is_file():
+            status["source_quality"]["source_cleaning_queue_total"] = len(
+                json.loads(CLEANING.read_text(encoding="utf-8-sig")).get("items", []))
+        return status
     if not all(path.is_file() for path in (TEACHER_V4, MANIFEST, GT, CLEANING)):
         raise RuntimeError("MISSING_COVERAGE_BATCH4_INPUT")
     located = _locate()

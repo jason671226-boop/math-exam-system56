@@ -43,7 +43,7 @@ def assess_missing_required_image(text: str, *, extracted_record: dict[str, obje
     value=str(text or "")
     patterns=(r"(?:右圖|左圖|下圖|上圖)(?!書館)",r"如(?:右|左|下|上)?圖(?!書館)",
       r"附圖(?:中|所示|，|,|。|：|:|\s)",r"圖中",r"根據圖形",r"依圖回答",r"見圖")
-    depends_on_image=any(re.search(pattern,value) for pattern in patterns)
+    depends_on_image=bool(extracted_record.get("diagram_dependency_verified")) or any(re.search(pattern,value) for pattern in patterns)
     visual_fields=("image","diagram","figure_reference","page_crop","usable_visual_representation")
     usable_visual=any(bool(extracted_record.get(field)) for field in visual_fields)
     risks=("MISSING_REQUIRED_DIAGRAM",) if depends_on_image and not usable_visual else ()
