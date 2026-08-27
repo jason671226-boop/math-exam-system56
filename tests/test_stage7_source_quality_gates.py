@@ -1,4 +1,5 @@
 from services.math_extraction_quality import (
+    assess_fraction_structure_loss,
     assess_expression_completeness,
     assess_missing_required_chart,
     assess_multi_document_contamination,
@@ -33,3 +34,16 @@ def test_chart_gate_requires_visual_and_avoids_plain_table_false_positive():
     assert assess_missing_required_chart(text, extracted_record={}).risks == ("MISSING_REQUIRED_CHART",)
     assert assess_missing_required_chart(text, extracted_record={"page_crop": "q15.png"}).status == "PASS"
     assert assess_missing_required_chart("根據文字表格計算總數。", extracted_record={}).status == "PASS"
+
+
+def test_contextual_fraction_loss_requires_all_independent_evidence():
+    metadata = {**META, "fraction_expected": True, "ratio_context": True,
+        "literal_interpretation_implausible": True, "concatenated_fraction_options": True}
+    result = assess_fraction_structure_loss("比例文字及數字選項的抽取結果", source_metadata=metadata,
+        pdf_text_discrepancy=True)
+    assert result.risks == ("MATH_FRACTION_NOTATION_LOST",)
+
+
+def test_common_two_digit_numbers_alone_are_not_fraction_loss():
+    for value in ("13", "21", "35", "51", "53"):
+        assert assess_fraction_structure_loss(value, source_metadata=META).status == "PASS"

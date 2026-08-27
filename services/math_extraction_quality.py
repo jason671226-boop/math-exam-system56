@@ -13,6 +13,13 @@ class ExtractionQuality:
 
 def assess_fraction_structure_loss(text: str, *, source_metadata: dict[str, object], pdf_text_discrepancy: bool = False) -> ExtractionQuality:
     """Require multiple independent signals before declaring fraction-line loss."""
+    contextual_signals = sum(bool(source_metadata.get(key)) for key in (
+        "ratio_context", "literal_interpretation_implausible", "concatenated_fraction_options"))
+    contextual_source = bool((source_metadata.get("official_pdf") or source_metadata.get("source_document"))
+                             and source_metadata.get("question_number"))
+    explicit_fraction = bool(re.search(r"\d\s*/\s*\d|\\frac\s*\{", str(text or "")))
+    if contextual_source and contextual_signals >= 3 and (pdf_text_discrepancy or source_metadata.get("fraction_expected")) and not explicit_fraction:
+        return ExtractionQuality("SOURCE_NEEDS_REEXTRACTION", ("MATH_FRACTION_NOTATION_LOST",))
     value=str(text or "");stem=re.split(r"\(A\)|（A）",value,maxsplit=1)[0];numbers=[int(x) for x in re.findall(r"\d+",stem)]
     has_fraction_marker=bool(re.search(r"\d\s*[/／⁄]\s*\d|\\frac|分之",value))
     option_pattern=sum(marker in value for marker in ("(A)","(B)","(C)","(D)","（A）","（B）","（C）","（D）"))>=3
@@ -22,8 +29,12 @@ def assess_fraction_structure_loss(text: str, *, source_metadata: dict[str, obje
     source_supported=bool(source_metadata.get("official_pdf") and source_metadata.get("question_number"))
     topic_supported=bool(source_metadata.get("fraction_expected"))
     notation_evidence=pdf_text_discrepancy or topic_supported
+    contextual_signals=sum(bool(source_metadata.get(key)) for key in (
+        "ratio_context", "literal_interpretation_implausible", "concatenated_fraction_options"))
+    contextual_loss=(contextual_signals>=3 and notation_evidence)
     risks=("MATH_FRACTION_NOTATION_LOST",) if (not has_fraction_marker and source_supported and
-        (option_pattern or operators>=3) and plausible_fraction_syntax and notation_evidence) else ()
+        (((option_pattern or operators>=3) and plausible_fraction_syntax and notation_evidence)
+         or contextual_loss)) else ()
     return ExtractionQuality("SOURCE_NEEDS_REEXTRACTION" if risks else "PASS",risks)
 
 
@@ -56,10 +67,12 @@ def assess_multi_document_contamination(
     question_runs = len(re.findall(r"(?:^|\n)\s*(?:\(?\d{1,2}\)?[.、]|第\s*\d+\s*題)", value))
     inserted_instructions = bool(re.search(r"(?:作答說明|注意事項|本試卷|試卷說明)", value))
     different_exam_metadata = bool(source_metadata.get("multiple_exam_headers"))
+    metadata_answer_table = bool(source_metadata.get("answer_table_detected"))
+    metadata_question_sequence = bool(source_metadata.get("second_question_sequence"))
     explicit_second_document = bool(source_metadata.get("pdf_text_discrepancy") and exam_headers >= 2)
     signals = sum((exam_headers >= 2, answer_table, page_residue >= 2,
                    question_runs >= 4, inserted_instructions, different_exam_metadata,
-                   explicit_second_document))
+                   explicit_second_document, metadata_answer_table, metadata_question_sequence))
     risks = ("MULTI_DOCUMENT_CONTAMINATION",) if provenance and signals >= 2 and (
         exam_headers >= 2 or different_exam_metadata or explicit_second_document
     ) else ()
