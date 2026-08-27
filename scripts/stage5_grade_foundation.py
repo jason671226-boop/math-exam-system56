@@ -82,6 +82,7 @@ def environment_audit(config: GradeConfig) -> dict[str, Any]:
               "workspace_pass": cwd == ROOT.resolve(),
               "branch_pass": branch in {"stage5/generic-grade-engine", "stage6/provider-adapter",
                                          "stage7/private-jh-competition-foundation",
+                                         "stage7/elementary-competition-pilot",
                                          f"stage5/{config.target_id.lower()}-mapping-pilot"},
               "production_reads": 0, "production_writes": 0}
     result["environment_integrity"] = "PASS" if result["workspace_pass"] and result["branch_pass"] else "FAIL"

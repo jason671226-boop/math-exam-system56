@@ -20,6 +20,7 @@ class ProfileType(str, Enum):
     STANDARD = "STANDARD"
     PRIVATE_JH = "PRIVATE_JH"
     COMPETITION = "COMPETITION"
+    ELEMENTARY_COMPETITION = "ELEMENTARY_COMPETITION"
 
 
 PRIVATE_JH_STYLES = frozenset({
@@ -98,18 +99,23 @@ def load_thinking_taxonomy(path: Path = THINKING_PATH) -> dict[str, dict]:
 
 def build_profile(profile_type: str | ProfileType | None = None) -> AssessmentProfile:
     kind = normalize_profile_type(profile_type)
-    target_grades = PRIVATE_JH_TARGET_GRADES if kind is ProfileType.PRIVATE_JH else (("G4", "G5", "G6") if kind is ProfileType.COMPETITION else tuple())
+    competition_kind = kind in {ProfileType.COMPETITION, ProfileType.ELEMENTARY_COMPETITION}
+    target_grades = (PRIVATE_JH_TARGET_GRADES if kind is ProfileType.PRIVATE_JH else
+                     (("G3", "G4", "G5", "G6") if kind is ProfileType.ELEMENTARY_COMPETITION else
+                      (("G4", "G5", "G6") if kind is ProfileType.COMPETITION else tuple())))
     foundation_grades = PRIVATE_JH_FOUNDATION_GRADES if kind is ProfileType.PRIVATE_JH else tuple()
     catalog_grades = foundation_grades + target_grades
     skills, micros = load_curriculum_catalog(catalog_grades) if catalog_grades else ({}, {})
-    styles = tuple(sorted(PRIVATE_JH_STYLES)) if kind is ProfileType.PRIVATE_JH else (("COMPETITION_STRATEGY",) if kind is ProfileType.COMPETITION else ("STANDARD",))
+    styles = tuple(sorted(PRIVATE_JH_STYLES)) if kind is ProfileType.PRIVATE_JH else (("COMPETITION_STRATEGY",) if competition_kind else ("STANDARD",))
     return AssessmentProfile(
         profile_id=f"{kind.value}_V1", profile_type=kind,
-        grade_band="G5-G6" if kind is ProfileType.PRIVATE_JH else ("G4-G6" if kind is ProfileType.COMPETITION else "CONFIGURED_GRADE"),
+        grade_band=("G5-G6" if kind is ProfileType.PRIVATE_JH else
+                    ("G3-G6" if kind is ProfileType.ELEMENTARY_COMPETITION else
+                     ("G4-G6" if kind is ProfileType.COMPETITION else "CONFIGURED_GRADE"))),
         curriculum_grade=target_grades, curriculum_target_grade=target_grades,
         curriculum_foundation_grade=foundation_grades, difficulty_band=("FOUNDATION", "STANDARD", "ADVANCED"),
         assessment_style=styles, allowed_skill_ids=tuple(sorted(skills)),
-        allowed_micro_ids=tuple(sorted(micros)), thinking_skill_enabled=kind is ProfileType.COMPETITION,
+        allowed_micro_ids=tuple(sorted(micros)), thinking_skill_enabled=competition_kind,
         cross_unit_enabled=kind is not ProfileType.STANDARD,
         time_pressure_enabled=kind is ProfileType.PRIVATE_JH, source_type="LOCAL_PRIVATE", status="ACTIVE",
     )
@@ -134,7 +140,8 @@ def validate_mapping_result(result: dict[str, Any], *, grades: Iterable[str]) ->
     except ValueError:
         return ["UNKNOWN_PROFILE"]
     catalog_grades = (PRIVATE_JH_CATALOG_GRADES if profile is ProfileType.PRIVATE_JH else
-                      (("G4", "G5", "G6") if profile is ProfileType.COMPETITION else tuple(grades)))
+                      (("G3", "G4", "G5", "G6") if profile is ProfileType.ELEMENTARY_COMPETITION else
+                       (("G4", "G5", "G6") if profile is ProfileType.COMPETITION else tuple(grades))))
     skills, micros = load_curriculum_catalog(catalog_grades)
     thinking = load_thinking_taxonomy()
     skill_id = str(result.get("primary_skill_id") or "")
@@ -165,9 +172,10 @@ def validate_mapping_result(result: dict[str, Any], *, grades: Iterable[str]) ->
             errors.append("THINKING_SKILL_CURRICULUM_POLLUTION")
     if primary_thinking and primary_thinking not in thinking_ids:
         errors.append("PRIMARY_THINKING_NOT_IN_THINKING_SKILLS")
-    if profile is not ProfileType.COMPETITION and (thinking_ids or result.get("competition_level") or result.get("strategy_depth")):
+    competition_profile = profile in {ProfileType.COMPETITION, ProfileType.ELEMENTARY_COMPETITION}
+    if not competition_profile and (thinking_ids or result.get("competition_level") or result.get("strategy_depth")):
         errors.append("COMPETITION_METADATA_NOT_ALLOWED")
-    if profile is ProfileType.COMPETITION:
+    if competition_profile:
         if result.get("competition_level") not in COMPETITION_LEVELS:
             errors.append("INVALID_COMPETITION_LEVEL")
         if primary_thinking and primary_thinking not in thinking:
