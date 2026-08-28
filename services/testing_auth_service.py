@@ -116,6 +116,13 @@ def testing_code_display(state: MutableMapping[str, Any]) -> str:
     return str(state.get(TESTING_OTP_DISPLAY_KEY, "")).strip()
 
 
+# These helpers are imported into the unittest module.  Prevent pytest from
+# mistaking the ``testing_*`` names for test functions while preserving their
+# public API and runtime behavior.
+testing_challenge_email.__test__ = False
+testing_code_display.__test__ = False
+
+
 def clear_testing_challenge(state: MutableMapping[str, Any]) -> None:
     for key in (
         TESTING_EMAIL_KEY,
