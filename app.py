@@ -5555,7 +5555,19 @@ elif st.session_state["setup_complete"]:
                 st.session_state["custom_exam_last_summary"] = {}
                 st.rerun()
 
-            if btn_generate:
+            # G6 special routes currently expose curriculum metadata only; no
+            # local question-bank adapter is connected.  Fail explicitly
+            # before credit deduction/API fallback instead of leaving a
+            # permanent "building" state or charging for an empty result.
+            special_empty_route = (
+                exam_grade == 6
+                and exam_publisher in {"參加數學競賽", "報考私中"}
+            )
+            if btn_generate and special_empty_route:
+                st.session_state["custom_exam_generation_status"] = "EMPTY_CORPUS"
+                st.info("目前此單元尚無可用題目，請改選其他單元或題型。")
+                st.caption("題庫候選題數：0；可用題數：0。")
+            elif btn_generate:
                 if not selected_mains:
                     st.warning("請先選擇至少一個主單元。")
                 elif not selected_subunits:
