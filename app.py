@@ -2958,7 +2958,7 @@ with st.sidebar:
             "儲值 100 元 (給 100 點)", 
             "儲值 299 元 (給 350 點)", 
             "儲值 599 元 (給 800 點)"
-        ], label_visibility="collapsed")
+        ], label_visibility="collapsed", key="billing_topup_plan")
     
         st.markdown("**支援轉帳方式 (可 QR Code 掃描)：**")
         pay_tabs = st.tabs(["🏦 銀行", "🟢 LINE Pay", "🔴 街口", "🔵 臺灣 Pay"])
@@ -5541,11 +5541,13 @@ elif st.session_state["setup_complete"]:
                     type="primary",
                     use_container_width=True,
                     disabled=current_credits < req_pts,
+                    key="custom_exam_generate",
                 )
             with clear_col:
                 btn_clear = st.button(
                     "清除目前試卷",
                     use_container_width=True,
+                    key="custom_exam_clear",
                 )
 
             if btn_clear:
