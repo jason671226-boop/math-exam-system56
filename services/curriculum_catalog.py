@@ -15,14 +15,14 @@ from pathlib import Path
 import re
 from typing import Any, Iterable, Mapping, MutableMapping
 
-try:  # imported as ``app.services`` (tests) or ``services`` (streamlit run from app/)
-    from app.services.publisher_catalog_g1_g4 import get_catalog as _get_publisher_catalog
-    from app.services.publisher_catalog_g8_g9 import get_catalog as _get_g8_g9_catalog
-    from app.services.master_curriculum_loader import curriculum_versions, load_g8_master_catalog, load_master_catalog
-except ImportError:  # pragma: no cover - depends on import root
+try:  # Prefer the data/service package; never resolve through the Streamlit app.py.
     from services.publisher_catalog_g1_g4 import get_catalog as _get_publisher_catalog
     from services.publisher_catalog_g8_g9 import get_catalog as _get_g8_g9_catalog
     from services.master_curriculum_loader import curriculum_versions, load_g8_master_catalog, load_master_catalog
+except ImportError:  # pragma: no cover - package import fallback
+    from .publisher_catalog_g1_g4 import get_catalog as _get_publisher_catalog
+    from .publisher_catalog_g8_g9 import get_catalog as _get_g8_g9_catalog
+    from .master_curriculum_loader import curriculum_versions, load_g8_master_catalog, load_master_catalog
 
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
@@ -440,10 +440,9 @@ def _g6_private_school_path(semester: str) -> tuple[CurriculumUnit, ...]:
 
 
 def _g6_competition_path() -> tuple[CurriculumUnit, ...]:
-    try:
-        from app.learning_map import ELEMENTARY_COMPETITION_HIERARCHY
-    except ImportError:  # pragma: no cover - Streamlit import root
-        from learning_map import ELEMENTARY_COMPETITION_HIERARCHY
+    from curriculum.elementary_competition_hierarchy import (
+        ELEMENTARY_COMPETITION_HIERARCHY,
+    )
     units: list[CurriculumUnit] = []
     for contest_index, (contest, categories) in enumerate(ELEMENTARY_COMPETITION_HIERARCHY.items(), 1):
         subunits: list[CurriculumSubunit] = []
