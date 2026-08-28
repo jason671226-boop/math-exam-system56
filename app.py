@@ -106,6 +106,11 @@ except ModuleNotFoundError:
         validate_generated_payload,
     )
 
+try:
+    from services.competition_question_service import competition_question_bank
+except ModuleNotFoundError:
+    from app.services.competition_question_service import competition_question_bank
+
 # 學習地圖模組（MVP）
 try:
     from learning_map import (
@@ -5555,18 +5560,34 @@ elif st.session_state["setup_complete"]:
                 st.session_state["custom_exam_last_summary"] = {}
                 st.rerun()
 
-            # G6 special routes currently expose curriculum metadata only; no
-            # local question-bank adapter is connected.  Fail explicitly
-            # before credit deduction/API fallback instead of leaving a
-            # permanent "building" state or charging for an empty result.
-            special_empty_route = (
+            # Preflight special sources before credit deduction/API fallback.
+            special_route = (
                 exam_grade == 6
                 and exam_publisher in {"參加數學競賽", "報考私中"}
             )
-            if btn_generate and special_empty_route:
-                st.session_state["custom_exam_generation_status"] = "EMPTY_CORPUS"
-                st.info("目前此單元尚無可用題目，請改選其他單元或題型。")
-                st.caption("題庫候選題數：0；可用題數：0。")
+            special_records = (
+                competition_question_bank(
+                    grade=exam_grade,
+                    publisher=exam_publisher,
+                    semester=exam_semester,
+                )
+                if special_route
+                else ()
+            )
+            special_empty_route = special_route and not special_records
+            special_insufficient_route = (
+                special_route
+                and bool(special_records)
+                and len(special_records) < display_q
+            )
+            if btn_generate and (special_empty_route or special_insufficient_route):
+                if special_insufficient_route:
+                    st.session_state["custom_exam_generation_status"] = "INSUFFICIENT_CORPUS"
+                    st.info(f"目前僅有 {len(special_records)} 題可用，少於所要求的 {display_q} 題，請改選其他單元或題型。")
+                else:
+                    st.session_state["custom_exam_generation_status"] = "EMPTY_CORPUS"
+                    st.info("目前此單元尚無可用題目，請改選其他單元或題型。")
+                st.caption(f"題庫候選題數：{len(special_records)}；可用題數：{len(special_records)}。")
             elif btn_generate:
                 if not selected_mains:
                     st.warning("請先選擇至少一個主單元。")
