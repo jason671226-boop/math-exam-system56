@@ -1,0 +1,21 @@
+{
+  "approved_items": 30,
+  "track_counts": {
+    "TECH-A": 30,
+    "TECH-B": 0,
+    "TECH-C": 0
+  },
+  "adapter": "PASS",
+  "staging_loader": "PASS",
+  "autonomous_exam": "PASS",
+  "answer_linkage": "PASS",
+  "evidence": "PASS",
+  "mastery": "PASS",
+  "recommendation": "PASS",
+  "e2e": "PASS",
+  "production_mutations": 0,
+  "staging_mutations": 0,
+  "db_migration": 0,
+  "rls_changes": 0,
+  "question_bank_imports": 0
+}
