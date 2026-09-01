@@ -16,6 +16,7 @@ import hmac
 from pathlib import Path
 
 from math_output import MATH_OUTPUT_RULES, normalize_math_markdown
+from services.derived_answer_adapter import ConfirmedQuestion, derive_answer, history_payload
 from image_input import collect_image_inputs, image_bytes, load_rgb_image
 from navigation_state import apply_pending_main_tab, queue_main_tab
 try:
@@ -940,6 +941,14 @@ def init_supabase(url, key):
         return None
 
 supabase_client = init_supabase(SUPABASE_URL, SUPABASE_KEY)
+
+def derived_answer_feature_enabled() -> bool:
+    raw = os.getenv("MATHAI_DERIVED_ANSWER_V1", "")
+    if not raw:
+        try: raw = str(st.secrets.get("MATHAI_DERIVED_ANSWER_V1", ""))
+        except Exception: raw = ""
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
 
 
 def get_private_beta_auth_client(create_if_missing=True):
@@ -4992,6 +5001,49 @@ elif st.session_state["setup_complete"]:
             st.warning("⚠️ " + st.session_state["scan_scope_warning"])
 
         edited_text = st.text_area("確認題目內容 (可在框內直接微調要輸出的錯題)：", value=st.session_state["scanned_text"], height=120)
+        if derived_answer_feature_enabled():
+            st.markdown("### Confirmed Question")
+            with st.form("confirmed_question_form"):
+                confirmed_request = st.text_input("Answer request", value=st.session_state.get("confirmed_answer_request", "Solve this question"))
+                confirmed_formula = st.text_area("Formula / mathematical content", value=st.session_state.get("confirmed_formula", ""), height=90)
+                st.caption("Optional choices: fill all four only when this is multiple-choice.")
+                c1,c2,c3,c4=st.columns(4)
+                with c1: opt_a=st.text_input("A", key="confirmed_opt_a")
+                with c2: opt_b=st.text_input("B", key="confirmed_opt_b")
+                with c3: opt_c=st.text_input("C", key="confirmed_opt_c")
+                with c4: opt_d=st.text_input("D", key="confirmed_opt_d")
+                confirmed = st.form_submit_button("確認題目並解題", type="primary")
+            if confirmed:
+                opts={k:v for k,v in {"A":opt_a,"B":opt_b,"C":opt_c,"D":opt_d}.items() if v.strip()}
+                try:
+                    cq=ConfirmedQuestion(question_text=edited_text, formula_representation=confirmed_formula or None, choice_options=opts or None, answer_request=confirmed_request, source_type="user_scan", human_confirmed=True)
+                    result=derive_answer(cq, call_gemini_api)
+                    st.session_state["confirmed_question_contract"]=cq.solver_payload()
+                    st.session_state["derived_answer_result"]=result.to_public_dict()
+                    st.session_state["derived_history_payload"]=history_payload(cq,result)
+                    # Reuse the existing history path when a real user session is active.
+                    # Test/trial sessions remain side-effect free; no schema changes are required.
+                    if supabase_client and st.session_state.get("user_profile", {}).get("email") != "trial@example.com":
+                        try:
+                            supabase_client.table("user_mistakes_log").insert({
+                                "user_email": st.session_state.get("user_profile", {}).get("email", ""),
+                                "original_mistake": edited_text.strip(),
+                                "created_at": str(date.today()),
+                            }).execute()
+                        except Exception:
+                            pass
+                except Exception as exc:
+                    st.session_state["derived_answer_result"]={"status":"REVIEW_REQUIRED","review_required":True,"error_code":"INVALID_CONFIRMED_QUESTION"}
+            result=st.session_state.get("derived_answer_result")
+            if result:
+                st.markdown("#### Derived Answer")
+                if result.get("review_required") or result.get("status") != "SUCCESS": st.warning("此題需要再次確認")
+                else:
+                    st.write("答案：", result.get("derived_answer_normalized"))
+                    st.write("解題說明：", result.get("reasoning_summary"))
+                    st.write("驗證結果：", result.get("verification_summary"))
+                    st.write("信心程度：", result.get("confidence"))
+
         st.session_state["scanned_text"] = edited_text
 
         if edited_text.strip():
