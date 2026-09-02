@@ -830,7 +830,7 @@ def get_recent_emails():
     本機：優先讀取 recent_emails.json，重新啟動程式後仍保留。
     雲端：讀取目前瀏覽器 Cookie。
     """
-    combined = []
+    combined = list(st.session_state.get("device_recent_emails", []))
 
     if is_localhost_request():
         combined.extend(_read_local_recent_emails())
@@ -859,6 +859,8 @@ def save_recent_email(email):
         emails.remove(email)
     emails.insert(0, email)
     emails = emails[:10]
+    st.session_state["device_recent_emails"] = emails
+    st.session_state["device_email_history_remember"] = email
 
     if is_localhost_request():
         _write_local_recent_emails(emails)
@@ -877,6 +879,8 @@ def save_recent_email(email):
 
 def clear_recent_emails():
     """清除本機檔案與目前瀏覽器 Cookie 中的 Email 清單。"""
+    st.session_state["device_recent_emails"] = []
+    st.session_state["device_email_history_clear"] = True
     if is_localhost_request():
         try:
             if LOCAL_EMAILS_FILE.exists():
@@ -894,6 +898,34 @@ def clear_recent_emails():
             pass
 
 
+def sync_recent_email_history_bridge():
+    """Synchronize this browser's localStorage history without server data."""
+    seed = list(st.session_state.get("device_recent_emails", []))
+    if is_localhost_request():
+        seed.extend(_read_local_recent_emails())
+    if cookie_controller is not None:
+        try:
+            seed.extend(
+                _clean_recent_email_list(
+                    cookie_controller.get(DEVICE_EMAIL_COOKIE)
+                )
+            )
+        except Exception:
+            pass
+
+    browser_history = sync_device_email_history(
+        remember=st.session_state.get("device_email_history_remember", ""),
+        clear=bool(st.session_state.get("device_email_history_clear", False)),
+        seed=_clean_recent_email_list(seed),
+        key="mathai_device_email_history_sync",
+    )
+    if browser_history is None:
+        return
+    st.session_state["device_recent_emails"] = _clean_recent_email_list(
+        browser_history
+    )
+    st.session_state.pop("device_email_history_remember", None)
+    st.session_state.pop("device_email_history_clear", None)
 
 def sanitize_multiselect_state(key, valid_options):
     """移除因上層選項變動而失效的多選值，避免越權或跨單元殘留。"""
@@ -1175,7 +1207,7 @@ def render_native_email_otp_login():
     render_auth_diagnostics()
 
     recent_emails = get_recent_emails()
-    manual_email_option = "手動輸入新 Email"
+    manual_email_option = "手動輸入其他 Email"
     selected_email = manual_email_option
     if recent_emails:
         selected_email = st.selectbox(
@@ -3669,6 +3701,8 @@ def render_system_tipbar():
 # ==========================================
 # 第一頁：登入與試用頁面
 # ==========================================
+sync_recent_email_history_bridge()
+
 if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
     render_requested_page_top()
     st.title("🧙‍♂️ AI 數學錯題迭代系統")
@@ -4044,33 +4078,14 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
         or str(up.get("source_detail") or "")
     )
 
-    # 任何「尚未成功占用來源獎勵」的會員都不會被永久鎖死。
-    # 新會員、曾驗證失敗、或尚未成功申請者，都可再次開啟修改。
+    # Only new registration or an existing DB-approved retry may edit source.
     can_edit_source = bool(
         not source_claimed
         and (
             st.session_state.get("is_new_account_registration", False)
             or retry_source_allowed
-            or st.session_state.get("source_edit_mode", False)
         )
     )
-
-    if not source_claimed and not can_edit_source:
-        st.markdown("---")
-        st.markdown("#### 🎁 推薦／優惠資料")
-        st.caption(
-            "目前尚未成功領取來源獎勵。"
-            "需要補填或修改介紹人 Email／優惠碼時，可直接重新開啟。"
-        )
-        if st.button(
-            "✏️ 新增／修改推薦人 Email 或優惠碼",
-            key=f"open_source_edit_{profile_account_key}",
-            use_container_width=True,
-        ):
-            st.session_state["source_edit_mode"] = True
-            st.session_state["is_new_account_registration"] = True
-            request_page_top()
-            st.rerun()
 
     if can_edit_source:
         st.markdown("---")
@@ -4079,7 +4094,7 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
                 "上次推薦／優惠資料未通過驗證，這次可以重新輸入。"
                 "只有驗證失敗的帳號會保留這個修改機會。"
             )
-        st.markdown("#### 🎁 您是如何知道 MathAI 的？")
+        st.markdown("#### 🎁 你從哪裡知道 MathAI？")
         st.caption(
             "每個新帳號只能申請一次來源獎勵。推薦或優惠資料不正確時，"
             "仍可完成註冊，但不會發放額外點數。"
@@ -4108,7 +4123,7 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
             st.session_state[source_widget_key] = retry_source_type
 
         source_type_selection = st.selectbox(
-            "您是如何知道 MathAI 的？",
+            "你從哪裡知道 MathAI？",
             source_options,
             index=source_default_index,
             key=source_widget_key,
@@ -4129,7 +4144,7 @@ if not st.session_state["setup_complete"] and not st.session_state["is_trial"]:
 
             with ref_col1:
                 source_value_input = st.text_input(
-                    "介紹人的註冊 Email",
+                    "介紹人 Email",
                     value=(
                         source_detail_input
                         if retry_source_allowed
