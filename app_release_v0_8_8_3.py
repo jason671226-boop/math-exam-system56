@@ -16,6 +16,8 @@ import hmac
 from pathlib import Path
 
 from math_output import MATH_OUTPUT_RULES, normalize_math_markdown, render_math_markdown, split_math_segments
+from services.derived_answer_adapter import ConfirmedQuestion, derive_answer, history_payload
+from services.manual_question_parser import parse_manual_question
 from image_input import collect_image_inputs, image_bytes, load_rgb_image
 from navigation_state import apply_pending_main_tab, queue_main_tab
 try:
@@ -1008,6 +1010,14 @@ def init_supabase(url, key):
         return None
 
 supabase_client = init_supabase(SUPABASE_URL, SUPABASE_KEY)
+
+def derived_answer_feature_enabled() -> bool:
+    raw = os.getenv("MATHAI_DERIVED_ANSWER_V1", "")
+    if not raw:
+        try: raw = str(st.secrets.get("MATHAI_DERIVED_ANSWER_V1", ""))
+        except Exception: raw = ""
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
 
 
 def get_private_beta_auth_client(create_if_missing=True):
@@ -5223,6 +5233,60 @@ elif st.session_state["setup_complete"]:
             st.warning("⚠️ " + st.session_state["scan_scope_warning"])
 
         edited_text = st.text_area("確認題目內容 (可在框內直接微調要輸出的錯題)：", value=st.session_state["scanned_text"], height=120)
+        if derived_answer_feature_enabled():
+            st.markdown("### Confirmed Question")
+            parsed_manual = parse_manual_question(edited_text)
+            confirmed_question_input_hash = hashlib.sha256(edited_text.strip().encode("utf-8")).hexdigest()
+            option_keys = tuple(f"confirmed_opt_{_k.lower()}" for _k in ("A", "B", "C", "D"))
+            options_uninitialized = all(not st.session_state.get(_k, "").strip() for _k in option_keys)
+            if st.session_state.get("confirmed_question_input_hash") != confirmed_question_input_hash or options_uninitialized:
+                st.session_state["confirmed_question_input_hash"] = confirmed_question_input_hash
+                st.session_state["confirmed_answer_request"] = parsed_manual.get("answer_request") or "Solve this question"
+                st.session_state["confirmed_formula"] = parsed_manual.get("formula_representation") or ""
+                parsed_options = parsed_manual.get("choice_options") or {}
+                for _key in ("A", "B", "C", "D"):
+                    st.session_state[f"confirmed_opt_{_key.lower()}"] = parsed_options.get(_key, "")
+            with st.form("confirmed_question_form"):
+                confirmed_request = st.text_input("Answer request", value=st.session_state.get("confirmed_answer_request", parsed_manual.get("answer_request") or "Solve this question"))
+                confirmed_formula = st.text_area("Formula / mathematical content", value=st.session_state.get("confirmed_formula", parsed_manual.get("formula_representation") or ""), height=90)
+                st.caption("Optional choices: fill all four only when this is multiple-choice.")
+                c1,c2,c3,c4=st.columns(4)
+                with c1: opt_a=st.text_input("A", value=st.session_state.get("confirmed_opt_a", (parsed_manual.get("choice_options") or {}).get("A", "")), key="confirmed_opt_a")
+                with c2: opt_b=st.text_input("B", value=st.session_state.get("confirmed_opt_b", (parsed_manual.get("choice_options") or {}).get("B", "")), key="confirmed_opt_b")
+                with c3: opt_c=st.text_input("C", value=st.session_state.get("confirmed_opt_c", (parsed_manual.get("choice_options") or {}).get("C", "")), key="confirmed_opt_c")
+                with c4: opt_d=st.text_input("D", value=st.session_state.get("confirmed_opt_d", (parsed_manual.get("choice_options") or {}).get("D", "")), key="confirmed_opt_d")
+                confirmed = st.form_submit_button("確認題目並解題", type="primary")
+            if confirmed:
+                opts={k:v for k,v in {"A":opt_a,"B":opt_b,"C":opt_c,"D":opt_d}.items() if v.strip()}
+                try:
+                    cq=ConfirmedQuestion(question_text=edited_text, formula_representation=confirmed_formula or None, choice_options=opts or None, answer_request=confirmed_request, source_type="user_scan", human_confirmed=True)
+                    result=derive_answer(cq, call_gemini_api)
+                    st.session_state["confirmed_question_contract"]=cq.solver_payload()
+                    st.session_state["derived_answer_result"]=result.to_public_dict()
+                    st.session_state["derived_history_payload"]=history_payload(cq,result)
+                    # Reuse the existing history path when a real user session is active.
+                    # Test/trial sessions remain side-effect free; no schema changes are required.
+                    if supabase_client and st.session_state.get("user_profile", {}).get("email") != "trial@example.com":
+                        try:
+                            supabase_client.table("user_mistakes_log").insert({
+                                "user_email": st.session_state.get("user_profile", {}).get("email", ""),
+                                "original_mistake": edited_text.strip(),
+                                "created_at": str(date.today()),
+                            }).execute()
+                        except Exception:
+                            pass
+                except Exception as exc:
+                    st.session_state["derived_answer_result"]={"status":"REVIEW_REQUIRED","review_required":True,"error_code":"INVALID_CONFIRMED_QUESTION"}
+            result=st.session_state.get("derived_answer_result")
+            if result:
+                st.markdown("#### Derived Answer")
+                if result.get("review_required") or result.get("status") != "SUCCESS": st.warning("此題需要再次確認")
+                else:
+                    st.write("答案：", result.get("derived_answer_normalized"))
+                    st.write("解題說明：", result.get("reasoning_summary"))
+                    st.write("驗證結果：", result.get("verification_summary"))
+                    st.write("信心程度：", result.get("confidence"))
+
         st.session_state["scanned_text"] = edited_text
 
         if edited_text.strip():
@@ -5230,107 +5294,108 @@ elif st.session_state["setup_complete"]:
             st.caption("下方是學生實際會看到的數學排版；上方文字框仍可直接修改內容。")
             render_math_content(edited_text)
 
-        st.markdown("### 🎯 步驟三：自動產出解析與模擬試題")
-        
-        st.markdown("#### 🎯 選擇產出方案")
-        selected_mock_plan = st.selectbox("請選擇產出題數與方案：", list(q_count_options.keys()), key="mock_plan")
-        mock_q_count = q_count_options[selected_mock_plan]
-        
-        use_interests_1 = st.checkbox("🌟 模擬試題融合學生興趣情境 (等正式版的時候再開放)", value=False, disabled=True, key="scan_interest")
+        if not derived_answer_feature_enabled():
+                st.markdown("### 🎯 步驟三：自動產出解析與模擬試題")
 
-        col_mock1, col_mock2 = st.columns(2)
-        with col_mock1:
-            btn_mock1 = st.button("🚀 執行產出", type="primary", use_container_width=True)
-        with col_mock2:
-            btn_mock2 = st.button("🔄 重新再出一份", use_container_width=True)
-
-        if btn_mock1 or btn_mock2:
-            client_ip = get_client_ip()
-            ip_today_key = f"{today_str}_{client_ip}"
-            current_ip_trials = st.session_state["ip_trial_history"].get(ip_today_key, 0)
-
-            if not edited_text:
-                st.warning("請先輸入或辨識題目！")
-            elif deduct_credit(mock_q_count) and GEMINI_KEY:
-                if supabase_client and st.session_state["user_profile"]["email"] != "trial@example.com":
-                    try:
-                        supabase_client.table("user_mistakes_log").insert({
-                            "user_email": st.session_state["user_profile"]["email"],
-                            "original_mistake": edited_text,
-                            "created_at": str(date.today())
-                        }).execute()
-                    except Exception:
-                        pass
+                st.markdown("#### 🎯 選擇產出方案")
+                selected_mock_plan = st.selectbox("請選擇產出題數與方案：", list(q_count_options.keys()), key="mock_plan")
+                mock_q_count = q_count_options[selected_mock_plan]
                 
-                with st.spinner("產出中..."):
-                    try:
-                        db_text = fetch_relevant_questions_from_db([edited_text[:20]], limit=5)
-                        
-                        limit_prompt = f" (請精準控管題目數量：產出最多 {mock_q_count} 題原錯題解析與改數字模擬題) "
-                        
-                        prompt_text = "【錯題內容】：\n" + edited_text + "\n\n"
-                        prompt_text += "【題庫參考】\n" + (db_text if db_text else "(無)") + "\n\n"
-                        prompt_text += f"請為【錯題內容】產出繁體中文的正解與詳細解析，並接著產出{limit_prompt}與詳細解析解答。\n\n"
-                        prompt_text += LAYOUT_WITH_ANALYSIS
-                        prompt_text += JSON_TEMPLATE_MOCK
-                        
-                        res_text = call_gemini_api([prompt_text])
-                        if res_text:
-                            st.session_state["generated_content"] = re.sub(r'```json.*?```', '', res_text, flags=re.DOTALL).strip()
-                            parse_and_insert_9_col_json(res_text)
-                            record_effective_usage(
-                                st.session_state["user_profile"].get("email", ""),
-                                "mistake_analysis_exam",
-                            )
-                            st.success("成功產出！")
-                    except Exception as e: handle_api_error(e)
-            else:
-                show_trial_conversion_notice()
+                use_interests_1 = st.checkbox("🌟 模擬試題融合學生興趣情境 (等正式版的時候再開放)", value=False, disabled=True, key="scan_interest")
 
-        if st.session_state["generated_content"]:
-            render_math_content(st.session_state["generated_content"])
-            render_share_buttons(st.session_state["generated_content"], "scan_res")
-            
-            st.markdown("---")
-            st.subheader("🚀 步驟四：疊代升級 (變形題)")
-            
-            st.markdown("#### 🎯 選擇變形方案")
-            selected_var_plan = st.selectbox("請選擇變形題數與方案：", list(q_count_options.keys()), key="var_plan")
-            var_q_count = q_count_options[selected_var_plan]
-            
-            use_interests_var = st.checkbox("🌟 變形題融合學生興趣情境 (等正式版的時候再開放)", value=False, disabled=True, key="var_interest")
+                col_mock1, col_mock2 = st.columns(2)
+                with col_mock1:
+                    btn_mock1 = st.button("🚀 執行產出", type="primary", use_container_width=True)
+                with col_mock2:
+                    btn_mock2 = st.button("🔄 重新再出一份", use_container_width=True)
 
-            c_var1, c_var2 = st.columns(2)
-            with c_var1: btn_var1 = st.button("產出變形題", use_container_width=True)
-            with c_var2: btn_var2 = st.button("🔄 重新產出不同變形題", use_container_width=True)
-            
-            if btn_var1 or btn_var2:
-                if deduct_credit(var_q_count) and GEMINI_KEY:
-                    with st.spinner("產出變形題中..."):
-                        db_text = fetch_relevant_questions_from_db([edited_text[:30]], limit=10)
+                if (btn_mock1 or btn_mock2) and not derived_answer_feature_enabled():
+                    client_ip = get_client_ip()
+                    ip_today_key = f"{today_str}_{client_ip}"
+                    current_ip_trials = st.session_state["ip_trial_history"].get(ip_today_key, 0)
+
+                    if not edited_text:
+                        st.warning("請先輸入或辨識題目！")
+                    elif deduct_credit(mock_q_count) and GEMINI_KEY:
+                        if supabase_client and st.session_state["user_profile"]["email"] != "trial@example.com":
+                            try:
+                                supabase_client.table("user_mistakes_log").insert({
+                                    "user_email": st.session_state["user_profile"]["email"],
+                                    "original_mistake": edited_text,
+                                    "created_at": str(date.today())
+                                }).execute()
+                            except Exception:
+                                pass
                         
-                        prompt_var = "錯題內容：\n" + edited_text + "\n\n"
-                        prompt_var += "【題庫優先使用】\n" + (db_text if db_text else "(無)") + "\n\n"
-                        prompt_var += f"請產出 {var_q_count} 題變形試題。\n\n"
-                        prompt_var += LAYOUT_NORMAL
-                        prompt_var += JSON_TEMPLATE_VAR
-                        
-                        try:
-                            res_text = call_gemini_api([prompt_var])
-                            st.session_state["variation_content"] = re.sub(r'```json.*?```', '', res_text, flags=re.DOTALL).strip()
-                            parse_and_insert_9_col_json(res_text)
-                            record_effective_usage(
-                                st.session_state["user_profile"].get("email", ""),
-                                "variation_exam",
-                            )
-                        except Exception as e: handle_api_error(e)
-                else:
-                    show_trial_conversion_notice()
-                        
-            if st.session_state.get("variation_content"):
-                st.markdown("### 🌟 變形試卷")
-                render_math_content(st.session_state["variation_content"])
-                render_share_buttons(st.session_state["variation_content"], "var_res")
+                        with st.spinner("產出中..."):
+                            try:
+                                db_text = fetch_relevant_questions_from_db([edited_text[:20]], limit=5)
+
+                                limit_prompt = f" (請精準控管題目數量：產出最多 {mock_q_count} 題原錯題解析與改數字模擬題) "
+
+                                prompt_text = "【錯題內容】：\n" + edited_text + "\n\n"
+                                prompt_text += "【題庫參考】\n" + (db_text if db_text else "(無)") + "\n\n"
+                                prompt_text += f"請為【錯題內容】產出繁體中文的正解與詳細解析，並接著產出{limit_prompt}與詳細解析解答。\n\n"
+                                prompt_text += LAYOUT_WITH_ANALYSIS
+                                prompt_text += JSON_TEMPLATE_MOCK
+
+                                res_text = call_gemini_api([prompt_text])
+                                if res_text:
+                                    st.session_state["generated_content"] = re.sub(r'```json.*?```', '', res_text, flags=re.DOTALL).strip()
+                                    parse_and_insert_9_col_json(res_text)
+                                    record_effective_usage(
+                                        st.session_state["user_profile"].get("email", ""),
+                                        "mistake_analysis_exam",
+                                    )
+                                    st.success("成功產出！")
+                            except Exception as e: handle_api_error(e)
+                    else:
+                        show_trial_conversion_notice()
+
+                if st.session_state["generated_content"] and not derived_answer_feature_enabled():
+                    render_math_content(st.session_state["generated_content"])
+                    render_share_buttons(st.session_state["generated_content"], "scan_res")
+
+                    st.markdown("---")
+                    st.subheader("🚀 步驟四：疊代升級 (變形題)")
+
+                    st.markdown("#### 🎯 選擇變形方案")
+                    selected_var_plan = st.selectbox("請選擇變形題數與方案：", list(q_count_options.keys()), key="var_plan")
+                    var_q_count = q_count_options[selected_var_plan]
+
+                    use_interests_var = st.checkbox("🌟 變形題融合學生興趣情境 (等正式版的時候再開放)", value=False, disabled=True, key="var_interest")
+
+                    c_var1, c_var2 = st.columns(2)
+                    with c_var1: btn_var1 = st.button("產出變形題", use_container_width=True)
+                    with c_var2: btn_var2 = st.button("🔄 重新產出不同變形題", use_container_width=True)
+
+                    if btn_var1 or btn_var2:
+                        if deduct_credit(var_q_count) and GEMINI_KEY:
+                            with st.spinner("產出變形題中..."):
+                                db_text = fetch_relevant_questions_from_db([edited_text[:30]], limit=10)
+
+                                prompt_var = "錯題內容：\n" + edited_text + "\n\n"
+                                prompt_var += "【題庫優先使用】\n" + (db_text if db_text else "(無)") + "\n\n"
+                                prompt_var += f"請產出 {var_q_count} 題變形試題。\n\n"
+                                prompt_var += LAYOUT_NORMAL
+                                prompt_var += JSON_TEMPLATE_VAR
+
+                                try:
+                                    res_text = call_gemini_api([prompt_var])
+                                    st.session_state["variation_content"] = re.sub(r'```json.*?```', '', res_text, flags=re.DOTALL).strip()
+                                    parse_and_insert_9_col_json(res_text)
+                                    record_effective_usage(
+                                        st.session_state["user_profile"].get("email", ""),
+                                        "variation_exam",
+                                    )
+                                except Exception as e: handle_api_error(e)
+                        else:
+                            show_trial_conversion_notice()
+
+                    if st.session_state.get("variation_content"):
+                        st.markdown("### 🌟 變形試卷")
+                        render_math_content(st.session_state["variation_content"])
+                        render_share_buttons(st.session_state["variation_content"], "var_res")
 
     with tab_custom:
         st.subheader("⚙️ 自組試卷系統 🔒")
