@@ -2,8 +2,24 @@
 app/.streamlit/secrets.toml
 .streamlit/secrets.toml
 
-# Local backup destination configuration must never be committed.
-.mathai_backup_target.txt
+# Local/private corpora and generated ingestion artifacts.
+.local/
+data/question_ingestion/
+**/ELMC_*.pdf
+**/ELMC_*.csv
+**/*_human_review*.csv
+**/*mapping*.csv
+**/*mapping*.json
+**/*mapping*.jsonl
+**/source_cleaning_queue.json
+**/original_photos/
+**/image_backed_pdfs/
+
+# Local archives, backups, and temporary work products.
+backup/
+tmp/
+_research_tmp/
+*.zip
 
 # Python/runtime artifacts.
 __pycache__/
