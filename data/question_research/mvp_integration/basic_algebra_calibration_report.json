@@ -1,0 +1,16 @@
+{
+  "category": "BASIC_ALGEBRA",
+  "positive_case_count": 30,
+  "negative_control_count": 0,
+  "calibration_valid_sample_size": 0,
+  "precision": null,
+  "recall": null,
+  "false_positive_rate": null,
+  "critical_semantic_failures": 0,
+  "deterministic_rerun": "PASS",
+  "status": "FAIL_NO_DERIVED_CANDIDATE",
+  "official_answers_preserved": true,
+  "deepseek_calls": 0,
+  "gemini_calls": 0,
+  "api_cost": 0
+}

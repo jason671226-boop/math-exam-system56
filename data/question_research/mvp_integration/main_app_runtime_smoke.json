@@ -1,0 +1,15 @@
+{
+  "enabled": true,
+  "count": 30,
+  "research_only": true,
+  "track": "TECH-A",
+  "sample_exam_count": 5,
+  "question_ids_unique": true,
+  "ui_render_payload": true,
+  "answer_linkage": true,
+  "taxonomy": true,
+  "evidence": true,
+  "mastery": "PASS",
+  "recommendation": true,
+  "status": "PASS"
+}

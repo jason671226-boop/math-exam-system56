@@ -1,0 +1,18 @@
+{
+  "question_bank_first_lane_e2e": "PASS",
+  "basic_algebra_derived_calibration": "DEFERRED_BLOCKED_BY_MISSING_DERIVED_CANDIDATE",
+  "pilot_feature_flag": {
+    "name": "QUESTION_BANK_PILOT_ENABLED",
+    "local_default": true,
+    "staging_default": true,
+    "production_default": false
+  },
+  "enabled_track": "TECH-A",
+  "disabled_tracks": {
+    "TECH-B": "NOT_ENOUGH_APPROVED_ITEMS",
+    "TECH-C": "NOT_ENOUGH_APPROVED_ITEMS"
+  },
+  "production_mutations": 0,
+  "production_question_imports": 0,
+  "secrets_exposed": false
+}
