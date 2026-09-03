@@ -111,6 +111,15 @@ try:
 except ModuleNotFoundError:
     from app.services.competition_question_service import competition_question_bank
 
+try:
+    from services.question_bank.pilot_runtime import pilot_enabled, load_pilot_pool
+    from services.question_bank.adapter import QuestionBankAdapter
+    from services.question_bank.production_item_bank import select_g5_questions
+except ModuleNotFoundError:
+    from app.services.question_bank.pilot_runtime import pilot_enabled, load_pilot_pool
+    from app.services.question_bank.adapter import QuestionBankAdapter
+    from app.services.question_bank.production_item_bank import select_g5_questions
+
 # 學習地圖模組（MVP）
 try:
     from learning_map import (
@@ -459,7 +468,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-APP_VERSION = "v0.8.8.2"
+APP_VERSION = "v0.8.8.3"
 APP_DIR = Path(__file__).resolve().parent
 LOCAL_EMAILS_FILE = APP_DIR / "recent_emails.json"
 LINE_PAY_QR_FILE = APP_DIR / "line_pay_qr.jpg"
@@ -5333,6 +5342,40 @@ elif st.session_state["setup_complete"]:
                 render_share_buttons(st.session_state["variation_content"], "var_res")
 
     with tab_custom:
+        # Local/staging-only TECH-A pilot selector; legacy flow is unchanged
+        # when QUESTION_BANK_PILOT_ENABLED is disabled.
+        if pilot_enabled():
+            pilot_mode = st.selectbox(
+                "題庫來源",
+                ("既有題庫", "TECH-A Pilot（官方研究題庫）"),
+                key="question_bank_pilot_mode",
+            )
+            if pilot_mode == "TECH-A Pilot（官方研究題庫）":
+                st.info("目前使用 TECH-A Pilot；僅讀取已核准研究題庫，不扣點、不呼叫 AI。")
+                pilot_adapter = QuestionBankAdapter(load_pilot_pool(), seed=17)
+                if st.button("抽取 TECH-A Pilot 5 題", key="question_bank_pilot_draw"):
+                    st.session_state["question_bank_pilot_items"] = list(
+                        pilot_adapter.draw(5, curriculum_track="TECH-A")
+                    )
+                pilot_items = st.session_state.get("question_bank_pilot_items", [])
+                if pilot_items:
+                    st.markdown("### TECH-A Pilot 試卷")
+                    answers = {}
+                    for idx, item in enumerate(pilot_items, 1):
+                        st.markdown(f"**第 {idx} 題**")
+                        st.markdown(item.get("question_text", ""))
+                        answers[item["question_id"]] = st.text_input(
+                            "你的答案", key=f"question_bank_pilot_answer_{item['question_id']}"
+                        )
+                    if st.button("提交 TECH-A Pilot 答案", key="question_bank_pilot_submit"):
+                        for item in pilot_items:
+                            expected = pilot_adapter.answer(item)["answer"]
+                            submitted = answers.get(item["question_id"], "").strip().upper()
+                            pilot_adapter.evidence(
+                                item, "LOCAL_PILOT", submitted == str(expected).upper()
+                            )
+                        st.success("已提交答案並建立 local pilot evidence。")
+                st.stop()
         st.subheader("⚙️ 自組試卷系統 🔒")
         st.caption("依學生年級、教材版本、主單元、次單元與題型產生專屬試卷。")
 
@@ -5588,6 +5631,39 @@ elif st.session_state["setup_complete"]:
                     st.session_state["custom_exam_generation_status"] = "EMPTY_CORPUS"
                     st.info("目前此單元尚無可用題目，請改選其他單元或題型。")
                 st.caption(f"題庫候選題數：{len(special_records)}；可用題數：{len(special_records)}。")
+            elif btn_generate and exam_grade == 5:
+                # G5 production path: bounded read-only item_bank selection; no AI/local fallback.
+                if not selected_mains:
+                    st.warning("請至少選擇一個主單元")
+                else:
+                    if deduct_credit(display_q):
+                        production_rows = select_g5_questions(
+                            supabase_client,
+                            count=display_q,
+                            units=tuple(selected_mains),
+                        )
+                        if len(production_rows) < display_q:
+                            add_user_credits(
+                                st.session_state["user_profile"].get("email", ""),
+                                display_q,
+                                reason="production_pool_insufficient_refund",
+                                reference_type="custom_exam_production_pool",
+                                reference_id=str(uuid.uuid4()),
+                            )
+                            st.session_state["custom_exam_generation_status"] = "INSUFFICIENT_PRODUCTION_POOL"
+                            st.warning(f"Production 題庫目前只有 {len(production_rows)} 題符合條件，未呼叫 AI。")
+                        else:
+                            lines = [f"G5 Production 題庫試卷（{display_q} 題）", ""]
+                            for i, row in enumerate(production_rows, 1):
+                                lines.extend([f"{i}. {row['question_text']}", f"答案：{row['answer']}", ""])
+                            st.session_state["custom_exam_content"] = "\n".join(lines)
+                            st.session_state["custom_exam_last_summary"] = {
+                                "grade": "G5", "question_count": display_q,
+                                "source": "PRODUCTION_ITEM_BANK",
+                                "question_ids": [row["question_id"] for row in production_rows],
+                            }
+                            st.session_state["custom_exam_generation_status"] = "PRODUCTION_ITEM_BANK"
+                            st.rerun()
             elif btn_generate:
                 if not selected_mains:
                     st.warning("請先選擇至少一個主單元。")
