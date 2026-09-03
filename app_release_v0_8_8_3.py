@@ -2955,7 +2955,7 @@ with st.sidebar:
     st.markdown(
         f"""
         <div style="font-size:.74rem;line-height:1.20;margin:0 0 .42rem 0;">
-            <div><b>{sidebar_credits} 點｜{login_label}</b>　<span style="opacity:.65;">{APP_VERSION}</span></div>
+            <div><b>{sidebar_credits} 點｜{login_label}</b>　<span style="opacity:.65;">{APP_VERSION} · Build: QB2-F4R14</span></div>
             <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
                  title="{display_sidebar_email}">👤 {display_sidebar_email}</div>
             <div style="margin-top:.12rem;margin-bottom:.22rem;">💬 <a href="https://line.me/ti/p/a6B_R1wmyL" target="_blank"
@@ -5490,7 +5490,7 @@ elif st.session_state["setup_complete"]:
             )
 
             sanitize_multiselect_state("custom_exam_question_types", classic_type_options)
-            if classic_type_options:
+            if classic_type_options and exam_grade != 5:
                 selected_question_types = st.multiselect(
                     "細部題型（依次單元連動，可複選）",
                     classic_type_options,
@@ -5504,10 +5504,11 @@ elif st.session_state["setup_complete"]:
 
             if exam_grade == 5:
                 g5_question_mode = st.selectbox(
-                    "G5 Question Type Mode",
+                    "G5 細部題型",
                     ("SYSTEM_MIXED", "選擇題", "填空題", "計算題"),
                     key="g5_question_mode",
                 )
+                st.caption("可選系統混合題型、選擇題、填空題或計算題；選單會同步題型配置。")
             else:
                 g5_question_mode = "SYSTEM_MIXED"
 
@@ -5578,11 +5579,12 @@ elif st.session_state["setup_complete"]:
                 }[g5_question_mode]
 
             st.markdown("### 3️⃣ 確認本次試卷")
-            summary_col1, summary_col2, summary_col3, summary_col4 = st.columns(4)
+            summary_col1, summary_col2, summary_col3, summary_col4, summary_col5 = st.columns(5)
             summary_col1.metric("總題數", f"{display_q} 題")
             summary_col2.metric("難度", difficulty)
-            summary_col3.metric("題型配置", f"{mc_cnt}/{fill_cnt}/{calc_cnt}")
-            summary_col4.metric("需要點數", f"{req_pts} 點")
+            summary_col3.metric("細部題型", "、".join(selected_question_types) if selected_question_types else "系統混合題型")
+            summary_col4.metric("題型配置", f"選擇 {mc_cnt}／填空 {fill_cnt}／計算 {calc_cnt}")
+            summary_col5.metric("需要點數", f"{req_pts} 點")
 
             with st.expander("查看完整出題設定", expanded=True):
                 st.markdown(f"**主單元：** {'、'.join(selected_mains) if selected_mains else '尚未選擇'}")
