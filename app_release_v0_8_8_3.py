@@ -5502,6 +5502,15 @@ elif st.session_state["setup_complete"]:
                 if selected_subunits:
                     st.caption("此範圍的細部題型尚未完成校對，因此暫時不顯示。")
 
+            if exam_grade == 5:
+                g5_question_mode = st.selectbox(
+                    "G5 Question Type Mode",
+                    ("SYSTEM_MIXED", "選擇題", "填空題", "計算題"),
+                    key="g5_question_mode",
+                )
+            else:
+                g5_question_mode = "SYSTEM_MIXED"
+
             difficulty_options = list(SELF_BUILT_DIFFICULTIES)
             sanitize_multiselect_state(
                 "custom_exam_difficulties",
@@ -5560,6 +5569,13 @@ elif st.session_state["setup_complete"]:
                 )
 
             mc_cnt, fill_cnt, calc_cnt = format_presets[display_q][format_label]
+            if exam_grade == 5 and g5_question_mode != "SYSTEM_MIXED":
+                selected_question_types = [g5_question_mode]
+                mc_cnt, fill_cnt, calc_cnt = {
+                    "選擇題": (display_q, 0, 0),
+                    "填空題": (0, display_q, 0),
+                    "計算題": (0, 0, display_q),
+                }[g5_question_mode]
 
             st.markdown("### 3️⃣ 確認本次試卷")
             summary_col1, summary_col2, summary_col3, summary_col4 = st.columns(4)
