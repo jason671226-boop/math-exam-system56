@@ -5641,6 +5641,13 @@ elif st.session_state["setup_complete"]:
                             supabase_client,
                             count=display_q,
                             units=tuple(selected_mains),
+                            knowledge_tags=tuple(knowledge_point_ids(curriculum_path, selected_knowledge_points)),
+                            difficulty=selected_difficulties[0] if selected_difficulties else "標準",
+                            question_type_counts={
+                                "選擇題": mc_cnt,
+                                "填空題": fill_cnt,
+                                "計算題": calc_cnt,
+                            },
                         )
                         if len(production_rows) < display_q:
                             add_user_credits(
