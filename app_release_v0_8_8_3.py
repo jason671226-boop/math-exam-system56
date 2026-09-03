@@ -2145,6 +2145,78 @@ def add_user_credits(
     return success
 
 
+def admin_wallet_credit(
+    email,
+    points,
+    reason="admin_manual_credit",
+    reference_type="admin_backend",
+    reference_id="",
+):
+    """Credit a member through the service-role-only admin RPC.
+
+    This is deliberately separate from ``wallet_adjust``: that helper is the
+    authenticated student's debit path and must continue to reject positive
+    deltas.  Callers should reuse the same reference_id when retrying.
+    """
+    result = {
+        "success": False,
+        "new_balance": None,
+        "applied": False,
+        "message": "admin credit rejected",
+    }
+    if not st.session_state.get("admin_unlocked", False):
+        result["message"] = "admin authorization required"
+        return result
+    normalized_email = normalize_email(email)
+    try:
+        points = int(points)
+    except (TypeError, ValueError):
+        points = 0
+    if not normalized_email or points <= 0:
+        result["message"] = "email and positive points are required"
+        return result
+    service_role_key = str(get_streamlit_secret("SUPABASE_SERVICE_ROLE_KEY", "") or "")
+    if not SUPABASE_AVAILABLE or not SUPABASE_URL or not service_role_key:
+        result["message"] = "service-role configuration unavailable"
+        return result
+    try:
+        admin_client = create_client(SUPABASE_URL, service_role_key)
+        stable_reference_id = str(reference_id or f"admin-credit-{uuid.uuid4()}")
+        response = admin_client.rpc(
+            "mathai_admin_wallet_credit",
+            {
+                "p_email": normalized_email,
+                "p_points": points,
+                "p_reason": str(reason or "admin_manual_credit"),
+                "p_reference_type": str(reference_type or "admin_backend"),
+                "p_reference_id": stable_reference_id,
+            },
+        ).execute()
+        rows = response.data or []
+        row = rows[0] if isinstance(rows, list) and rows else rows
+        if isinstance(row, dict):
+            result.update(
+                success=bool(row.get("success", False)),
+                new_balance=(
+                    int(row["new_balance"])
+                    if row.get("new_balance") is not None
+                    else None
+                ),
+                applied=bool(row.get("applied", False)),
+                message=str(row.get("message") or ""),
+            )
+            result["reference_id"] = stable_reference_id
+            if result["new_balance"] is not None and isinstance(
+                st.session_state.get("user_profile"), dict
+            ):
+                st.session_state["user_profile"]["credits"] = result["new_balance"]
+            return result
+        result["message"] = "admin credit RPC returned no result"
+    except Exception:
+        result["message"] = "admin credit RPC failed"
+    return result
+
+
 
 def _table_first(table_name, filters=None, columns="*"):
     if not supabase_client:
@@ -3128,10 +3200,26 @@ with st.sidebar:
                     selected_req_ids.append((req_id, req_email, req_pts))
             
             if st.button("✅ 儲值 (開通勾選的點數)", type="primary"):
+                approval_failed = False
                 for req_id, req_email, req_pts in selected_req_ids:
-                    add_user_credits(req_email, req_pts)
-                    approve_topup_request(req_id)
-                st.success("儲值開通成功！")
+                    credit_result = admin_wallet_credit(
+                        req_email,
+                        req_pts,
+                        reason="topup_approved",
+                        reference_type="topup_request",
+                        reference_id=f"topup-{req_id}",
+                    )
+                    if credit_result.get("success"):
+                        approve_topup_request(req_id)
+                    else:
+                        approval_failed = True
+                        st.error(
+                            f"儲值申請未核准：{credit_result.get('message', 'unknown error')}"
+                        )
+                if approval_failed:
+                    st.error("儲值申請未核准。")
+                else:
+                    st.success("儲值開通成功！")
                 st.rerun()
 
         st.markdown("##### ✍️ 手動派發點數")
@@ -3143,12 +3231,25 @@ with st.sidebar:
             
         if st.button("⚡ 手動儲值"):
             if manual_email and manual_points > 0:
-                add_user_credits(
+                credit_result = admin_wallet_credit(
                     manual_email,
                     manual_points,
                     reason="admin_manual_credit",
+                    reference_type="admin_backend",
+                    reference_id=f"admin-credit-{uuid.uuid4()}",
                 )
-                st.success(f"成功為 {manual_email} 加入 {manual_points} 點！")
+                if credit_result.get("success"):
+                    if credit_result.get("applied") is False:
+                        st.info("此筆加點已處理，不重複入帳。")
+                    else:
+                        st.success(
+                            f"已為 {manual_email} 加入 {manual_points} 點，"
+                            f"目前餘額 {credit_result.get('new_balance')} 點。"
+                        )
+                else:
+                    st.error(
+                        f"手動儲值失敗：{credit_result.get('message', 'unknown error')}"
+                    )
                 st.rerun()
             else:
                 st.warning("請填寫正確的 Email 與大於 0 的點數。")
