@@ -25,3 +25,6 @@ _research_tmp/
 __pycache__/
 *.py[cod]
 *.log
+
+# Stage 5 local-only pilot snapshots and AI mapping outputs.
+.local/
